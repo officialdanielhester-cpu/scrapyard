@@ -20,10 +20,13 @@ Deno.serve(async (req) => {
     const secret = Deno.env.get('AI_GATEWAY_SECRET');
     if (secret) headers['x-app-secret'] = secret;
 
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 90000);
     const upstream = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
     const text = await upstream.text();
     let data;
