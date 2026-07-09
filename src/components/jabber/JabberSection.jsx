@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useVoice } from "@/hooks/use-voice";
 import { generateModel } from "@/components/grid/model-generator";
+import FormulaLibrary from "@/components/jabber/FormulaLibrary";
 
 const SEED_MESSAGES = [
   {
@@ -36,6 +37,7 @@ export default function JabberSection() {
   const [thinking, setThinking] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [formulaOpen, setFormulaOpen] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -106,7 +108,7 @@ User: ${content}`;
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-border/40 px-6 py-5 md:px-12">
         <div>
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Jabber</h1>
@@ -114,11 +116,20 @@ User: ${content}`;
             The Conversation Layer
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border/60 px-3 py-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${speaking ? "bg-primary animate-pulse" : "bg-emerald-500"}`} />
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            {speaking ? "Speaking" : "Listening"}
-          </span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setFormulaOpen(true)}
+            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary"
+          >
+            <Sigma className="h-4 w-4" strokeWidth={1.5} />
+            Formulas
+          </button>
+          <div className="flex items-center gap-2 rounded-full border border-border/60 px-3 py-1.5">
+            <span className={`h-1.5 w-1.5 rounded-full ${speaking ? "bg-primary animate-pulse" : "bg-emerald-500"}`} />
+            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              {speaking ? "Speaking" : "Listening"}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -224,6 +235,12 @@ User: ${content}`;
           </p>
         </div>
       </div>
+
+      <FormulaLibrary
+        open={formulaOpen}
+        onClose={() => setFormulaOpen(false)}
+        onInsert={(eq) => { setInput(eq); setFormulaOpen(false); }}
+      />
     </div>
   );
 }
