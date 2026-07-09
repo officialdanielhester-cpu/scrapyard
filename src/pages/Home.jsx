@@ -5,6 +5,7 @@ import GridSection from "@/components/grid/GridSection";
 import SettingsSection from "@/components/settings/SettingsSection";
 import EnvironmentSection from "@/components/environment/EnvironmentSection";
 import WorkshopSection from "@/components/workshop/WorkshopSection";
+import DashboardSection from "@/components/dashboard/DashboardSection";
 
 export default function Home() {
   const [active, setActive] = useState("jabber");
@@ -35,6 +36,11 @@ export default function Home() {
             <WorkshopSection />
           </div>
         )}
+        {active === "dashboard" && (
+          <div className="min-h-screen">
+            <DashboardSection />
+          </div>
+        )}
         {active === "settings" && (
           <div className="min-h-screen">
             <SettingsSection />
@@ -49,13 +55,15 @@ export default function Home() {
           style={{
             width:
               active === "jabber"
-                ? "20%"
+                ? "17%"
                 : active === "grid"
-                ? "40%"
+                ? "33%"
                 : active === "env"
-                ? "60%"
+                ? "50%"
                 : active === "workshop"
-                ? "80%"
+                ? "67%"
+                : active === "dashboard"
+                ? "83%"
                 : "100%",
           }}
         />
