@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut } from "lucide-react";
+import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
 import VehicleSelector from "@/components/environment/VehicleSelector";
 import EnvironmentSelector from "@/components/environment/EnvironmentSelector";
 import EngineeringControls from "@/components/environment/EngineeringControls";
+import PlanetMission from "@/components/environment/PlanetMission";
 
 export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [vehicleType, setVehicleType] = useState("rocket");
@@ -16,6 +17,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [launched, setLaunched] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
   const [zoom, setZoom] = useState(1);
+  const [view, setView] = useState("pad");
   const [metrics, setMetrics] = useState({ altitude: 0, velocity: 0, maxSpeed: 0, maxAltitude: 0, distance: 0, flightTime: 0, acceleration: 0, fuel: params.fuel, landed: false });
   const [experiments, setExperiments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,6 +158,20 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-full border border-border/60 p-0.5">
+            <button
+              onClick={() => setView("pad")}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${view === "pad" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Rocket className="h-3 w-3" strokeWidth={1.5} /> Launch Pad
+            </button>
+            <button
+              onClick={() => setView("mission")}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${view === "mission" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Orbit className="h-3 w-3" strokeWidth={1.5} /> Planet Transfer
+            </button>
+          </div>
           <button
             onClick={() => setRunning((r) => !r)}
             className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-border/60 px-4 py-2 text-xs font-medium transition-colors hover:border-primary hover:text-primary"
@@ -197,6 +213,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
       </header>
 
       <div className="px-6 md:px-12">
+        {view === "pad" ? (
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-3">
             <div className="relative h-[440px] overflow-hidden rounded-2xl border border-border/50 md:h-[540px]">
@@ -268,7 +285,11 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
             <EngineeringControls params={params} onParam={onParam} variables={variables} onVariable={onVariable} envKey={envKey} />
           </div>
         </div>
+        ) : (
+          <PlanetMission params={params} vehicleType={vehicleType} />
+        )}
 
+        {view === "pad" && (
         <div className="mt-10">
           <div className="mb-4 flex items-center gap-2">
             <FlaskConical className="h-4 w-4 text-primary" strokeWidth={1.5} />
@@ -324,6 +345,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

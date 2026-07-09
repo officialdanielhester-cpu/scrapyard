@@ -75,7 +75,7 @@ export default function JabberNav({ active, onSelect }) {
                 }`}
               >
                 <FlaskConical className="h-4 w-4" strokeWidth={1.5} />
-                <span className="font-body text-sm">Playground</span>
+                <span className="font-body text-sm">Environment</span>
                 <ChevronDown
                   className={`ml-auto h-4 w-4 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
                   strokeWidth={1.5}
@@ -153,7 +153,7 @@ export default function JabberNav({ active, onSelect }) {
               }`}
             >
               <FlaskConical className="h-5 w-5" strokeWidth={1.5} />
-              <span className="font-mono text-[9px] uppercase tracking-wider">Playground</span>
+              <span className="font-mono text-[9px] uppercase tracking-wider">Environment</span>
             </button>
             {mobileOpen && (
               <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-xl border border-border/60 bg-background/95 p-1 shadow-lg backdrop-blur-xl">
