@@ -1,7 +1,26 @@
 import React, { useEffect, useRef } from "react";
-import { styleFor } from "@/components/grid/markup-helpers";
+import { styleFor, eraseNear } from "@/components/grid/markup-helpers";
 
-export default function ModelPreview2D({ model, paintingActive, tool, color, size, onMarkupChange }) {
+function imgFilter(a) {
+  const b = a?.brightness ?? 1;
+  const c = a?.coolness ?? 0.5;
+  const s = a?.sharpness ?? 0.5;
+  const warm = Math.max(0, 0.5 - c);
+  const cool = Math.max(0, c - 0.5);
+  const parts = [`brightness(${b})`];
+  if (warm > 0) {
+    parts.push(`sepia(${warm * 1.2})`);
+    parts.push(`hue-rotate(${-25 * warm}deg)`);
+  }
+  if (cool > 0) {
+    parts.push(`hue-rotate(${30 * cool}deg)`);
+    parts.push(`saturate(${1 + 0.3 * cool})`);
+  }
+  parts.push(`contrast(${0.8 + 0.6 * s})`);
+  return parts.join(" ");
+}
+
+export default function ModelPreview2D({ model, paintingActive, tool, color, size, onMarkupChange, adjust, bgColor }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
@@ -54,7 +73,7 @@ export default function ModelPreview2D({ model, paintingActive, tool, color, siz
     const ir = imgRectRef.current;
     if (!ir) return;
     const pts = stroke.points || [];
-    if (!pts.length) return;
+    if (!pts.length || stroke.tool === "eraser") return;
     styleFor(ctx, stroke.tool, stroke.color, stroke.width);
     ctx.beginPath();
     ctx.moveTo(ir.x + pts[0][0] * ir.w, ir.y + pts[0][1] * ir.h);
@@ -109,19 +128,25 @@ export default function ModelPreview2D({ model, paintingActive, tool, color, siz
     return [(px - ir.x) / ir.w, (py - ir.y) / ir.h];
   };
 
+  const eraseAt = (p) => {
+    if (!p) return;
+    const before = markupRef.current || [];
+    const after = eraseNear(before, [p], 0.05);
+    if (after.length !== before.length) onMarkupChangeRef.current && onMarkupChangeRef.current(after);
+  };
+
   const onDown = (e) => {
     if (!paintingActiveRef.current) return;
     const p = toNorm(e);
     if (!p) return;
     e.preventDefault();
+    if (toolRef.current === "eraser") {
+      eraseAt(p);
+      return;
+    }
     const st = stateRef.current;
     const ir = imgRectRef.current;
-    const stroke = {
-      tool: toolRef.current,
-      color: colorRef.current,
-      width: sizeRef.current,
-      points: [p],
-    };
+    const stroke = { tool: toolRef.current, color: colorRef.current, width: sizeRef.current, points: [p] };
     curStrokeRef.current = stroke;
     lastPtRef.current = p;
     styleFor(st.ctx, stroke.tool, stroke.color, stroke.width);
@@ -132,9 +157,13 @@ export default function ModelPreview2D({ model, paintingActive, tool, color, siz
   };
 
   const onMove = (e) => {
-    if (!paintingActiveRef.current || !curStrokeRef.current) return;
+    if (!paintingActiveRef.current) return;
     const p = toNorm(e);
-    if (!p) return;
+    if (toolRef.current === "eraser") {
+      eraseAt(p);
+      return;
+    }
+    if (!curStrokeRef.current || !p) return;
     e.preventDefault();
     const st = stateRef.current;
     const ir = imgRectRef.current;
@@ -161,13 +190,14 @@ export default function ModelPreview2D({ model, paintingActive, tool, color, siz
   }, []);
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-background">
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden" style={{ backgroundColor: bgColor || "#080B14" }}>
       <img
         ref={imgRef}
         src={model.image_url}
         onLoad={onImgLoad}
         alt=""
         className="absolute inset-0 h-full w-full object-contain"
+        style={{ filter: imgFilter(adjust) }}
       />
       <canvas
         ref={canvasRef}

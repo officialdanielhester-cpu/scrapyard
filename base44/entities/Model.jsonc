@@ -36,6 +36,22 @@
       "type": "string",
       "default": "#3B82F6"
     },
+    "bgColor": {
+      "type": "string",
+      "default": "#080B14"
+    },
+    "brightness": {
+      "type": "number",
+      "default": 1
+    },
+    "coolness": {
+      "type": "number",
+      "default": 0.5
+    },
+    "sharpness": {
+      "type": "number",
+      "default": 0.5
+    },
     "scale": {
       "type": "number",
       "default": 1
@@ -74,8 +90,16 @@
             "type": "string",
             "enum": [
               "pen",
+              "pencil",
               "marker",
-              "highlighter"
+              "brush",
+              "highlighter",
+              "airbrush",
+              "calligraphy",
+              "crayon",
+              "ink",
+              "chalk",
+              "eraser"
             ]
           },
           "color": {

@@ -16,9 +16,21 @@ function strokePath(stroke) {
 
 function strokeProps(stroke) {
   const base = { stroke: stroke.color, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };
-  if (stroke.tool === "pen") return { ...base, strokeWidth: 0.008, opacity: 1 };
-  if (stroke.tool === "marker") return { ...base, strokeWidth: 0.014, opacity: 0.7 };
-  return { ...base, strokeWidth: 0.03, opacity: 0.3, style: { mixBlendMode: "multiply" } };
+  const w = stroke.width || 4;
+  switch (stroke.tool) {
+    case "pen": return { ...base, strokeWidth: 0.008, opacity: 1 };
+    case "pencil": return { ...base, strokeWidth: 0.005, opacity: 0.55 };
+    case "marker": return { ...base, strokeWidth: 0.014, opacity: 0.7 };
+    case "brush": return { ...base, strokeWidth: 0.011, opacity: 0.85 };
+    case "highlighter": return { ...base, strokeWidth: 0.026, opacity: 0.3, style: { mixBlendMode: "multiply" } };
+    case "airbrush": return { ...base, strokeWidth: 0.018, opacity: 0.16 };
+    case "calligraphy": return { ...base, strokeWidth: 0.013, opacity: 1, strokeLinecap: "butt", strokeLinejoin: "miter" };
+    case "crayon": return { ...base, strokeWidth: 0.009, opacity: 0.75, strokeDasharray: "0.004 0.003" };
+    case "ink": return { ...base, strokeWidth: 0.01, opacity: 1 };
+    case "chalk": return { ...base, strokeWidth: 0.012, opacity: 0.45, strokeDasharray: "0.0025 0.003" };
+    case "eraser": return { ...base, strokeWidth: 0, opacity: 0, stroke: "transparent" };
+    default: return { ...base, strokeWidth: 0.008, opacity: 1 };
+  }
 }
 
 export default function Grid2D({ models, onOpen }) {

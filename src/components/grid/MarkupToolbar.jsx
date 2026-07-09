@@ -1,11 +1,19 @@
 import React from "react";
-import { PenLine, Brush, Highlighter, Eraser } from "lucide-react";
+import { PenLine, Pencil, Brush, Paintbrush, Highlighter, SprayCan, PenTool, PencilLine, Droplet, Feather, Eraser } from "lucide-react";
 import { MARKUP_COLORS } from "@/components/grid/markup-helpers";
 
 const TOOLS = [
   { id: "pen", label: "Pen", Icon: PenLine },
+  { id: "pencil", label: "Pencil", Icon: Pencil },
   { id: "marker", label: "Marker", Icon: Brush },
-  { id: "highlighter", label: "Highlighter", Icon: Highlighter },
+  { id: "brush", label: "Brush", Icon: Paintbrush },
+  { id: "highlighter", label: "Highlight", Icon: Highlighter },
+  { id: "airbrush", label: "Airbrush", Icon: SprayCan },
+  { id: "calligraphy", label: "Calligraphy", Icon: PenTool },
+  { id: "crayon", label: "Crayon", Icon: PencilLine },
+  { id: "ink", label: "Ink", Icon: Droplet },
+  { id: "chalk", label: "Chalk", Icon: Feather },
+  { id: "eraser", label: "Eraser", Icon: Eraser },
 ];
 
 export default function MarkupToolbar({ tool, setTool, color, setColor, size, setSize, onClear }) {
@@ -13,9 +21,9 @@ export default function MarkupToolbar({ tool, setTool, color, setColor, size, se
     <div className="space-y-4">
       <div>
         <label className="mb-2 block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          Tool
+          Brushes
         </label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {TOOLS.map((t) => {
             const Icon = t.Icon;
             const on = tool === t.id;
@@ -23,7 +31,7 @@ export default function MarkupToolbar({ tool, setTool, color, setColor, size, se
               <button
                 key={t.id}
                 onClick={() => setTool(t.id)}
-                className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-xs transition-colors ${
+                className={`flex flex-col items-center gap-1 rounded-lg border px-1 py-2 text-[10px] transition-colors ${
                   on
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border/60 text-muted-foreground hover:text-foreground"
@@ -71,7 +79,7 @@ export default function MarkupToolbar({ tool, setTool, color, setColor, size, se
         <input
           type="range"
           min={1}
-          max={14}
+          max={16}
           step={1}
           value={size}
           onChange={(e) => setSize(parseInt(e.target.value, 10))}
