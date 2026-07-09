@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
-import { Box, Circle, Hexagon, Triangle, Octagon, Square, Trash2, Plus, Download, Sparkles, Boxes } from "lucide-react";
+import { Box, Circle, Hexagon, Triangle, Octagon, Square, Trash2, Plus, Download, Sparkles, Boxes, Copy, Layers, Scissors, Crop } from "lucide-react";
 import ImportModelsPanel from "@/components/studio/ImportModelsPanel";
 import JabberModelGen from "@/components/studio/JabberModelGen";
 import ModelPresetsPanel from "@/components/studio/ModelPresetsPanel";
@@ -87,6 +87,7 @@ export default function BlenderStudio() {
   const selectedRef = useRef(null);
   const meshGroupRef = useRef(null);
   const pickablesRef = useRef([]);
+  const toolbarRef = useRef(null);
 
   const rebuild = () => {
     const group = meshGroupRef.current;
@@ -179,34 +180,57 @@ export default function BlenderStudio() {
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
-    let dragging = false, lastX = 0, lastY = 0, dragDist = 0;
+    const movePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    let dragging = false, moveId = null, moveY = 0, lastX = 0, lastY = 0, dragDist = 0;
+    const pickAt = (clientX, clientY) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObjects(pickablesRef.current, false)[0];
+    };
     const onDown = (e) => {
-      dragging = true; dragDist = 0; lastX = e.clientX; lastY = e.clientY;
+      dragDist = 0; lastX = e.clientX; lastY = e.clientY;
       renderer.domElement.setPointerCapture(e.pointerId);
+      const hit = pickAt(e.clientX, e.clientY);
+      if (hit?.object?.userData?.id) {
+        const id = hit.object.userData.id;
+        const obj = objectsRef.current.find((x) => x.id === id);
+        moveId = id;
+        moveY = obj ? obj.pos[1] : 0;
+        movePlane.constant = -moveY;
+        setSelectedId(id);
+      } else {
+        dragging = true;
+      }
       renderer.domElement.style.cursor = "grabbing";
     };
     const onMove = (e) => {
-      if (!dragging) return;
       const dx = e.clientX - lastX, dy = e.clientY - lastY;
       lastX = e.clientX; lastY = e.clientY;
       dragDist += Math.abs(dx) + Math.abs(dy);
-      theta -= dx * 0.006;
-      phi = Math.max(0.15, Math.min(Math.PI - 0.15, phi - dy * 0.006));
-      updateCam();
-    };
-    const onUp = (e) => {
-      if (!dragging) return;
-      dragging = false;
-      try { renderer.domElement.releasePointerCapture(e.pointerId); } catch {}
-      renderer.domElement.style.cursor = "grab";
-      if (dragDist < 6) {
+      if (moveId) {
         const rect = renderer.domElement.getBoundingClientRect();
         pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(pointer, camera);
-        const hit = raycaster.intersectObjects(pickablesRef.current, false)[0];
-        setSelectedId(hit?.object?.userData?.id || null);
+        const hit = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(movePlane, hit)) {
+          setObjects((prev) => prev.map((o) => (o.id === moveId ? { ...o, pos: [hit.x, moveY, hit.z] } : o)));
+        }
+      } else if (dragging) {
+        theta -= dx * 0.006;
+        phi = Math.max(0.15, Math.min(Math.PI - 0.15, phi - dy * 0.006));
+        updateCam();
       }
+    };
+    const onUp = (e) => {
+      try { renderer.domElement.releasePointerCapture(e.pointerId); } catch {}
+      renderer.domElement.style.cursor = "grab";
+      if (moveId) { moveId = null; return; }
+      if (!dragging) return;
+      dragging = false;
+      if (dragDist < 6) setSelectedId(null);
     };
     const onWheel = (e) => {
       e.preventDefault();
@@ -219,7 +243,28 @@ export default function BlenderStudio() {
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     let raf;
-    const tick = () => { raf = requestAnimationFrame(tick); renderer.render(scene, camera); };
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const tb = toolbarRef.current;
+      if (tb) {
+        const o = objectsRef.current.find((x) => x.id === selectedRef.current);
+        const w = renderer.domElement.clientWidth;
+        const h = renderer.domElement.clientHeight;
+        if (o && w && h) {
+          const v = new THREE.Vector3(o.pos[0], o.pos[1] + 1.6, o.pos[2]);
+          v.project(camera);
+          tb.style.opacity = "1";
+          tb.style.pointerEvents = "auto";
+          tb.style.left = `${(v.x * 0.5 + 0.5) * w}px`;
+          tb.style.top = `${(-v.y * 0.5 + 0.5) * h}px`;
+          tb.style.transform = "translate(-50%, -100%)";
+        } else {
+          tb.style.opacity = "0";
+          tb.style.pointerEvents = "none";
+        }
+      }
+      renderer.render(scene, camera);
+    };
     tick();
 
     const ro = new ResizeObserver(() => {
@@ -348,9 +393,19 @@ export default function BlenderStudio() {
             <Boxes className="h-3.5 w-3.5" strokeWidth={1.5} /> Models
           </button>
         </div>
-        <div ref={mountRef} className="h-[420px] w-full overflow-hidden rounded-2xl border border-border/50 md:h-[560px]" />
+        <div ref={mountRef} className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-border/50 md:h-[560px]">
+          {sel && (
+            <div ref={toolbarRef} className="absolute left-0 top-0 z-20 flex items-center gap-1 rounded-full border border-border/60 bg-background/90 px-1.5 py-1 opacity-0 shadow-lg backdrop-blur pointer-events-none">
+              <button onClick={handleDuplicate} title="Duplicate" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground"><Copy className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+              <button onClick={handleMerge} disabled={objects.length < 2} title="Merge" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-40"><Layers className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+              <button onClick={handleSlice} title="Slice" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground"><Scissors className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+              <button onClick={handleCut} title="Cut" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground"><Crop className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+              <button onClick={delSel} title="Delete" className="flex h-7 w-7 items-center justify-center rounded-full text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"><Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+            </div>
+          )}
+        </div>
         <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-          Drag to orbit · scroll to zoom · click an object to select
+          Drag empty space to orbit · drag an object to move · scroll to zoom
         </p>
       </div>
 
@@ -432,27 +487,7 @@ export default function BlenderStudio() {
               ))}
             </div>
 
-            <div className="border-t border-border/40 pt-3">
-              <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Actions</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={handleDuplicate} className="rounded-md border border-border/60 px-2 py-2 text-xs transition-colors hover:border-primary hover:text-primary">Duplicate</button>
-                <button
-                  onClick={handleMerge}
-                  disabled={objects.length < 2}
-                  className="rounded-md border border-border/60 px-2 py-2 text-xs transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
-                  title={objects.length < 2 ? "Need another object to merge" : `Merge with ${objects.find((o) => o.id !== sel.id)?.name}`}
-                >Merge</button>
-                <button onClick={handleSlice} className="rounded-md border border-border/60 px-2 py-2 text-xs transition-colors hover:border-primary hover:text-primary">Slice</button>
-                <button onClick={handleCut} className="rounded-md border border-border/60 px-2 py-2 text-xs transition-colors hover:border-primary hover:text-primary">Cut</button>
-              </div>
-            </div>
 
-            <button
-              onClick={delSel}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-destructive/40 px-3 py-2 text-xs text-destructive transition-colors hover:bg-destructive/5"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Delete Object
-            </button>
           </div>
         )}
       </div>
