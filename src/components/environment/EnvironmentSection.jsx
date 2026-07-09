@@ -1,32 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Circle, Square, RotateCcw, Trash2, FlaskConical, Activity, Loader2 } from "lucide-react";
+import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
-import EnvironmentControls from "@/components/environment/EnvironmentControls";
-
-const DEFAULTS = {
-  gravity: 9.8,
-  friction: 0.3,
-  timeScale: 1,
-  wind: 0,
-  atmosphere: 1,
-  temperature: 20,
-  specimens: 6,
-  bgColor: "#080B14",
-};
+import VehicleSelector from "@/components/environment/VehicleSelector";
+import EnvironmentSelector from "@/components/environment/EnvironmentSelector";
+import EngineeringControls from "@/components/environment/EngineeringControls";
 
 export default function EnvironmentSection() {
-  const [variables, setVariables] = useState(DEFAULTS);
+  const [vehicleType, setVehicleType] = useState("rocket");
+  const [envKey, setEnvKey] = useState("earth");
+  const [params, setParams] = useState(VEHICLES.rocket.defaults);
+  const [variables, setVariables] = useState(DEFAULT_VARIABLES("earth"));
   const [running, setRunning] = useState(true);
-  const [recording, setRecording] = useState(false);
+  const [launched, setLaunched] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
-  const [metrics, setMetrics] = useState({ avgSpeed: 0, maxHeight: 0, collisions: 0 });
+  const [metrics, setMetrics] = useState({ altitude: 0, velocity: 0, maxSpeed: 0, maxAltitude: 0, distance: 0, flightTime: 0, acceleration: 0, fuel: params.fuel, landed: false });
   const [experiments, setExperiments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [recording, setRecording] = useState(false);
   const recordStartRef = useRef(0);
-  const collisionsAtStartRef = useRef(0);
-  const accumRef = useRef({ avgSpeed: 0, maxHeight: 0, samples: 0 });
+  const accumRef = useRef({ maxAltitude: 0, maxVelocity: 0, distance: 0, flightTime: 0 });
 
   const load = useCallback(async () => {
     try {
@@ -39,25 +34,45 @@ export default function EnvironmentSection() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleChange = (key, val) => setVariables((prev) => ({ ...prev, [key]: val }));
+  const selectVehicle = (type) => {
+    setVehicleType(type);
+    setParams(VEHICLES[type].defaults);
+    setLaunched(false);
+    setResetSignal((s) => s + 1);
+  };
+
+  const selectEnv = (key) => {
+    setEnvKey(key);
+    setVariables(DEFAULT_VARIABLES(key));
+    setLaunched(false);
+    setResetSignal((s) => s + 1);
+  };
+
+  const onParam = (key, val) => setParams((prev) => ({ ...prev, [key]: val }));
+  const onVariable = (key, val) => setVariables((prev) => ({ ...prev, [key]: val }));
+
+  const handleLaunch = () => {
+    setLaunched(false);
+    setResetSignal((s) => s + 1);
+    setTimeout(() => setLaunched(true), 30);
+  };
+  const handleReset = () => { setLaunched(false); setResetSignal((s) => s + 1); };
 
   const handleMetrics = (m) => {
     setMetrics(m);
     if (recording) {
       const a = accumRef.current;
-      a.avgSpeed = (a.avgSpeed * a.samples + m.avgSpeed) / (a.samples + 1);
-      a.maxHeight = Math.max(a.maxHeight, m.maxHeight);
-      a.samples += 1;
+      a.maxAltitude = Math.max(a.maxAltitude, m.maxAltitude);
+      a.maxVelocity = Math.max(a.maxVelocity, m.maxSpeed);
+      a.distance = Math.max(a.distance, m.distance);
+      a.flightTime = Math.max(a.flightTime, m.flightTime);
     }
   };
 
   const startRecord = () => {
-    accumRef.current = { avgSpeed: 0, maxHeight: 0, samples: 0 };
-    collisionsAtStartRef.current = metrics.collisions;
+    accumRef.current = { maxAltitude: 0, maxVelocity: 0, distance: 0, flightTime: 0 };
     recordStartRef.current = Date.now();
     setRecording(true);
   };
@@ -69,20 +84,27 @@ export default function EnvironmentSection() {
     setSaving(true);
     try {
       await base44.entities.Experiment.create({
-        name: `Experiment ${experiments.length + 1}`,
+        name: `${VEHICLES[vehicleType].label} · ${ENVIRONMENTS[envKey].label}`,
         description: "",
+        vehicle_type: vehicleType,
+        environment: envKey,
+        thrust: params.thrust,
+        mass: params.mass,
+        drag: params.drag,
+        lift: params.lift,
+        fuel: params.fuel,
         gravity: variables.gravity,
-        friction: variables.friction,
-        timeScale: variables.timeScale,
-        wind: variables.wind,
         atmosphere: variables.atmosphere,
         temperature: variables.temperature,
-        specimens: Math.round(variables.specimens),
+        wind: variables.wind,
+        timeScale: variables.timeScale,
         bgColor: variables.bgColor,
+        maxAltitude: Number((a.maxAltitude || 0).toFixed(1)),
+        maxVelocity: Number((a.maxVelocity || 0).toFixed(1)),
+        distance: Number((a.distance || 0).toFixed(1)),
+        flightTime: Number((a.flightTime || 0).toFixed(1)),
+        acceleration: Number((metrics.acceleration || 0).toFixed(1)),
         duration: Number(duration.toFixed(1)),
-        avgSpeed: Number((a.avgSpeed || 0).toFixed(2)),
-        maxHeight: Number((a.maxHeight || 0).toFixed(2)),
-        collisions: Math.max(0, metrics.collisions - collisionsAtStartRef.current),
       });
       load();
     } catch (e) {
@@ -93,25 +115,28 @@ export default function EnvironmentSection() {
   };
 
   const handleDelete = async (id) => {
-    try {
-      await base44.entities.Experiment.delete(id);
-      load();
-    } catch (e) {}
+    try { await base44.entities.Experiment.delete(id); load(); } catch (e) {}
   };
 
+  const fuelPct = Math.max(0, Math.min(100, (metrics.fuel / (params.fuel || 1)) * 100));
+  const statusLabel = recording ? "Recording" : !launched ? "Ready" : metrics.landed ? "Landed" : running ? "In Flight" : "Paused";
+
   const metricCards = [
-    { label: "Avg Speed", value: metrics.avgSpeed.toFixed(2), unit: "m/s" },
-    { label: "Max Height", value: metrics.maxHeight.toFixed(2), unit: "m" },
-    { label: "Collisions", value: metrics.collisions, unit: "" },
+    { label: "Altitude", value: metrics.altitude.toFixed(1), unit: "m" },
+    { label: "Velocity", value: metrics.velocity.toFixed(1), unit: "m/s" },
+    { label: "Max Speed", value: metrics.maxSpeed.toFixed(1), unit: "m/s" },
+    { label: "Distance", value: metrics.distance.toFixed(1), unit: "m" },
+    { label: "Flight Time", value: metrics.flightTime.toFixed(1), unit: "s" },
+    { label: "Accel", value: metrics.acceleration.toFixed(1), unit: "m/s²" },
   ];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-10">
       <header className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-12">
         <div>
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Environment</h1>
           <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-            Simulate · Control · Record
+            Design · Launch · Test
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -123,7 +148,13 @@ export default function EnvironmentSection() {
             {running ? "Pause" : "Play"}
           </button>
           <button
-            onClick={() => setResetSignal((s) => s + 1)}
+            onClick={handleLaunch}
+            className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            <Rocket className="h-3.5 w-3.5" strokeWidth={2} /> Launch
+          </button>
+          <button
+            onClick={handleReset}
             className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-border/60 px-4 py-2 text-xs font-medium transition-colors hover:border-primary hover:text-primary"
           >
             <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} /> Reset
@@ -141,7 +172,7 @@ export default function EnvironmentSection() {
             <button
               onClick={startRecord}
               disabled={saving}
-              className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-primary/60 px-4 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
             >
               <Circle className="h-3 w-3 fill-current" strokeWidth={2} /> Record
             </button>
@@ -150,49 +181,64 @@ export default function EnvironmentSection() {
       </header>
 
       <div className="px-6 md:px-12">
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-3">
-            <div className="relative h-[420px] overflow-hidden rounded-2xl border border-border/50 md:h-[520px]">
+            <div className="relative h-[440px] overflow-hidden rounded-2xl border border-border/50 md:h-[540px]">
               <SimulationCanvas
+                vehicleType={vehicleType}
+                params={params}
                 variables={variables}
                 running={running}
+                launched={launched}
                 resetSignal={resetSignal}
                 onMetrics={handleMetrics}
               />
               <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1.5 backdrop-blur">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    recording ? "animate-pulse bg-destructive" : running ? "bg-emerald-500" : "bg-muted-foreground"
-                  }`}
-                />
+                <span className={`h-1.5 w-1.5 rounded-full ${recording ? "animate-pulse bg-destructive" : metrics.landed ? "bg-amber-500" : launched ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{statusLabel}</span>
+              </div>
+              <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1.5 backdrop-blur">
+                <Gauge className="h-3 w-3 text-primary" strokeWidth={1.5} />
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {recording ? "Recording" : running ? "Running" : "Paused"}
+                  {VEHICLES[vehicleType].label} · {ENVIRONMENTS[envKey].label}
                 </span>
+              </div>
+              {/* fuel gauge */}
+              <div className="absolute inset-x-4 bottom-4">
+                <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <span>Fuel</span>
+                  <span>{Math.max(0, metrics.fuel).toFixed(1)}s</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-foreground/10">
+                  <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${fuelPct}%` }} />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3 lg:grid-cols-6">
               {metricCards.map((m) => (
                 <div key={m.label} className="rounded-xl border border-border/50 p-3">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{m.label}</p>
-                  <p className="mt-1 font-heading text-lg font-bold text-foreground">
+                  <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{m.label}</p>
+                  <p className="mt-1 font-heading text-base font-bold text-foreground">
                     {m.value}
-                    {m.unit && <span className="ml-1 text-xs font-normal text-muted-foreground">{m.unit}</span>}
+                    {m.unit && <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">{m.unit}</span>}
                   </p>
                 </div>
               ))}
             </div>
           </div>
 
-          <EnvironmentControls variables={variables} onChange={handleChange} />
+          <div className="space-y-6">
+            <VehicleSelector value={vehicleType} onSelect={selectVehicle} />
+            <EnvironmentSelector value={envKey} onSelect={selectEnv} />
+            <EngineeringControls params={params} onParam={onParam} variables={variables} onVariable={onVariable} envKey={envKey} />
+          </div>
         </div>
 
-        <div className="mt-10 pb-16">
+        <div className="mt-10">
           <div className="mb-4 flex items-center gap-2">
             <FlaskConical className="h-4 w-4 text-primary" strokeWidth={1.5} />
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-              Recorded Experiments
-            </h2>
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Test Logs</h2>
           </div>
           {loading ? (
             <div className="flex h-32 items-center justify-center rounded-2xl border border-border/50">
@@ -201,10 +247,8 @@ export default function EnvironmentSection() {
           ) : experiments.length === 0 ? (
             <div className="flex h-32 flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 text-center">
               <FlaskConical className="h-6 w-6 text-muted-foreground/50" strokeWidth={1} />
-              <p className="mt-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                No experiments recorded
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground/70">Press Record to capture a run</p>
+              <p className="mt-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">No test runs recorded</p>
+              <p className="mt-1 text-sm text-muted-foreground/70">Press Record, then Launch</p>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -214,33 +258,32 @@ export default function EnvironmentSection() {
                     <div>
                       <p className="text-sm font-medium text-foreground">{exp.name}</p>
                       <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {Number(exp.duration).toFixed(1)}s · {exp.collisions} hits
+                        {VEHICLES[exp.vehicle_type]?.label || exp.vehicle_type} · {ENVIRONMENTS[exp.environment]?.label || exp.environment}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleDelete(exp.id)}
-                      className="text-muted-foreground transition-colors hover:text-destructive"
-                    >
+                    <button onClick={() => handleDelete(exp.id)} className="text-muted-foreground transition-colors hover:text-destructive">
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                     </button>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-1.5 text-[11px]">
+                    <span className="text-muted-foreground">Thrust</span>
+                    <span className="text-right font-mono text-foreground/80">{Number(exp.thrust).toFixed(0)} kN</span>
+                    <span className="text-muted-foreground">Mass</span>
+                    <span className="text-right font-mono text-foreground/80">{Number(exp.mass).toFixed(0)} t</span>
                     <span className="text-muted-foreground">Gravity</span>
                     <span className="text-right font-mono text-foreground/80">{Number(exp.gravity).toFixed(1)} m/s²</span>
-                    <span className="text-muted-foreground">Temp</span>
-                    <span className="text-right font-mono text-foreground/80">{Number(exp.temperature).toFixed(0)}°C</span>
-                    <span className="text-muted-foreground">Wind</span>
-                    <span className="text-right font-mono text-foreground/80">{Number(exp.wind).toFixed(1)} m/s</span>
                     <span className="text-muted-foreground">Atmos</span>
                     <span className="text-right font-mono text-foreground/80">{Number(exp.atmosphere).toFixed(2)}×</span>
-                    <span className="text-muted-foreground">Friction</span>
-                    <span className="text-right font-mono text-foreground/80">{Number(exp.friction).toFixed(2)}</span>
                   </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-3 text-[11px]">
-                    <span className="text-muted-foreground">Avg Speed · Max Height</span>
-                    <span className="font-mono text-primary">
-                      {Number(exp.avgSpeed).toFixed(2)} · {Number(exp.maxHeight).toFixed(2)}m
-                    </span>
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 border-t border-border/40 pt-3 text-[11px]">
+                    <span className="text-muted-foreground">Apogee</span>
+                    <span className="text-right font-mono text-primary">{Number(exp.maxAltitude).toFixed(0)} m</span>
+                    <span className="text-muted-foreground">Max V</span>
+                    <span className="text-right font-mono text-primary">{Number(exp.maxVelocity).toFixed(0)} m/s</span>
+                    <span className="text-muted-foreground">Distance</span>
+                    <span className="text-right font-mono text-primary">{Number(exp.distance).toFixed(0)} m</span>
+                    <span className="text-muted-foreground">Duration</span>
+                    <span className="text-right font-mono text-primary">{Number(exp.duration).toFixed(1)} s</span>
                   </div>
                 </div>
               ))}

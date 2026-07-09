@@ -9,21 +9,37 @@
       "type": "string",
       "default": ""
     },
-    "gravity": {
-      "type": "number",
-      "default": 9.8
+    "vehicle_type": {
+      "type": "string",
+      "default": "rocket"
     },
-    "friction": {
+    "environment": {
+      "type": "string",
+      "default": "earth"
+    },
+    "thrust": {
+      "type": "number",
+      "default": 80
+    },
+    "mass": {
+      "type": "number",
+      "default": 5
+    },
+    "drag": {
       "type": "number",
       "default": 0.3
     },
-    "timeScale": {
-      "type": "number",
-      "default": 1
-    },
-    "wind": {
+    "lift": {
       "type": "number",
       "default": 0
+    },
+    "fuel": {
+      "type": "number",
+      "default": 6
+    },
+    "gravity": {
+      "type": "number",
+      "default": 9.8
     },
     "atmosphere": {
       "type": "number",
@@ -31,29 +47,41 @@
     },
     "temperature": {
       "type": "number",
-      "default": 20
+      "default": 15
     },
-    "specimens": {
+    "wind": {
       "type": "number",
-      "default": 6
+      "default": 0
+    },
+    "timeScale": {
+      "type": "number",
+      "default": 1
     },
     "bgColor": {
       "type": "string",
       "default": "#080B14"
     },
+    "maxAltitude": {
+      "type": "number",
+      "default": 0
+    },
+    "maxVelocity": {
+      "type": "number",
+      "default": 0
+    },
+    "distance": {
+      "type": "number",
+      "default": 0
+    },
+    "flightTime": {
+      "type": "number",
+      "default": 0
+    },
+    "acceleration": {
+      "type": "number",
+      "default": 0
+    },
     "duration": {
-      "type": "number",
-      "default": 0
-    },
-    "avgSpeed": {
-      "type": "number",
-      "default": 0
-    },
-    "maxHeight": {
-      "type": "number",
-      "default": 0
-    },
-    "collisions": {
       "type": "number",
       "default": 0
     }
