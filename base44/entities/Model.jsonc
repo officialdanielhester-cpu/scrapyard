@@ -1,0 +1,64 @@
+{
+  "name": "Model",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "prompt": {
+      "type": "string",
+      "default": ""
+    },
+    "geometry": {
+      "type": "string",
+      "enum": [
+        "box",
+        "octahedron",
+        "icosahedron",
+        "tetrahedron",
+        "dodecahedron",
+        "torus",
+        "sphere",
+        "cone",
+        "plane"
+      ],
+      "default": "box"
+    },
+    "color": {
+      "type": "string",
+      "default": "#3B82F6"
+    },
+    "scale": {
+      "type": "number",
+      "default": 1
+    },
+    "rotX": {
+      "type": "number",
+      "default": 0
+    },
+    "rotY": {
+      "type": "number",
+      "default": 0
+    },
+    "rotZ": {
+      "type": "number",
+      "default": 0
+    },
+    "metalness": {
+      "type": "number",
+      "default": 0.65
+    },
+    "roughness": {
+      "type": "number",
+      "default": 0.22
+    },
+    "image_url": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "required": [
+    "name",
+    "geometry"
+  ]
+}

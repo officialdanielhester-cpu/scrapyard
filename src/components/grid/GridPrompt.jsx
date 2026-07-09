@@ -2,7 +2,35 @@ import React, { useState } from "react";
 import { ArrowUp, Sparkles, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
-export default function GridPrompt({ onCreate }) {
+const GEOMETRIES = ["box", "octahedron", "icosahedron", "tetrahedron", "dodecahedron", "torus", "sphere", "cone"];
+
+const SCHEMA = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    geometry: { type: "string", enum: GEOMETRIES },
+    color: { type: "string" },
+    scale: { type: "number" },
+    rotX: { type: "number" },
+    rotY: { type: "number" },
+    rotZ: { type: "number" },
+    metalness: { type: "number" },
+    roughness: { type: "number" },
+  },
+  required: ["name", "geometry", "color", "scale", "rotX", "rotY", "rotZ", "metalness", "roughness"],
+};
+
+const clamp = (v, min, max, fallback) =>
+  typeof v === "number" && !Number.isNaN(v) ? Math.max(min, Math.min(max, v)) : fallback;
+
+const sanitizeColor = (c) => {
+  if (typeof c === "string" && /^#?[0-9a-fA-F]{6}$/.test(c)) {
+    return c.startsWith("#") ? c : "#" + c;
+  }
+  return "#3B82F6";
+};
+
+export default function GridPrompt({ onCreated }) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -14,12 +42,28 @@ export default function GridPrompt({ onCreate }) {
     setLoading(true);
     setError(null);
     try {
-      const { url } = await base44.integrations.Core.GenerateImage({
-        prompt: `3D abstract model concept: ${text}. High-key studio lighting, weightless, futuristic, mercury silver and electric cerulean, pristine, minimal, heavy negative space, no text, no faces, no hardware.`,
+      const params = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are Jabber, a 3D model designer inside an ambient intelligence app. The user said: "${text}". Design ONE 3D model as JSON. Choose the most fitting geometry from [box, octahedron, icosahedron, tetrahedron, dodecahedron, torus, sphere, cone]. Pick a hex color (e.g. #3B82F6) that matches the concept. scale between 0.5 and 2.0. rotX, rotY, rotZ in radians between -3.14 and 3.14. metalness between 0 and 1. roughness between 0 and 1. name: a short evocative title, max 4 words. Return only the JSON.`,
+        response_json_schema: SCHEMA,
       });
-      if (!url) throw new Error("No image returned");
-      onCreate({ id: Date.now().toString(), name: text.slice(0, 32), type: "ai", image: url });
+
+      const geometry = GEOMETRIES.includes(params.geometry) ? params.geometry : "box";
+      await base44.entities.Model.create({
+        name: (params.name || text.slice(0, 24)).slice(0, 48),
+        prompt: text,
+        geometry,
+        color: sanitizeColor(params.color),
+        scale: clamp(params.scale, 0.4, 2.2, 1),
+        rotX: clamp(params.rotX, -Math.PI, Math.PI, 0),
+        rotY: clamp(params.rotY, -Math.PI, Math.PI, 0),
+        rotZ: clamp(params.rotZ, -Math.PI, Math.PI, 0),
+        metalness: clamp(params.metalness, 0, 1, 0.65),
+        roughness: clamp(params.roughness, 0, 1, 0.22),
+        image_url: "",
+      });
+
       setPrompt("");
+      onCreated && onCreated();
     } catch (err) {
       setError(err.message || "Generation failed");
     } finally {
@@ -45,7 +89,7 @@ export default function GridPrompt({ onCreate }) {
               handleSend();
             }
           }}
-          placeholder="e.g. a floating obsidian monolith refracting light, or a liquid-metal orchid blooming in zero gravity…"
+          placeholder="e.g. a crystalline spire humming with cold light, or a liquid-metal orchid blooming in zero gravity…"
           rows={2}
           className="flex-1 resize-none rounded-xl border border-border/60 bg-background px-4 py-3 text-sm placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
         />
