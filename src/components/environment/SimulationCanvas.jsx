@@ -188,6 +188,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     let pos = new THREE.Vector3(0, 0, 0);
     let vel = new THREE.Vector3(0, 0, 0);
     let fuel = 0;
+    let initialFuel = 0;
     let flightTime = 0;
     let landed = false;
     let maxSpeed = 0;
@@ -215,6 +216,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       scene.add(vehicle.group);
       pos.set(0, 0, 0); vel.set(0, 0, 0);
       fuel = paramsRef.current.fuel;
+      initialFuel = paramsRef.current.fuel;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
       vehicle.group.position.set(0, 0, 0);
@@ -223,6 +225,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     const resetSim = () => {
       pos.set(0, 0, 0); vel.set(0, 0, 0);
       fuel = paramsRef.current.fuel;
+      initialFuel = paramsRef.current.fuel;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
     };
@@ -239,7 +242,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       if (launchedNow && !lastLaunched) {
         const cat = VEHICLES[vehicleTypeRef.current]?.category;
         vel.set(cat === "winged" ? 8 : 0, 0, 0);
-        landed = false; fuel = paramsRef.current.fuel; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail();
+        landed = false; fuel = paramsRef.current.fuel; initialFuel = paramsRef.current.fuel; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail();
       }
       lastLaunched = launchedNow;
 
@@ -264,28 +267,41 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
         const thrustMag = fuel > 0 ? p.thrust : 0;
         const speed = vel.length();
 
+        // Variable mass: the vehicle lightens as fuel burns (rocket-equation feel).
+        const fuelRatio = initialFuel > 0 ? Math.max(0, fuel / initialFuel) : 0;
+        const fuelFrac = cat === "launch" ? 0.6 : cat === "winged" ? 0.35 : cat === "rotor" ? 0.3 : 0.12;
+        const mass = p.mass * (1 - fuelFrac * (1 - fuelRatio));
+
+        // Atmospheric density falls off with altitude (exponential atmosphere).
+        const density = atm * Math.exp(-Math.max(0, pos.y) / 8500);
+
+        // Quadratic aerodynamic drag opposing velocity: a = -(0.5 * rho * CdA * v^2 / m) * v_hat
+        const vHat = speed > 0.0001 ? vel.clone().multiplyScalar(1 / speed) : new THREE.Vector3();
+        const dragMag = (0.5 * density * p.drag * speed * speed) / mass;
+
         if (cat === "launch") {
           const tdir = new THREE.Vector3(vehicleTypeRef.current === "missile" ? 0.12 : 0, 1, 0).normalize();
-          accel.addScaledVector(tdir, thrustMag / p.mass);
+          accel.addScaledVector(tdir, thrustMag / mass);
           accel.y -= g;
           accel.x += wind * 0.04;
-          if (speed > 0) accel.addScaledVector(vel, -(p.drag * atm * speed) / p.mass);
+          accel.addScaledVector(vHat, -dragMag);
         } else if (cat === "winged") {
-          const fwd = vel.x;
-          const lift = p.lift * atm * fwd * fwd;
-          accel.x = thrustMag / p.mass;
-          accel.y = lift / p.mass - g;
+          const fwd = Math.abs(vel.x);
+          // Quadratic lift: a = 0.5 * rho * CL * A * v^2 / m, opposing gravity.
+          const liftMag = (0.5 * density * p.lift * fwd * fwd) / mass;
+          accel.x = thrustMag / mass;
+          accel.y = liftMag - g;
           accel.x += wind * 0.03;
-          if (speed > 0) accel.addScaledVector(vel, -(p.drag * atm * speed) / p.mass);
+          accel.addScaledVector(vHat, -dragMag);
         } else if (cat === "rotor") {
-          accel.y = thrustMag / p.mass - g;
+          accel.y = thrustMag / mass - g;
           accel.x += wind * 0.05;
-          if (speed > 0) accel.addScaledVector(vel, -(p.drag * atm * speed) / p.mass);
+          accel.addScaledVector(vHat, -dragMag);
         } else {
           // ground
-          accel.x = thrustMag / p.mass;
+          accel.x = thrustMag / mass;
           accel.x -= 0.02 * g * Math.sign(vel.x || 1);
-          accel.x -= (p.drag * atm * vel.x * Math.abs(vel.x)) / p.mass;
+          accel.x -= (0.5 * density * p.drag * vel.x * Math.abs(vel.x)) / mass;
           accel.x += wind * 0.02;
         }
 
