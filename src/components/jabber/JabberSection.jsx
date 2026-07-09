@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma } from "lucide-react";
+import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma, FileCode2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useVoice } from "@/hooks/use-voice";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
 import { callWebsiteB, formatAdminResult, adminErrorMessage } from "@/lib/websiteB";
 import { fetchRecentMemories, saveMemory, lookupAetheris } from "@/lib/jabber-memory";
 import FormulaLibrary from "@/components/jabber/FormulaLibrary";
+import CodeLibrary from "@/components/jabber/CodeLibrary";
 
 const SEED_MESSAGES = [
   {
@@ -17,14 +18,14 @@ const SEED_MESSAGES = [
 
 const SUGGESTIONS = [
   "What do you remember about our chats?",
-  "What models have I saved?",
+  "Write a function to reverse a string",
   "What's on my Recall list?",
 ];
 
 const CLASSIFY_SCHEMA = {
   type: "object",
   properties: {
-    intent: { type: "string", enum: ["recall", "lookup", "admin", "chat"] },
+    intent: { type: "string", enum: ["recall", "lookup", "admin", "code", "chat"] },
     recall_query: { type: "string", default: "" },
     lookup_kind: { type: "string", enum: ["models", "experiments", "builds", "tasks"], default: "tasks" },
     gateway: {
@@ -32,6 +33,15 @@ const CLASSIFY_SCHEMA = {
       properties: {
         action: { type: "string", enum: ["list_tasks", "create_task", "update_task", "delete_task"] },
         params: { type: "object" },
+      },
+    },
+    code: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        language: { type: "string" },
+        description: { type: "string" },
+        content: { type: "string" },
       },
     },
     reply: { type: "string" },
@@ -52,6 +62,7 @@ export default function JabberSection() {
   const [workLabel, setWorkLabel] = useState("");
   const [error, setError] = useState(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
+  const [codeOpen, setCodeOpen] = useState(false);
   const scrollRef = useRef(null);
 
   // Recall past conversations into the chat view on mount.
@@ -87,6 +98,7 @@ Decide the user's intent:
 - "recall": they ask what you remember, about past conversations, "do you remember", "what did we talk about", "last time", or reference something said before. Answer from the memory provided.
 - "lookup": they ask what they've saved/created/built in Aetheris — models, experiments, builds, or local tasks ("what models do I have?", "my experiments", "saved builds"). Set lookup_kind accordingly.
 - "admin": they want to manage tasks on Recall (create, list, mark done/complete, update, delete) or reference the other/second app. Set gateway.action + gateway.params. Examples: create_task → {"action":"create_task","params":{"title":"buy milk"}}; list_tasks → {"action":"list_tasks","params":{}}; update_task → {"action":"update_task","params":{"title":"review notes","status":"done"}} (status: todo/in_progress/done); delete_task → {"action":"delete_task","params":{"title":"old draft"}}. Use the user's exact words for titles.
+- "code": they ask you to write, create, generate, or make code — a script, function, snippet, program, or file ("write a function that…", "make a python script to…", "generate code for…"). Set the code object: name (snake_case filename, no extension), language (e.g. javascript, python, typescript), description (one short line), and content (the full, complete, runnable code).
 - "chat": anything else — answer naturally.
 
 Return JSON:
@@ -94,7 +106,8 @@ Return JSON:
 - recall_query: if recall, short keywords (else "")
 - lookup_kind: if lookup, one of models/experiments/builds/tasks (else "tasks")
 - gateway: if admin, {action, params}; else null
-- reply: a calm, concise 1-3 sentence reply. For recall, answer from memory (say you don't recall it if it's not there). For lookup/admin, a one-line ack (the data is fetched separately). For chat, answer naturally.
+- code: if code, {name, language, description, content}; else null
+- reply: a calm, concise 1-3 sentence reply. For recall, answer from memory (say you don't recall it if it's not there). For lookup/admin/code, a one-line ack (the data/code is handled separately). For chat, answer naturally.
 
 Recent memory (oldest first):
 ${memoryContext}
@@ -136,6 +149,27 @@ User: ${content}`;
         } finally {
           setWorking(false);
         }
+      } else if (intent === "code") {
+        const code = res.code || {};
+        if (!code.content) {
+          reply = reply || "Tell me what the code should do and which language — I'll write and save it.";
+        } else {
+          setWorkLabel("Writing code…");
+          setWorking(true);
+          try {
+            const created = await base44.entities.CodeFile.create({
+              name: code.name || "snippet",
+              language: code.language || "javascript",
+              description: code.description || "",
+              content: String(code.content),
+            });
+            reply = `Saved "${created.name}" (${created.language}) to your Code Library — open it via the Code button to view or copy.${code.description ? ` ${code.description}` : ""}`;
+          } catch (e) {
+            reply = `I wrote it but couldn't save the file — ${e.message || "try again."}`;
+          } finally {
+            setWorking(false);
+          }
+        }
       }
 
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
@@ -165,6 +199,13 @@ User: ${content}`;
           >
             <Sigma className="h-4 w-4" strokeWidth={1.5} />
             Formulas
+          </button>
+          <button
+            onClick={() => setCodeOpen(true)}
+            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary"
+          >
+            <FileCode2 className="h-4 w-4" strokeWidth={1.5} />
+            Code
           </button>
           <div className="flex items-center gap-2 rounded-full border border-border/60 px-3 py-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${speaking ? "bg-primary animate-pulse" : "bg-emerald-500"}`} />
@@ -277,6 +318,7 @@ User: ${content}`;
         onClose={() => setFormulaOpen(false)}
         onInsert={(eq) => { setInput(eq); setFormulaOpen(false); }}
       />
+      <CodeLibrary open={codeOpen} onClose={() => setCodeOpen(false)} />
     </div>
   );
 }

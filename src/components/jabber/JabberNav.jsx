@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Boxes, SlidersHorizontal, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown } from "lucide-react";
+import { Sparkles, Boxes, Box, SlidersHorizontal, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
 const TOP_ITEMS = [
   { id: "jabber", label: "Jabber", icon: Sparkles },
   { id: "grid", label: "The Grid", icon: Boxes },
+  { id: "studio", label: "Studio", icon: Box },
 ];
 const ENV_CHILDREN = [
   { id: "env", label: "Playground", icon: FlaskConical },

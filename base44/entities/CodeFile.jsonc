@@ -1,0 +1,24 @@
+{
+  "name": "CodeFile",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string",
+      "default": "javascript"
+    },
+    "description": {
+      "type": "string",
+      "default": ""
+    },
+    "content": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
