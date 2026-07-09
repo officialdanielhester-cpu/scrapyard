@@ -1,5 +1,6 @@
 import React from "react";
-import { Sparkles, Boxes, SlidersHorizontal } from "lucide-react";
+import { Sparkles, Boxes, SlidersHorizontal, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 
 const NAV_ITEMS = [
   { id: "jabber", label: "Jabber", icon: Sparkles },
@@ -8,6 +9,9 @@ const NAV_ITEMS = [
 ];
 
 export default function JabberNav({ active, onSelect }) {
+  const { theme, toggle } = useTheme();
+  const ThemeIcon = theme === "dark" ? Sun : Moon;
+
   return (
     <>
       {/* Desktop sidebar */}
@@ -34,7 +38,7 @@ export default function JabberNav({ active, onSelect }) {
                   onClick={() => onSelect(item.id)}
                   className={`group flex items-center gap-3 rounded-md px-4 py-3 text-left transition-all duration-300 ${
                     isActive
-                      ? "bg-foreground text-background"
+                      ? "bg-primary text-primary-foreground"
                       : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
                   }`}
                 >
@@ -46,9 +50,18 @@ export default function JabberNav({ active, onSelect }) {
           </nav>
         </div>
 
-        <div className="font-mono text-[10px] leading-relaxed text-muted-foreground/70">
-          <p>v0.1.0 — prototype</p>
-          <p>Built on Base44</p>
+        <div>
+          <button
+            onClick={toggle}
+            className="mb-4 flex items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
+          >
+            <ThemeIcon className="h-4 w-4" strokeWidth={1.5} />
+            <span className="font-body">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+          </button>
+          <div className="font-mono text-[10px] leading-relaxed text-muted-foreground/70">
+            <p>v0.1.0 — prototype</p>
+            <p>Built on Base44</p>
+          </div>
         </div>
       </aside>
 
@@ -71,6 +84,13 @@ export default function JabberNav({ active, onSelect }) {
               </button>
             );
           })}
+          <button
+            onClick={toggle}
+            className="flex min-h-[44px] flex-1 flex-col items-center gap-1 py-2 text-muted-foreground"
+          >
+            <ThemeIcon className="h-5 w-5" strokeWidth={1.5} />
+            <span className="font-mono text-[9px] uppercase tracking-wider">{theme === "dark" ? "Light" : "Dark"}</span>
+          </button>
         </div>
       </nav>
     </>

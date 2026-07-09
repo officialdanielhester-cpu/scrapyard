@@ -87,7 +87,7 @@ export default function SettingsSection() {
                 onClick={() => setTab(t.id)}
                 className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
                   tab === t.id
-                    ? "bg-foreground text-background"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >

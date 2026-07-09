@@ -81,7 +81,7 @@ export default function JabberSection() {
               <div
                 className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed transition-all ${
                   msg.role === "user"
-                    ? "bg-foreground text-background"
+                    ? "bg-primary text-primary-foreground"
                     : "border border-border/50 bg-background"
                 }`}
               >
@@ -143,7 +143,7 @@ export default function JabberSection() {
               <button
                 type="submit"
                 disabled={!input.trim() || thinking}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-all hover:opacity-80 disabled:opacity-30"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:opacity-80 disabled:opacity-30"
               >
                 <ArrowUp className="h-4 w-4" strokeWidth={2} />
               </button>

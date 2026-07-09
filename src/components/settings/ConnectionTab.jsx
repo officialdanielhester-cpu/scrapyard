@@ -35,7 +35,7 @@ export default function ConnectionTab() {
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
               connected
                 ? "border border-border/60 text-foreground hover:bg-foreground/5"
-                : "bg-foreground text-background hover:opacity-80"
+                : "bg-primary text-primary-foreground hover:opacity-80"
             }`}
           >
             {connected ? "Disconnect" : "Connect"}
