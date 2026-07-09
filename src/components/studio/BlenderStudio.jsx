@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
-import { Box, Circle, Hexagon, Triangle, Octagon, Square, Trash2, Plus, Download, Sparkles } from "lucide-react";
+import { Box, Circle, Hexagon, Triangle, Octagon, Square, Trash2, Plus, Download, Sparkles, Boxes } from "lucide-react";
 import ImportModelsPanel from "@/components/studio/ImportModelsPanel";
 import JabberModelGen from "@/components/studio/JabberModelGen";
+import ModelPresetsPanel from "@/components/studio/ModelPresetsPanel";
 
 // Blender-inspired 3D modeling workspace.
 // Objects are multi-part groups so duplicate / merge / slice / cut stay meaningful.
@@ -81,6 +82,7 @@ export default function BlenderStudio() {
   const [selectedId, setSelectedId] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
   const [jabberOpen, setJabberOpen] = useState(false);
+  const [presetOpen, setPresetOpen] = useState(false);
   const objectsRef = useRef([]);
   const selectedRef = useRef(null);
   const meshGroupRef = useRef(null);
@@ -252,6 +254,11 @@ export default function BlenderStudio() {
     setObjects((p) => [...p, o]);
     setSelectedId(o.id);
   };
+  const addPreset = (preset) => {
+    const o = { id: newId(), name: preset.name, pos: [0, 0.8, 0], scale: 1, rot: [0, 0, 0], parts: preset.parts.map((p) => ({ ...p })) };
+    setObjects((p) => [...p, o]);
+    setSelectedId(o.id);
+  };
 
   const sel = objects.find((o) => o.id === selectedId);
   const updateSel = (patch) =>
@@ -333,6 +340,12 @@ export default function BlenderStudio() {
             className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs transition-colors hover:border-primary hover:text-primary"
           >
             <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} /> Jabber
+          </button>
+          <button
+            onClick={() => setPresetOpen(true)}
+            className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs transition-colors hover:border-primary hover:text-primary"
+          >
+            <Boxes className="h-3.5 w-3.5" strokeWidth={1.5} /> Models
           </button>
         </div>
         <div ref={mountRef} className="h-[420px] w-full overflow-hidden rounded-2xl border border-border/50 md:h-[560px]" />
@@ -446,6 +459,7 @@ export default function BlenderStudio() {
 
       <ImportModelsPanel open={importOpen} onClose={() => setImportOpen(false)} onImport={addSpec} />
       <JabberModelGen open={jabberOpen} onClose={() => setJabberOpen(false)} onAdd={addSpec} />
+      <ModelPresetsPanel open={presetOpen} onClose={() => setPresetOpen(false)} onAdd={addPreset} />
     </div>
   );
 }
