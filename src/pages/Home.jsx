@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import JabberNav from "@/components/jabber/JabberNav";
 import JabberSection from "@/components/jabber/JabberSection";
-import ConnectionSection from "@/components/jabber/ConnectionSection";
-import SettingsSection from "@/components/jabber/SettingsSection";
+import GridSection from "@/components/grid/GridSection";
+import SettingsSection from "@/components/settings/SettingsSection";
 
 export default function Home() {
   const [active, setActive] = useState("jabber");
@@ -18,9 +18,9 @@ export default function Home() {
             <JabberSection />
           </div>
         )}
-        {active === "connection" && (
+        {active === "grid" && (
           <div className="min-h-screen">
-            <ConnectionSection />
+            <GridSection />
           </div>
         )}
         {active === "settings" && (
@@ -38,7 +38,7 @@ export default function Home() {
             width:
               active === "jabber"
                 ? "33%"
-                : active === "connection"
+                : active === "grid"
                 ? "66%"
                 : "100%",
           }}

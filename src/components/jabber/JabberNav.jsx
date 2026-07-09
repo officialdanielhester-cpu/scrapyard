@@ -1,9 +1,9 @@
 import React from "react";
-import { Sparkles, Cable, SlidersHorizontal } from "lucide-react";
+import { Sparkles, Boxes, SlidersHorizontal } from "lucide-react";
 
 const NAV_ITEMS = [
   { id: "jabber", label: "Jabber", icon: Sparkles },
-  { id: "connection", label: "Connection", icon: Cable },
+  { id: "grid", label: "The Grid", icon: Boxes },
   { id: "settings", label: "Settings", icon: SlidersHorizontal },
 ];
 
