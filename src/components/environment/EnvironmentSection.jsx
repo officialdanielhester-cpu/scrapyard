@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge } from "lucide-react";
+import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
@@ -15,6 +15,7 @@ export default function EnvironmentSection() {
   const [running, setRunning] = useState(true);
   const [launched, setLaunched] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
+  const [zoom, setZoom] = useState(1);
   const [metrics, setMetrics] = useState({ altitude: 0, velocity: 0, maxSpeed: 0, maxAltitude: 0, distance: 0, flightTime: 0, acceleration: 0, fuel: params.fuel, landed: false });
   const [experiments, setExperiments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -192,6 +193,8 @@ export default function EnvironmentSection() {
                 launched={launched}
                 resetSignal={resetSignal}
                 onMetrics={handleMetrics}
+                zoom={zoom}
+                onZoom={setZoom}
               />
               <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1.5 backdrop-blur">
                 <span className={`h-1.5 w-1.5 rounded-full ${recording ? "animate-pulse bg-destructive" : metrics.landed ? "bg-amber-500" : launched ? "bg-emerald-500" : "bg-muted-foreground"}`} />
@@ -202,6 +205,22 @@ export default function EnvironmentSection() {
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                   {VEHICLES[vehicleType].label} · {ENVIRONMENTS[envKey].label}
                 </span>
+              </div>
+              <div className="absolute right-4 top-16 flex flex-col gap-1.5">
+                <button
+                  onClick={() => setZoom((z) => Math.max(0.4, z * 0.85))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground backdrop-blur transition-colors hover:border-primary hover:text-primary"
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+                <button
+                  onClick={() => setZoom((z) => Math.min(3, z * 1.18))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground backdrop-blur transition-colors hover:border-primary hover:text-primary"
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut className="h-4 w-4" strokeWidth={1.5} />
+                </button>
               </div>
               {/* fuel gauge */}
               <div className="absolute inset-x-4 bottom-4">

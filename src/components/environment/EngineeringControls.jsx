@@ -6,7 +6,7 @@ const ENGINEERING = [
   { key: "mass", label: "Mass", unit: "t", min: 1, max: 50, step: 1 },
   { key: "drag", label: "Drag Coef", unit: "", min: 0, max: 2, step: 0.05 },
   { key: "lift", label: "Lift Coef", unit: "", min: 0, max: 3, step: 0.05 },
-  { key: "fuel", label: "Fuel Burn", unit: "s", min: 0, max: 30, step: 1 },
+  { key: "fuel", label: "Fuel Load", unit: "s", min: 0, max: 60, step: 1 },
 ];
 
 const CUSTOM_ENV = [

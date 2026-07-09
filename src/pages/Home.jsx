@@ -3,6 +3,7 @@ import JabberNav from "@/components/jabber/JabberNav";
 import JabberSection from "@/components/jabber/JabberSection";
 import GridSection from "@/components/grid/GridSection";
 import SettingsSection from "@/components/settings/SettingsSection";
+import EnvironmentSection from "@/components/environment/EnvironmentSection";
 
 export default function Home() {
   const [active, setActive] = useState("jabber");
@@ -23,6 +24,11 @@ export default function Home() {
             <GridSection />
           </div>
         )}
+        {active === "env" && (
+          <div className="min-h-screen">
+            <EnvironmentSection />
+          </div>
+        )}
         {active === "settings" && (
           <div className="min-h-screen">
             <SettingsSection />
@@ -37,9 +43,11 @@ export default function Home() {
           style={{
             width:
               active === "jabber"
-                ? "33%"
+                ? "25%"
                 : active === "grid"
-                ? "66%"
+                ? "50%"
+                : active === "env"
+                ? "75%"
                 : "100%",
           }}
         />

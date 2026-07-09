@@ -88,7 +88,7 @@ function buildVehicle(type) {
   return { group: g, rotor };
 }
 
-export default function SimulationCanvas({ vehicleType, params, variables, running, launched, resetSignal, onMetrics }) {
+export default function SimulationCanvas({ vehicleType, params, variables, running, launched, resetSignal, onMetrics, zoom = 1, onZoom }) {
   const mountRef = useRef(null);
   const vehicleTypeRef = useRef(vehicleType);
   const paramsRef = useRef(params);
@@ -97,6 +97,8 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
   const launchedRef = useRef(launched);
   const onMetricsRef = useRef(onMetrics);
   const resetRef = useRef(resetSignal);
+  const zoomRef = useRef(zoom);
+  const onZoomRef = useRef(onZoom);
 
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { paramsRef.current = params; }, [params]);
@@ -105,6 +107,8 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
   useEffect(() => { launchedRef.current = launched; }, [launched]);
   useEffect(() => { onMetricsRef.current = onMetrics; }, [onMetrics]);
   useEffect(() => { resetRef.current = resetSignal; }, [resetSignal]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { onZoomRef.current = onZoom; }, [onZoom]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -117,8 +121,11 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     scene.fog = new THREE.Fog(varsRef.current.bgColor || "#080B14", 60, 140);
 
     const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 300);
-    camera.position.set(0, 24, 52);
-    camera.lookAt(0, 12, 0);
+    const camTarget = new THREE.Vector3(0, 12, 0);
+    const camDirN = new THREE.Vector3(0, 12, 52).normalize();
+    const camBaseDist = Math.hypot(0, 12, 52);
+    camera.position.copy(camTarget).addScaledVector(camDirN, camBaseDist * (zoomRef.current || 1));
+    camera.lookAt(camTarget);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
@@ -335,6 +342,10 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
         });
       }
 
+      const camDist = camBaseDist * (zoomRef.current || 1);
+      camera.position.copy(camTarget).addScaledVector(camDirN, camDist);
+      camera.lookAt(camTarget);
+
       renderer.render(scene, camera);
     };
     tick();
@@ -348,9 +359,17 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     });
     ro.observe(mount);
 
+    const onWheel = (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.12 : 0.89;
+      onZoomRef.current?.((z) => Math.max(0.4, Math.min(3, (z || 1) * factor)));
+    };
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
+
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      renderer.domElement.removeEventListener("wheel", onWheel);
       disposeVehicle();
       scene.traverse((o) => {
         if (o.geometry) o.geometry.dispose();

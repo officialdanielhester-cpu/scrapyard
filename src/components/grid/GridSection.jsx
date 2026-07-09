@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Square, Box as BoxIcon, Upload, Loader2, Boxes, LayoutGrid, List, FlaskConical } from "lucide-react";
+import { Square, Box as BoxIcon, Upload, Loader2, Boxes, LayoutGrid, List } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import Grid2D from "@/components/grid/Grid2D";
 import Model3DCard from "@/components/grid/Model3DCard";
 import ModelList from "@/components/grid/ModelList";
 import GridPrompt from "@/components/grid/GridPrompt";
 import ModelEditor from "@/components/grid/ModelEditor";
-import EnvironmentSection from "@/components/environment/EnvironmentSection";
 
 const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".svg"];
 const LIVE_CAP = 8;
@@ -85,14 +84,12 @@ export default function GridSection() {
   return (
     <div className="min-h-screen">
       <header className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-12">
-        {view !== "env" && (
-          <div>
-            <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">The Grid</h1>
-            <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-              Create · Open · Modify · Save
-            </p>
-          </div>
-        )}
+        <div>
+          <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">The Grid</h1>
+          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+            Create · Open · Modify · Save
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-full border border-border/60 p-0.5">
             <button
@@ -111,42 +108,30 @@ export default function GridSection() {
             >
               <BoxIcon className="h-3.5 w-3.5" strokeWidth={2} /> 3D
             </button>
+
+          </div>
+          <div className="flex rounded-full border border-border/60 p-0.5">
             <button
-              onClick={() => setView("env")}
+              onClick={() => setLayout("grid")}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                view === "env" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                layout === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <FlaskConical className="h-3.5 w-3.5" strokeWidth={2} /> Env
+              <LayoutGrid className="h-3.5 w-3.5" strokeWidth={2} /> Grid
+            </button>
+            <button
+              onClick={() => setLayout("list")}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                layout === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List className="h-3.5 w-3.5" strokeWidth={2} /> List
             </button>
           </div>
-          {view !== "env" && (
-            <div className="flex rounded-full border border-border/60 p-0.5">
-              <button
-                onClick={() => setLayout("grid")}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  layout === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" strokeWidth={2} /> Grid
-              </button>
-              <button
-                onClick={() => setLayout("list")}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  layout === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <List className="h-3.5 w-3.5" strokeWidth={2} /> List
-              </button>
-            </div>
-          )}
         </div>
       </header>
 
-      {view === "env" ? (
-        <EnvironmentSection />
-      ) : (
-        <div className="px-6 md:px-12">
+      <div className="px-6 md:px-12">
         <div className="flex flex-wrap items-center gap-3">
           <input
             ref={fileInputRef}
@@ -227,7 +212,6 @@ export default function GridSection() {
           />
         </div>
       </div>
-      )}
 
       {editing && (
         <ModelEditor model={editing} onClose={() => setEditing(null)} onSaved={load} onDeleted={load} />
