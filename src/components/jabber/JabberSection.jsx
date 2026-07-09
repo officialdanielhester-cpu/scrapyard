@@ -7,6 +7,7 @@ import { callWebsiteB, formatAdminResult, adminErrorMessage } from "@/lib/websit
 import { fetchRecentMemories, saveMemory, lookupAetheris } from "@/lib/jabber-memory";
 import FormulaLibrary from "@/components/jabber/FormulaLibrary";
 import CodeLibrary from "@/components/jabber/CodeLibrary";
+import AttachmentBar from "@/components/jabber/AttachmentBar";
 
 const SEED_MESSAGES = [
   {
@@ -63,6 +64,7 @@ export default function JabberSection() {
   const [error, setError] = useState(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [attachments, setAttachments] = useState([]);
   const scrollRef = useRef(null);
 
   // Recall past conversations into the chat view on mount.
@@ -83,13 +85,35 @@ export default function JabberSection() {
     setError(null);
     setMessages((prev) => [...prev, { role: "user", content }]);
     setInput("");
+    const activeAttachments = attachments;
+    setAttachments([]);
     setThinking(true);
     try {
       const recent = await fetchRecentMemories(12);
       const memoryContext = recent.length
         ? recent.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n")
         : "(no past conversations stored yet)";
-      await saveMemory("user", content, persist);
+      await saveMemory("user", content + (activeAttachments.length ? ` ${activeAttachments.map((a) => a.text).join(" ")}` : ""), persist);
+
+      if (activeAttachments.length) {
+        const ctxText = activeAttachments.map((a) => a.text).join("\n");
+        const fileUrls = activeAttachments.flatMap((a) => a.fileUrls || []);
+        const hasLink = activeAttachments.some((a) => a.kind === "link");
+        const decipherPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. The user said: "${content}". They also shared these attachments:\n${ctxText}\n\nHelp them understand and decipher the attachments — identify what each is, summarize the content, extract key information, and answer anything implied. For links, use web context. Be clear and concise (2-5 sentences).`;
+        const dres = await base44.integrations.Core.InvokeLLM({
+          prompt: decipherPrompt,
+          file_urls: fileUrls.length ? fileUrls : undefined,
+          add_context_from_internet: hasLink,
+          model: hasLink ? "gemini_3_flash" : undefined,
+          response_json_schema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"] },
+        });
+        let reply = (dres?.reply || "I couldn't make sense of that — try again.").trim();
+        setThinking(false);
+        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+        await saveMemory("assistant", reply, persist);
+        if (speakEnabled) speak(reply);
+        return;
+      }
 
       const classifyPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. You have a memory — past conversations are stored and shown below. You can also read saved files in Aetheris (models, experiments, builds, tasks) and manage a task list on a linked app called "Recall".
 Current link status — connected to Recall: ${connected}; tasks permission granted: ${tasksAllowed}.
@@ -274,6 +298,7 @@ User: ${content}`;
 
       <div className="border-t border-border/40 px-6 py-6 md:px-12">
         <div className="mx-auto max-w-3xl">
+          <AttachmentBar attachments={attachments} setAttachments={setAttachments} />
           <form
             onSubmit={(e) => { e.preventDefault(); handleSend(); }}
             className="group relative"
