@@ -15,11 +15,27 @@
       "items": {
         "type": "object",
         "properties": {
+          "iid": {
+            "type": "string"
+          },
           "type": {
             "type": "string"
           },
-          "qty": {
-            "type": "number"
+          "x": {
+            "type": "number",
+            "default": 300
+          },
+          "y": {
+            "type": "number",
+            "default": 240
+          },
+          "scale": {
+            "type": "number",
+            "default": 1
+          },
+          "color": {
+            "type": "string",
+            "default": ""
           }
         }
       }

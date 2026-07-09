@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit, HelpCircle } from "lucide-react";
+import { Play, Pause, Rocket, RotateCcw, Circle, Square, Box as BoxIcon, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit, HelpCircle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
+import Sim2DView from "@/components/environment/Sim2DView";
 import VehicleSelector from "@/components/environment/VehicleSelector";
 import EnvironmentSelector from "@/components/environment/EnvironmentSelector";
 import EngineeringControls from "@/components/environment/EngineeringControls";
@@ -21,6 +22,8 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [zoom, setZoom] = useState(1);
   const steerRef = useRef({ steer: 0 });
   const [view, setView] = useState("pad");
+  const [buildInstances, setBuildInstances] = useState(null);
+  const [view3D, setView3D] = useState(true);
   const [metrics, setMetrics] = useState({ altitude: 0, velocity: 0, maxSpeed: 0, maxAltitude: 0, distance: 0, flightTime: 0, acceleration: 0, fuel: params.fuel, landed: false, pitch: 0, goalReached: false, goalX: 120 });
   const [experiments, setExperiments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +55,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
       lift: pendingBuild.lift,
       fuel: pendingBuild.fuel,
     });
+    setBuildInstances(pendingBuild.instances || null);
     setLaunched(false);
     setResetSignal((s) => s + 1);
     onConsumed?.();
@@ -218,6 +222,20 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
               <HelpCircle className="h-3 w-3" strokeWidth={1.5} /> Help
             </button>
           </div>
+          <div className="flex rounded-full border border-border/60 p-0.5">
+            <button
+              onClick={() => setView3D(true)}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${view3D ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <BoxIcon className="h-3 w-3" strokeWidth={1.5} /> 3D
+            </button>
+            <button
+              onClick={() => setView3D(false)}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${!view3D ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Square className="h-3 w-3" strokeWidth={1.5} /> 2D
+            </button>
+          </div>
           <button
             onClick={() => setRunning((r) => !r)}
             className="flex min-h-[40px] items-center gap-1.5 rounded-full border border-border/60 px-4 py-2 text-xs font-medium transition-colors hover:border-primary hover:text-primary"
@@ -263,18 +281,23 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-3">
             <div className="relative h-[440px] overflow-hidden rounded-2xl border border-border/50 md:h-[540px]">
-              <SimulationCanvas
-                vehicleType={vehicleType}
-                params={params}
-                variables={variables}
-                running={running}
-                launched={launched}
-                resetSignal={resetSignal}
-                onMetrics={handleMetrics}
-                zoom={zoom}
-                onZoom={setZoom}
-                steerRef={steerRef}
-              />
+              {view3D ? (
+                <SimulationCanvas
+                  vehicleType={vehicleType}
+                  params={params}
+                  variables={variables}
+                  running={running}
+                  launched={launched}
+                  resetSignal={resetSignal}
+                  onMetrics={handleMetrics}
+                  zoom={zoom}
+                  onZoom={setZoom}
+                  steerRef={steerRef}
+                  build={buildInstances}
+                />
+              ) : (
+                <Sim2DView build={buildInstances} metrics={metrics} vehicleType={vehicleType} />
+              )}
               <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1.5 backdrop-blur">
                 <span className={`h-1.5 w-1.5 rounded-full ${recording ? "animate-pulse bg-destructive" : metrics.landed ? "bg-amber-500" : launched ? "bg-emerald-500" : "bg-muted-foreground"}`} />
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{statusLabel}</span>

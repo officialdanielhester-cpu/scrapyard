@@ -61,15 +61,14 @@ export function computeStats(vehicleType, appliedParts) {
   let lift = base.lift;
   let drag = base.drag;
   let fuel = base.fuel;
-  for (const ap of appliedParts || []) {
-    const p = PARTS_BY_ID[ap.type];
+  for (const inst of appliedParts || []) {
+    const p = PARTS_BY_ID[inst.type];
     if (!p) continue;
-    const q = ap.qty || 1;
-    mass += p.mass * q;
-    thrust += (p.thrust || 0) * q;
-    lift += (p.lift || 0) * q;
-    drag += (p.drag || 0) * q;
-    fuel += (p.fuel || 0) * q;
+    mass += p.mass;
+    thrust += p.thrust || 0;
+    lift += p.lift || 0;
+    drag += p.drag || 0;
+    fuel += p.fuel || 0;
   }
   mass = Math.max(0.1, mass);
   drag = Math.max(0.01, drag);
@@ -115,4 +114,29 @@ export function computeStats(vehicleType, appliedParts) {
   }
 
   return { mass, thrust, lift, drag, fuel, twr, burnTime, apogee, topSpeed, stallSpeed, verdict, ready, category: cat };
+}
+
+// Convert legacy {type, qty} parts (or raw instances) into placed instances.
+export function normalizeInstances(parts) {
+  if (!Array.isArray(parts)) return [];
+  if (parts.length && parts[0].iid) {
+    return parts.map((p) => ({
+      iid: p.iid,
+      type: p.type,
+      x: p.x ?? 300,
+      y: p.y ?? 240,
+      scale: p.scale ?? 1,
+      color: p.color ?? "",
+    }));
+  }
+  const out = [];
+  let y = 120;
+  parts.forEach((ap) => {
+    const q = Math.max(1, ap.qty || 1);
+    for (let i = 0; i < q; i++) {
+      out.push({ iid: `i-${Math.random().toString(36).slice(2, 9)}`, type: ap.type, x: 300, y, scale: 1, color: "" });
+      y += 44;
+    }
+  });
+  return out;
 }

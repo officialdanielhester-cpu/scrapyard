@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Save, Loader2, RotateCcw } from "lucide-react";
 import { base44 } from "@/api/base44Client";
-import { computeStats } from "@/components/workshop/parts-catalog";
+import { computeStats, normalizeInstances } from "@/components/workshop/parts-catalog";
+import { countByType } from "@/components/workshop/part-3d";
 import WorkshopVehicleSelector from "@/components/workshop/WorkshopVehicleSelector";
 import PartsCatalog from "@/components/workshop/PartsCatalog";
 import AppliedPartsList from "@/components/workshop/AppliedPartsList";
@@ -9,9 +10,11 @@ import BuildStats from "@/components/workshop/BuildStats";
 import SavedBuilds from "@/components/workshop/SavedBuilds";
 import AssemblyCanvas from "@/components/workshop/AssemblyCanvas";
 
+const newIid = () => `i-${Math.random().toString(36).slice(2, 9)}`;
+
 export default function WorkshopSection({ onImportBuild }) {
   const [vehicleType, setVehicleType] = useState("rocket");
-  const [applied, setApplied] = useState([]);
+  const [instances, setInstances] = useState([]);
   const [buildName, setBuildName] = useState("Untitled Build");
   const [builds, setBuilds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,36 +32,33 @@ export default function WorkshopSection({ onImportBuild }) {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  const stats = computeStats(vehicleType, applied);
+  const stats = computeStats(vehicleType, instances);
+  const appliedCounts = countByType(instances);
 
   const selectVehicle = (type) => {
     setVehicleType(type);
-    setApplied([]);
+    setInstances([]);
   };
 
   const addPart = (id) =>
-    setApplied((prev) => {
-      const found = prev.find((p) => p.type === id);
-      if (found) return prev.map((p) => (p.type === id ? { ...p, qty: p.qty + 1 } : p));
-      return [...prev, { type: id, qty: 1 }];
+    setInstances((prev) => [
+      ...prev,
+      { iid: newIid(), type: id, x: 300 + Math.round((Math.random() - 0.5) * 80), y: 240 + Math.round((Math.random() - 0.5) * 80), scale: 1, color: "" },
+    ]);
+
+  // Remove one instance of the given type (used by 3D click-to-remove and the − button).
+  const removeOne = (id) =>
+    setInstances((prev) => {
+      const idx = prev.map((p) => p.type).lastIndexOf(id);
+      if (idx < 0) return prev;
+      return prev.filter((_, i) => i !== idx);
     });
-  const incPart = (id) => setApplied((prev) => prev.map((p) => (p.type === id ? { ...p, qty: p.qty + 1 } : p)));
-  const decPart = (id) =>
-    setApplied((prev) =>
-      prev.flatMap((p) => {
-        if (p.type !== id) return [p];
-        if (p.qty <= 1) return [];
-        return [{ ...p, qty: p.qty - 1 }];
-      })
-    );
-  const removePart = (id) => setApplied((prev) => prev.filter((p) => p.type !== id));
+  const removeAll = (id) => setInstances((prev) => prev.filter((p) => p.type !== id));
 
   const resetBuild = () => {
-    setApplied([]);
+    setInstances([]);
     setBuildName("Untitled Build");
     setEditingId(null);
     setVehicleType("rocket");
@@ -70,7 +70,7 @@ export default function WorkshopSection({ onImportBuild }) {
       const payload = {
         name: buildName || "Untitled Build",
         vehicle_type: vehicleType,
-        parts: applied,
+        parts: instances,
         thrust: stats.thrust,
         mass: stats.mass,
         drag: stats.drag,
@@ -95,7 +95,7 @@ export default function WorkshopSection({ onImportBuild }) {
     setEditingId(b.id);
     setBuildName(b.name);
     setVehicleType(b.vehicle_type);
-    setApplied(b.parts || []);
+    setInstances(normalizeInstances(b.parts || []));
   };
 
   const handleDelete = async (id) => {
@@ -149,10 +149,10 @@ export default function WorkshopSection({ onImportBuild }) {
           <div className="space-y-6">
             <WorkshopVehicleSelector value={vehicleType} onSelect={selectVehicle} />
             <AssemblyCanvas
-              applied={applied}
+              instances={instances}
+              setInstances={setInstances}
               vehicleType={vehicleType}
-              onRemoveInstance={decPart}
-              onAdd={addPart}
+              onRemoveInstance={removeOne}
               onImport={() =>
                 onImportBuild?.({
                   vehicle_type: vehicleType,
@@ -161,6 +161,7 @@ export default function WorkshopSection({ onImportBuild }) {
                   drag: stats.drag,
                   lift: stats.lift,
                   fuel: stats.fuel,
+                  instances,
                 })
               }
             />
@@ -173,7 +174,7 @@ export default function WorkshopSection({ onImportBuild }) {
               <h3 className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 Applied Parts
               </h3>
-              <AppliedPartsList applied={applied} onInc={incPart} onDec={decPart} onRemove={removePart} />
+              <AppliedPartsList applied={appliedCounts} onInc={addPart} onDec={removeOne} onRemove={removeAll} />
             </div>
             <SavedBuilds builds={builds} loading={loading} onLoad={handleLoad} onDelete={handleDelete} />
           </div>

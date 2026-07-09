@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { VEHICLES } from "@/components/environment/presets";
+import { buildInstances3D } from "@/components/workshop/part-3d";
 
 const SCALE = 0.22; // scene units per meter
 const ARENA_M = 160; // half-width in meters
@@ -89,7 +90,7 @@ function buildVehicle(type) {
   return { group: g, rotor };
 }
 
-export default function SimulationCanvas({ vehicleType, params, variables, running, launched, resetSignal, onMetrics, zoom = 1, onZoom, steerRef = { current: { steer: 0 } } }) {
+export default function SimulationCanvas({ vehicleType, params, variables, running, launched, resetSignal, onMetrics, zoom = 1, onZoom, steerRef = { current: { steer: 0 } }, build }) {
   const mountRef = useRef(null);
   const vehicleTypeRef = useRef(vehicleType);
   const paramsRef = useRef(params);
@@ -100,6 +101,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
   const resetRef = useRef(resetSignal);
   const zoomRef = useRef(zoom);
   const onZoomRef = useRef(onZoom);
+  const buildRef = useRef(build);
 
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { paramsRef.current = params; }, [params]);
@@ -110,6 +112,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
   useEffect(() => { resetRef.current = resetSignal; }, [resetSignal]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { onZoomRef.current = onZoom; }, [onZoom]);
+  useEffect(() => { buildRef.current = build; }, [build]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -212,6 +215,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     let lastAccel = 0;
     let trailCount = 0;
     let lastType = null;
+    let lastBuild = null;
     let lastReset = resetRef.current;
     let lastLaunched = false;
     let frame = 0;
@@ -228,7 +232,8 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
 
     const buildVehicleInto = (type) => {
       disposeVehicle();
-      vehicle = buildVehicle(type);
+      const built = buildRef.current && buildRef.current.length ? buildInstances3D(buildRef.current) : buildVehicle(type);
+      vehicle = { group: built.group, rotor: built.rotor || null, rotorMeshes: built.rotorMeshes || [] };
       scene.add(vehicle.group);
       pos.set(0, 0, 0); vel.set(0, 0, 0);
       fuel = paramsRef.current.fuel;
@@ -253,7 +258,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     const tick = () => {
       raf = requestAnimationFrame(tick);
 
-      if (vehicleTypeRef.current !== lastType) { buildVehicleInto(vehicleTypeRef.current); lastType = vehicleTypeRef.current; lastLaunched = false; }
+      if (vehicleTypeRef.current !== lastType || buildRef.current !== lastBuild) { buildVehicleInto(vehicleTypeRef.current); lastType = vehicleTypeRef.current; lastBuild = buildRef.current; lastLaunched = false; }
       if (resetRef.current !== lastReset) { resetSim(); lastReset = resetRef.current; lastLaunched = false; }
 
       const launchedNow = launchedRef.current;
@@ -365,6 +370,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       // place vehicle
       vehicle.group.position.set(pos.x * SCALE, pos.y * SCALE, pos.z * SCALE);
       if (vehicle.rotor) vehicle.rotor.rotation.y += rawDt * 25;
+      (vehicle.rotorMeshes || []).forEach((r) => { r.rotation.y += rawDt * 25; });
       vehicle.group.rotation.z = cat === "launch" || cat === "winged" || cat === "rotor" ? pitch : 0;
       if ((cat === "winged" || cat === "ground") && vel.x !== 0) {
         vehicle.group.rotation.y = vel.x < 0 ? Math.PI : 0;
