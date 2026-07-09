@@ -32,13 +32,14 @@ export function createGeometry(type) {
 }
 
 export function createMaterial(model, textureLoader) {
-  if (model.geometry === "plane" && model.image_url) {
+  if (model.image_url) {
     const loader = textureLoader || new THREE.TextureLoader();
     const texture = loader.load(model.image_url);
+    texture.colorSpace = THREE.SRGBColorSpace;
     return new THREE.MeshStandardMaterial({
       map: texture,
-      metalness: 0,
-      roughness: 1,
+      metalness: typeof model.metalness === "number" ? model.metalness : 0.65,
+      roughness: typeof model.roughness === "number" ? model.roughness : 0.22,
       side: THREE.DoubleSide,
     });
   }

@@ -1,12 +1,43 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { createGeometry, createMaterial } from "@/components/grid/three-helpers";
+import { createGeometry } from "@/components/grid/three-helpers";
+import { styleFor, drawStroke } from "@/components/grid/markup-helpers";
 
-export default function ModelPreview3D({ model, bgColor = "#080B14" }) {
+const SIZE = 512;
+
+function coverRect(iw, ih, W, H) {
+  const s = Math.max(W / iw, H / ih);
+  const w = iw * s;
+  const h = ih * s;
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+}
+
+export default function ModelPreview3D({
+  model,
+  bgColor = "#080B14",
+  paintingActive,
+  tool,
+  color,
+  size,
+  onMarkupChange,
+}) {
   const containerRef = useRef(null);
   const stateRef = useRef(null);
+  const imgLoadedRef = useRef(false);
 
-  // Build scene once
+  const paintingActiveRef = useRef(paintingActive);
+  const toolRef = useRef(tool);
+  const colorRef = useRef(color);
+  const sizeRef = useRef(size);
+  const onMarkupChangeRef = useRef(onMarkupChange);
+  const modelRef = useRef(model);
+  paintingActiveRef.current = paintingActive;
+  toolRef.current = tool;
+  colorRef.current = color;
+  sizeRef.current = size;
+  onMarkupChangeRef.current = onMarkupChange;
+  modelRef.current = model;
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -34,18 +65,122 @@ export default function ModelPreview3D({ model, bgColor = "#080B14" }) {
     fill.position.set(-4, 2, -3);
     scene.add(fill);
 
-    const mesh = new THREE.Mesh(createGeometry("box"), createMaterial({ geometry: "box", color: "#3B82F6" }));
+    const canvas = document.createElement("canvas");
+    canvas.width = SIZE;
+    canvas.height = SIZE;
+    const ctx = canvas.getContext("2d");
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshStandardMaterial({
+      map: texture,
+      metalness: 0.65,
+      roughness: 0.22,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(createGeometry(modelRef.current.geometry || "box"), material);
     scene.add(mesh);
 
-    stateRef.current = { scene, mesh, renderer, camera };
+    const baseImg = new Image();
+    baseImg.crossOrigin = "anonymous";
+
+    const drawBase = () => {
+      const m = modelRef.current;
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      if (imgLoadedRef.current && baseImg.naturalWidth) {
+        const ir = coverRect(baseImg.naturalWidth, baseImg.naturalHeight, SIZE, SIZE);
+        ctx.drawImage(baseImg, ir.x, ir.y, ir.w, ir.h);
+      } else {
+        ctx.fillStyle = m.color || "#3B82F6";
+        ctx.fillRect(0, 0, SIZE, SIZE);
+      }
+      (m.markup || []).forEach((s) => drawStroke(ctx, s, SIZE, SIZE));
+      texture.needsUpdate = true;
+    };
+    baseImg.onload = () => {
+      imgLoadedRef.current = true;
+      drawBase();
+    };
+    if (modelRef.current.image_url) {
+      baseImg.src = modelRef.current.image_url;
+    } else {
+      drawBase();
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let curStroke = null;
+    let lastPt = null;
+
+    const toUV = (e) => {
+      const rect = container.getBoundingClientRect();
+      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObject(mesh, false);
+      if (!hits.length || !hits[0].uv) return null;
+      return [hits[0].uv.x, 1 - hits[0].uv.y];
+    };
+
+    const onDown = (e) => {
+      if (!paintingActiveRef.current) return;
+      const p = toUV(e);
+      if (!p) return;
+      e.preventDefault();
+      curStroke = {
+        tool: toolRef.current,
+        color: colorRef.current,
+        width: sizeRef.current,
+        points: [p],
+      };
+      lastPt = p;
+      styleFor(ctx, curStroke.tool, curStroke.color, curStroke.width);
+      ctx.beginPath();
+      ctx.moveTo(p[0] * SIZE, p[1] * SIZE);
+      ctx.lineTo(p[0] * SIZE + 0.01, p[1] * SIZE);
+      ctx.stroke();
+      texture.needsUpdate = true;
+    };
+    const onMove = (e) => {
+      if (!paintingActiveRef.current || !curStroke) return;
+      const p = toUV(e);
+      if (!p) return;
+      e.preventDefault();
+      styleFor(ctx, curStroke.tool, curStroke.color, curStroke.width);
+      ctx.beginPath();
+      ctx.moveTo(lastPt[0] * SIZE, lastPt[1] * SIZE);
+      ctx.lineTo(p[0] * SIZE, p[1] * SIZE);
+      ctx.stroke();
+      texture.needsUpdate = true;
+      curStroke.points.push(p);
+      lastPt = p;
+    };
+    const onUp = () => {
+      if (!curStroke) return;
+      const s = curStroke;
+      curStroke = null;
+      lastPt = null;
+      onMarkupChangeRef.current && onMarkupChangeRef.current([...(modelRef.current.markup || []), s]);
+    };
+    container.addEventListener("pointerdown", onDown);
+    container.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+
+    stateRef.current = { scene, mesh, renderer, camera, material, texture, drawBase, baseImg };
 
     let frameId;
     const clock = new THREE.Clock();
     const animate = () => {
       frameId = requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
-      if (model && model.geometry !== "plane") {
-        mesh.rotation.y = (model.rotY || 0) + t * 0.35;
+      const m = modelRef.current;
+      mesh.rotation.x = m.rotX || 0;
+      mesh.rotation.z = m.rotZ || 0;
+      if (!paintingActiveRef.current && m.geometry !== "plane") {
+        mesh.rotation.y = (m.rotY || 0) + t * 0.35;
+      } else {
+        mesh.rotation.y = m.rotY || 0;
       }
       renderer.render(scene, camera);
     };
@@ -64,8 +199,12 @@ export default function ModelPreview3D({ model, bgColor = "#080B14" }) {
     return () => {
       cancelAnimationFrame(frameId);
       window.removeEventListener("resize", onResize);
+      container.removeEventListener("pointerdown", onDown);
+      container.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
       mesh.geometry.dispose();
-      mesh.material.dispose();
+      material.dispose();
+      texture.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement);
@@ -74,50 +213,50 @@ export default function ModelPreview3D({ model, bgColor = "#080B14" }) {
     };
   }, []);
 
-  // Background color
   useEffect(() => {
     const s = stateRef.current;
     if (!s) return;
     s.scene.background = new THREE.Color(bgColor);
   }, [bgColor]);
 
-  // Geometry / image change → replace geometry + material
   useEffect(() => {
     const s = stateRef.current;
     if (!s) return;
-    const oldGeo = s.mesh.geometry;
-    const oldMat = s.mesh.material;
-    s.mesh.geometry = createGeometry(model.geometry);
-    s.mesh.material = createMaterial(model);
-    oldGeo.dispose();
-    oldMat.dispose();
-  }, [model.geometry, model.image_url]);
+    s.mesh.geometry.dispose();
+    s.mesh.geometry = createGeometry(model.geometry || "box");
+  }, [model.geometry]);
 
-  // Material params (procedural only)
   useEffect(() => {
     const s = stateRef.current;
     if (!s) return;
-    const mat = s.mesh.material;
-    if (mat.map) return;
-    mat.color = new THREE.Color(model.color || "#3B82F6");
-    mat.metalness = model.metalness;
-    mat.roughness = model.roughness;
-    mat.needsUpdate = true;
+    imgLoadedRef.current = false;
+    if (model.image_url) {
+      s.baseImg.src = model.image_url;
+    } else {
+      s.drawBase();
+    }
+  }, [model.image_url]);
+
+  useEffect(() => {
+    const s = stateRef.current;
+    if (!s) return;
+    s.material.metalness = typeof model.metalness === "number" ? model.metalness : 0.65;
+    s.material.roughness = typeof model.roughness === "number" ? model.roughness : 0.22;
+    if (!imgLoadedRef.current) s.drawBase();
+    s.material.needsUpdate = true;
   }, [model.color, model.metalness, model.roughness]);
 
-  // Scale
   useEffect(() => {
     const s = stateRef.current;
     if (!s) return;
     s.mesh.scale.setScalar(model.scale || 1);
   }, [model.scale]);
 
-  // Orientation
   useEffect(() => {
     const s = stateRef.current;
     if (!s) return;
-    s.mesh.rotation.set(model.rotX || 0, model.rotY || 0, model.rotZ || 0);
-  }, [model.rotX, model.rotY, model.rotZ]);
+    s.drawBase();
+  }, [model.markup]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }

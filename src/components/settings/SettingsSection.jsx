@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Volume2, Moon, Gauge, Shield, Bell, Languages } from "lucide-react";
+import { Moon, Gauge, Shield, Bell, Languages } from "lucide-react";
 import ConnectionTab from "@/components/settings/ConnectionTab";
+import VoiceTab from "@/components/settings/VoiceTab";
 
 const TABS = [
   { id: "ambience", label: "Ambience" },
+  { id: "voice", label: "Voice" },
   { id: "trust", label: "Trust" },
   { id: "connection", label: "Connection" },
 ];
@@ -12,7 +14,6 @@ const SETTING_GROUPS = [
   {
     title: "Ambience",
     items: [
-      { id: "voice", label: "Voice Responses", desc: "Let Jabber speak aloud", icon: Volume2, type: "toggle", default: true },
       { id: "theme", label: "Calm Mode", desc: "Soften motion and color", icon: Moon, type: "toggle", default: false },
       { id: "speed", label: "Response Tempo", desc: "Balanced by default", icon: Gauge, type: "select", options: ["Patient", "Balanced", "Rapid"], default: "Balanced" },
     ],
@@ -79,7 +80,6 @@ export default function SettingsSection() {
 
       <div className="px-6 md:px-12">
         <div className="mx-auto max-w-2xl pb-16">
-          {/* Tabs */}
           <div className="mb-8 flex w-fit gap-1 rounded-full border border-border/50 p-1">
             {TABS.map((t) => (
               <button
@@ -98,6 +98,8 @@ export default function SettingsSection() {
 
           {tab === "connection" ? (
             <ConnectionTab />
+          ) : tab === "voice" ? (
+            <VoiceTab />
           ) : (
             <div className="space-y-12">
               <section>

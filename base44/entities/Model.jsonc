@@ -9,6 +9,14 @@
       "type": "string",
       "default": ""
     },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "2d",
+        "3d"
+      ],
+      "default": "3d"
+    },
     "geometry": {
       "type": "string",
       "enum": [
@@ -55,6 +63,38 @@
     "image_url": {
       "type": "string",
       "default": ""
+    },
+    "markup": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "pen",
+              "marker",
+              "highlighter"
+            ]
+          },
+          "color": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "required": [

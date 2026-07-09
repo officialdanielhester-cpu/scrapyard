@@ -1,6 +1,26 @@
 import React from "react";
 import { Boxes } from "lucide-react";
 
+function strokePath(stroke) {
+  const pts = stroke.points || [];
+  if (!pts.length) return "";
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    d += ` L ${pts[i][0]} ${pts[i][1]}`;
+  }
+  if (pts.length === 1) {
+    d += ` L ${pts[0][0] + 0.001} ${pts[0][1]}`;
+  }
+  return d;
+}
+
+function strokeProps(stroke) {
+  const base = { stroke: stroke.color, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };
+  if (stroke.tool === "pen") return { ...base, strokeWidth: 0.008, opacity: 1 };
+  if (stroke.tool === "marker") return { ...base, strokeWidth: 0.014, opacity: 0.7 };
+  return { ...base, strokeWidth: 0.03, opacity: 0.3, style: { mixBlendMode: "multiply" } };
+}
+
 export default function Grid2D({ models, onOpen }) {
   if (!models || models.length === 0) {
     return (
@@ -37,10 +57,21 @@ export default function Grid2D({ models, onOpen }) {
               />
             </div>
           )}
+          {(m.markup || []).length > 0 && (
+            <svg
+              viewBox="0 0 1 1"
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full pointer-events-none"
+            >
+              {(m.markup || []).map((s, i) => (
+                <path key={i} d={strokePath(s)} {...strokeProps(s)} />
+              ))}
+            </svg>
+          )}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-3">
             <p className="truncate text-xs font-medium text-white">{m.name}</p>
             <span className="font-mono text-[9px] uppercase tracking-wider text-white/60">
-              {m.image_url ? "Image" : (m.geometry || "model")}
+              {m.mode === "2d" ? "2D" : (m.geometry || "3d")}
             </span>
           </div>
         </button>

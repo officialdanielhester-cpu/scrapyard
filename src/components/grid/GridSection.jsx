@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Square, Box as BoxIcon, Palette, Upload, Loader2 } from "lucide-react";
+import { Square, Box as BoxIcon, Palette, Upload, Loader2, Boxes } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import Grid2D from "@/components/grid/Grid2D";
 import Grid3D from "@/components/grid/Grid3D";
@@ -33,6 +33,10 @@ export default function GridSection() {
     load();
   }, [load]);
 
+  const models2D = models.filter((m) => m.mode === "2d");
+  const models3D = models.filter((m) => m.mode !== "2d");
+  const viewModels = view === "2d" ? models2D : models3D;
+
   const handleOpenById = (id) => {
     const m = models.find((x) => x.id === id);
     if (m) setEditing(m);
@@ -54,6 +58,7 @@ export default function GridSection() {
       await base44.entities.Model.create({
         name: file.name.replace(/\.[^.]+$/, "").slice(0, 32) || "Imported Image",
         prompt: "",
+        mode: "2d",
         geometry: "plane",
         color: "#ffffff",
         scale: 1,
@@ -63,7 +68,9 @@ export default function GridSection() {
         metalness: 0,
         roughness: 1,
         image_url: file_url,
+        markup: [],
       });
+      setView("2d");
       load();
     } catch (err) {
       setImportError(err.message || "Import failed");
@@ -131,7 +138,7 @@ export default function GridSection() {
             />
           </label>
           <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-            {models.length} object{models.length !== 1 ? "s" : ""}
+            {viewModels.length} {view} object{viewModels.length !== 1 ? "s" : ""}
           </span>
         </div>
 
@@ -146,24 +153,35 @@ export default function GridSection() {
             <div className="flex h-64 items-center justify-center rounded-2xl border border-border/50">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : models.length === 0 ? (
-            <Grid2D models={[]} onOpen={handleOpenById} />
+          ) : viewModels.length === 0 ? (
+            <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 text-center">
+              <Boxes className="h-8 w-8 text-muted-foreground/50" strokeWidth={1} />
+              <p className="mt-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                No {view} models yet
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground/70">Tell Jabber what to make below</p>
+            </div>
           ) : view === "2d" ? (
             <div className="rounded-2xl border border-border/50 p-4" style={{ backgroundColor: bgColor }}>
-              <Grid2D models={models} onOpen={setEditing} />
+              <Grid2D models={viewModels} onOpen={setEditing} />
             </div>
           ) : (
             <div
               className="h-[70vh] overflow-hidden rounded-2xl border border-border/50"
               style={{ backgroundColor: bgColor }}
             >
-              <Grid3D models={models} bgColor={bgColor} onSelectModel={handleOpenById} />
+              <Grid3D models={viewModels} bgColor={bgColor} onSelectModel={handleOpenById} />
             </div>
           )}
         </div>
 
         <div className="mt-6 pb-16">
-          <GridPrompt onCreated={load} />
+          <GridPrompt
+            onCreated={(createdMode) => {
+              load();
+              setView(createdMode === "3d" ? "3d" : "2d");
+            }}
+          />
         </div>
       </div>
 
