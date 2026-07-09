@@ -1,0 +1,64 @@
+{
+  "name": "Experiment",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string",
+      "default": ""
+    },
+    "gravity": {
+      "type": "number",
+      "default": 9.8
+    },
+    "friction": {
+      "type": "number",
+      "default": 0.3
+    },
+    "timeScale": {
+      "type": "number",
+      "default": 1
+    },
+    "wind": {
+      "type": "number",
+      "default": 0
+    },
+    "atmosphere": {
+      "type": "number",
+      "default": 1
+    },
+    "temperature": {
+      "type": "number",
+      "default": 20
+    },
+    "specimens": {
+      "type": "number",
+      "default": 6
+    },
+    "bgColor": {
+      "type": "string",
+      "default": "#080B14"
+    },
+    "duration": {
+      "type": "number",
+      "default": 0
+    },
+    "avgSpeed": {
+      "type": "number",
+      "default": 0
+    },
+    "maxHeight": {
+      "type": "number",
+      "default": 0
+    },
+    "collisions": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
