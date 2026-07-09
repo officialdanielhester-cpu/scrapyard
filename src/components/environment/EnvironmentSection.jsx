@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit } from "lucide-react";
+import { Play, Pause, Rocket, RotateCcw, Circle, Square, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit, HelpCircle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
@@ -7,6 +7,7 @@ import VehicleSelector from "@/components/environment/VehicleSelector";
 import EnvironmentSelector from "@/components/environment/EnvironmentSelector";
 import EngineeringControls from "@/components/environment/EngineeringControls";
 import PlanetMission from "@/components/environment/PlanetMission";
+import EnvironmentHelp from "@/components/environment/EnvironmentHelp";
 import SteeringControl from "@/components/environment/SteeringControl";
 
 export default function EnvironmentSection({ pendingBuild, onConsumed }) {
@@ -210,6 +211,12 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
             >
               <Orbit className="h-3 w-3" strokeWidth={1.5} /> Planet Transfer
             </button>
+            <button
+              onClick={() => setView("help")}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${view === "help" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <HelpCircle className="h-3 w-3" strokeWidth={1.5} /> Help
+            </button>
           </div>
           <button
             onClick={() => setRunning((r) => !r)}
@@ -334,8 +341,10 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
             <EngineeringControls params={params} onParam={onParam} variables={variables} onVariable={onVariable} envKey={envKey} />
           </div>
         </div>
-        ) : (
+        ) : view === "mission" ? (
           <PlanetMission params={params} vehicleType={vehicleType} />
+        ) : (
+          <EnvironmentHelp />
         )}
 
         {view === "pad" && (
