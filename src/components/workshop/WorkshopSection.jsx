@@ -7,6 +7,7 @@ import PartsCatalog from "@/components/workshop/PartsCatalog";
 import AppliedPartsList from "@/components/workshop/AppliedPartsList";
 import BuildStats from "@/components/workshop/BuildStats";
 import SavedBuilds from "@/components/workshop/SavedBuilds";
+import AssemblyCanvas from "@/components/workshop/AssemblyCanvas";
 
 export default function WorkshopSection() {
   const [vehicleType, setVehicleType] = useState("rocket");
@@ -147,17 +148,18 @@ export default function WorkshopSection() {
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
             <WorkshopVehicleSelector value={vehicleType} onSelect={selectVehicle} />
+            <AssemblyCanvas applied={applied} vehicleType={vehicleType} onRemoveInstance={decPart} />
             <PartsCatalog vehicleType={vehicleType} onAdd={addPart} />
+          </div>
+
+          <div className="space-y-6">
+            <BuildStats stats={stats} />
             <div>
               <h3 className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 Applied Parts
               </h3>
               <AppliedPartsList applied={applied} onInc={incPart} onDec={decPart} onRemove={removePart} />
             </div>
-          </div>
-
-          <div className="space-y-6">
-            <BuildStats stats={stats} />
             <SavedBuilds builds={builds} loading={loading} onLoad={handleLoad} onDelete={handleDelete} />
           </div>
         </div>
