@@ -26,6 +26,8 @@ export default function PartsCatalog({ vehicleType, onAdd }) {
           return (
             <button
               key={p.id}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData("text/part", p.id); e.dataTransfer.effectAllowed = "copy"; }}
               onClick={() => onAdd(p.id)}
               className="group flex items-center gap-3 rounded-xl border border-border/50 p-2.5 text-left transition-colors hover:border-primary"
               aria-label={`Add ${p.label}`}

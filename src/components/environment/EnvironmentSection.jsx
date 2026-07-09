@@ -7,7 +7,7 @@ import VehicleSelector from "@/components/environment/VehicleSelector";
 import EnvironmentSelector from "@/components/environment/EnvironmentSelector";
 import EngineeringControls from "@/components/environment/EngineeringControls";
 
-export default function EnvironmentSection() {
+export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [vehicleType, setVehicleType] = useState("rocket");
   const [envKey, setEnvKey] = useState("earth");
   const [params, setParams] = useState(VEHICLES.rocket.defaults);
@@ -36,6 +36,21 @@ export default function EnvironmentSection() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!pendingBuild) return;
+    setVehicleType(pendingBuild.vehicle_type);
+    setParams({
+      thrust: pendingBuild.thrust,
+      mass: pendingBuild.mass,
+      drag: pendingBuild.drag,
+      lift: pendingBuild.lift,
+      fuel: pendingBuild.fuel,
+    });
+    setLaunched(false);
+    setResetSignal((s) => s + 1);
+    onConsumed?.();
+  }, [pendingBuild]);
 
   const selectVehicle = (type) => {
     setVehicleType(type);
@@ -135,7 +150,7 @@ export default function EnvironmentSection() {
     <div className="min-h-screen pb-10">
       <header className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-12">
         <div>
-          <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Environment</h1>
+          <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Playground</h1>
           <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             Design · Launch · Test
           </p>

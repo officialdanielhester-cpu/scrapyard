@@ -9,6 +9,7 @@ import DashboardSection from "@/components/dashboard/DashboardSection";
 
 export default function Home() {
   const [active, setActive] = useState("jabber");
+  const [pendingBuild, setPendingBuild] = useState(null);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -28,12 +29,17 @@ export default function Home() {
         )}
         {active === "env" && (
           <div className="min-h-screen">
-            <EnvironmentSection />
+            <EnvironmentSection pendingBuild={pendingBuild} onConsumed={() => setPendingBuild(null)} />
           </div>
         )}
         {active === "workshop" && (
           <div className="min-h-screen">
-            <WorkshopSection />
+            <WorkshopSection
+              onImportBuild={(payload) => {
+                setPendingBuild(payload);
+                setActive("env");
+              }}
+            />
           </div>
         )}
         {active === "dashboard" && (

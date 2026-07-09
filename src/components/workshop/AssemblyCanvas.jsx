@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Boxes, Square, Box as BoxIcon } from "lucide-react";
+import { Boxes, Square, Box as BoxIcon, Rocket } from "lucide-react";
 import { VEHICLES } from "@/components/environment/presets";
 import { PARTS_BY_ID } from "@/components/workshop/parts-catalog";
 import {
@@ -14,10 +14,12 @@ import {
 import AssemblyCanvas3D from "@/components/workshop/AssemblyCanvas3D";
 
 // Visual assembly bay: stacks applied parts into a vehicle silhouette.
-// Toggle 2D (SVG) / 3D (three.js). Click any rendered part to remove one instance.
-export default function AssemblyCanvas({ applied, vehicleType, onRemoveInstance }) {
+// 2D (SVG) / 3D (three.js) toggle. Drag parts from the catalog to add;
+// click a rendered part to remove one instance.
+export default function AssemblyCanvas({ applied, vehicleType, onRemoveInstance, onAdd, onImport }) {
   const [mode, setMode] = useState("2d");
   const [hover, setHover] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
   const layout = useMemo(() => layoutAssembly(applied), [applied]);
   const vehicleLabel = VEHICLES[vehicleType]?.label || vehicleType;
 
@@ -42,18 +44,53 @@ export default function AssemblyCanvas({ applied, vehicleType, onRemoveInstance 
     </div>
   );
 
+  const ImportBtn = onImport && (
+    <button
+      onClick={onImport}
+      className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[10px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+    >
+      <Rocket className="h-3 w-3" strokeWidth={2} /> Import to Playground
+    </button>
+  );
+
+  const dropHandlers = {
+    onDragOver: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (!dragOver) setDragOver(true); },
+    onDragLeave: (e) => { if (e.currentTarget === e.target) setDragOver(false); },
+    onDrop: (e) => {
+      e.preventDefault();
+      setDragOver(false);
+      const id = e.dataTransfer.getData("text/part");
+      if (id && onAdd) onAdd(id);
+    },
+  };
+
+  const headerRight = (
+    <div className="flex items-center gap-3">
+      <span className="hidden font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 sm:inline">
+        {mode === "2d" ? "click a part to remove" : "drag to orbit · click to remove"}
+      </span>
+      {ImportBtn}
+      {Toggle}
+    </div>
+  );
+
   if (!layout.hasContent) {
     return (
-      <div className="overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-b from-background to-muted/30">
+      <div
+        {...dropHandlers}
+        className={`overflow-hidden rounded-2xl border bg-gradient-to-b from-background to-muted/30 transition-colors ${
+          dragOver ? "border-primary ring-2 ring-primary/40" : "border-border/50"
+        }`}
+      >
         <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Assembly Bay</h3>
-          {Toggle}
+          {headerRight}
         </div>
         <div className="flex h-[380px] flex-col items-center justify-center text-center">
           <Boxes className="h-8 w-8 text-muted-foreground/40" strokeWidth={1} />
           <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Empty assembly bay</p>
           <p className="mt-1 text-sm text-muted-foreground/70">
-            Add parts below to build your {vehicleLabel.toLowerCase()}
+            {dragOver ? "Drop to add part" : `Drag parts here, or add below to build your ${vehicleLabel.toLowerCase()}`}
           </p>
         </div>
       </div>
@@ -74,15 +111,15 @@ export default function AssemblyCanvas({ applied, vehicleType, onRemoveInstance 
   });
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-b from-background to-muted/30">
+    <div
+      {...dropHandlers}
+      className={`overflow-hidden rounded-2xl border bg-gradient-to-b from-background to-muted/30 transition-colors ${
+        dragOver ? "border-primary ring-2 ring-primary/40" : "border-border/50"
+      }`}
+    >
       <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
         <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Assembly Bay</h3>
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-            {mode === "2d" ? "click a part to remove" : "drag-free orbit · click to remove"}
-          </span>
-          {Toggle}
-        </div>
+        {headerRight}
       </div>
 
       {mode === "3d" ? (

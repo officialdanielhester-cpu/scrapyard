@@ -9,7 +9,7 @@ import BuildStats from "@/components/workshop/BuildStats";
 import SavedBuilds from "@/components/workshop/SavedBuilds";
 import AssemblyCanvas from "@/components/workshop/AssemblyCanvas";
 
-export default function WorkshopSection() {
+export default function WorkshopSection({ onImportBuild }) {
   const [vehicleType, setVehicleType] = useState("rocket");
   const [applied, setApplied] = useState([]);
   const [buildName, setBuildName] = useState("Untitled Build");
@@ -148,7 +148,22 @@ export default function WorkshopSection() {
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
             <WorkshopVehicleSelector value={vehicleType} onSelect={selectVehicle} />
-            <AssemblyCanvas applied={applied} vehicleType={vehicleType} onRemoveInstance={decPart} />
+            <AssemblyCanvas
+              applied={applied}
+              vehicleType={vehicleType}
+              onRemoveInstance={decPart}
+              onAdd={addPart}
+              onImport={() =>
+                onImportBuild?.({
+                  vehicle_type: vehicleType,
+                  thrust: stats.thrust,
+                  mass: stats.mass,
+                  drag: stats.drag,
+                  lift: stats.lift,
+                  fuel: stats.fuel,
+                })
+              }
+            />
             <PartsCatalog vehicleType={vehicleType} onAdd={addPart} />
           </div>
 

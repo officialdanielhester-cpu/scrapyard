@@ -2,10 +2,10 @@ import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { layoutAssembly, BODY_W } from "@/components/workshop/part-visuals";
 
-// 3D assembly bay: renders the stacked parts as a real 3D vehicle silhouette.
-// Click any part to remove one instance (mirrors the 2D bay).
+// 3D assembly bay: renders stacked parts as a real 3D vehicle.
+// Drag to orbit any angle, scroll to zoom, click a part to remove it.
 
-const S = 0.02; // scene units per layout pixel
+const S = 0.02;
 const PALETTE = {
   body: 0x3b82f6,
   bodyHi: 0x93c5fd,
@@ -182,6 +182,8 @@ export default function AssemblyCanvas3D({ applied, onRemoveInstance }) {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.touchAction = "none";
+    renderer.domElement.style.cursor = "grab";
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -210,6 +212,19 @@ export default function AssemblyCanvas3D({ applied, onRemoveInstance }) {
     scene.add(assembly.group);
     let hoverMesh = null;
 
+    const target = new THREE.Vector3(0, 0, 0);
+    let radius = 8;
+    let theta = 0.7;
+    let phi = 1.15;
+    const updateCamera = () => {
+      camera.position.set(
+        target.x + radius * Math.sin(phi) * Math.sin(theta),
+        target.y + radius * Math.cos(phi),
+        target.z + radius * Math.sin(phi) * Math.cos(theta)
+      );
+      camera.lookAt(target);
+    };
+
     const rebuild = () => {
       scene.remove(assembly.group);
       assembly.group.traverse((o) => {
@@ -221,10 +236,11 @@ export default function AssemblyCanvas3D({ applied, onRemoveInstance }) {
       const height3D = assembly.totalH * S;
       const groupY = assembly.totalH > 0 ? -2.15 + height3D / 2 : 0;
       assembly.group.position.y = groupY;
-      camera.position.set(6, groupY + 1.2, 7);
-      camera.lookAt(0, groupY, 0);
+      target.set(0, groupY, 0);
+      radius = Math.max(6, Math.min(16, height3D * 1.4 || 8));
+      updateCamera();
       hoverMesh = null;
-      renderer.domElement.style.cursor = "default";
+      renderer.domElement.style.cursor = "grab";
     };
     rebuild();
     rebuildRef.current = rebuild;
@@ -243,25 +259,61 @@ export default function AssemblyCanvas3D({ applied, onRemoveInstance }) {
       if (hoverMesh && hoverMesh.material.emissive) hoverMesh.material.emissive.setHex(0x000000);
       hoverMesh = m;
       if (m && m.material.emissive) m.material.emissive.setHex(0x1d4ed8);
-      renderer.domElement.style.cursor = m ? "pointer" : "default";
+      if (!dragging) renderer.domElement.style.cursor = m ? "pointer" : "grab";
     };
-    const onMove = (e) => setHover(intersect(e.clientX, e.clientY)[0]?.object || null);
-    const onLeave = () => setHover(null);
-    const onClick = (e) => {
-      const hit = intersect(e.clientX, e.clientY)[0];
-      const id = hit?.object?.userData?.partId;
-      if (id) onRemoveRef.current?.(id);
+
+    // Orbit drag + click-to-remove
+    let dragging = false;
+    let lastX = 0, lastY = 0, dragDist = 0;
+    const onDown = (e) => {
+      dragging = true;
+      dragDist = 0;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      renderer.domElement.setPointerCapture(e.pointerId);
+      renderer.domElement.style.cursor = "grabbing";
     };
+    const onMove = (e) => {
+      if (dragging) {
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        dragDist += Math.abs(dx) + Math.abs(dy);
+        theta -= dx * 0.006;
+        phi = Math.max(0.15, Math.min(Math.PI - 0.15, phi - dy * 0.006));
+        updateCamera();
+      } else {
+        setHover(intersect(e.clientX, e.clientY)[0]?.object || null);
+      }
+    };
+    const onUp = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (dragDist < 6) {
+        const id = intersect(e.clientX, e.clientY)[0]?.object?.userData?.partId;
+        if (id) onRemoveRef.current?.(id);
+      }
+      renderer.domElement.style.cursor = hoverMesh ? "pointer" : "grab";
+    };
+    const onLeave = () => { if (!dragging) setHover(null); };
+    const onWheel = (e) => {
+      e.preventDefault();
+      radius = Math.max(3, Math.min(20, radius * (e.deltaY > 0 ? 1.1 : 0.9)));
+      updateCamera();
+    };
+    renderer.domElement.addEventListener("pointerdown", onDown);
     renderer.domElement.addEventListener("pointermove", onMove);
+    renderer.domElement.addEventListener("pointerup", onUp);
     renderer.domElement.addEventListener("pointerleave", onLeave);
-    renderer.domElement.addEventListener("click", onClick);
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     let raf;
     const clock = new THREE.Clock();
     const tick = () => {
       raf = requestAnimationFrame(tick);
       const dt = clock.getDelta();
-      assembly.group.rotation.y += dt * 0.4;
       assembly.rotorMeshes.forEach((r) => { r.rotation.y += dt * 12; });
       renderer.render(scene, camera);
     };
@@ -279,9 +331,11 @@ export default function AssemblyCanvas3D({ applied, onRemoveInstance }) {
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      renderer.domElement.removeEventListener("pointerdown", onDown);
       renderer.domElement.removeEventListener("pointermove", onMove);
+      renderer.domElement.removeEventListener("pointerup", onUp);
       renderer.domElement.removeEventListener("pointerleave", onLeave);
-      renderer.domElement.removeEventListener("click", onClick);
+      renderer.domElement.removeEventListener("wheel", onWheel);
       scene.remove(assembly.group);
       assembly.group.traverse((o) => {
         if (o.geometry) o.geometry.dispose();
