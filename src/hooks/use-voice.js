@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useJabberSettings } from "@/hooks/use-jabber-settings";
 
 export const VOICES = [
   { id: "river", label: "River", desc: "Calm, neutral" },
@@ -9,55 +10,28 @@ export const VOICES = [
   { id: "spark", label: "Spark", desc: "Energetic, quick" },
 ];
 
-const KEY_VOICE = "aetheris-voice";
-const KEY_SPEAK = "aetheris-speak";
-
+// Voice + speak-enabled now live in the shared Jabber settings store
+// (synced with website B). TTS playback stays local to this hook.
 export function useVoice() {
-  const [voice, setVoiceState] = useState(() => {
-    try {
-      return localStorage.getItem(KEY_VOICE) || "river";
-    } catch {
-      return "river";
-    }
-  });
-  const [speakEnabled, setSpeakState] = useState(() => {
-    try {
-      return localStorage.getItem(KEY_SPEAK) === "true";
-    } catch {
-      return false;
-    }
-  });
+  const { settings, update } = useJabberSettings();
+  const voice = settings.voice;
+  const speakEnabled = settings.speak;
   const [speaking, setSpeaking] = useState(false);
   const audioRef = useRef(null);
 
-  const setVoice = useCallback((v) => {
-    setVoiceState(v);
-    try {
-      localStorage.setItem(KEY_VOICE, v);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const setVoice = useCallback((v) => { update({ voice: v }); }, [update]);
+  const setSpeakEnabled = useCallback((on) => { update({ speak: on }); }, [update]);
 
-  const setSpeakEnabled = useCallback((on) => {
-    setSpeakState(on);
-    try {
-      localStorage.setItem(KEY_SPEAK, on ? "true" : "false");
-    } catch {
-      /* ignore */
-    }
-    if (!on && audioRef.current) {
+  useEffect(() => {
+    if (!speakEnabled && audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
       setSpeaking(false);
     }
-  }, []);
+  }, [speakEnabled]);
 
   const stop = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     setSpeaking(false);
   }, []);
 

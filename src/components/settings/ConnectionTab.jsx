@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Link2, ListChecks, MessageSquare, FolderKanban } from "lucide-react";
+import { Link2, ListChecks, MessageSquare, FolderKanban, Loader2 } from "lucide-react";
+import { useJabberSettings, pingGateway } from "@/hooks/use-jabber-settings";
 
 const OVERSIGHT = [
   { id: "tasks", label: "Tasks", desc: "Create, assign, and track tasks on your behalf", icon: ListChecks },
@@ -8,10 +9,32 @@ const OVERSIGHT = [
 ];
 
 export default function ConnectionTab() {
-  const [connected, setConnected] = useState(false);
-  const [permissions, setPermissions] = useState({ tasks: true, messages: false, projects: true });
+  const { settings, update } = useJabberSettings();
+  const [testing, setTesting] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const connected = !!settings.connected;
+  const permissions = settings.permissions || { tasks: true, messages: false, projects: true };
 
-  const togglePerm = (id) => setPermissions((p) => ({ ...p, [id]: !p[id] }));
+  const togglePerm = (id) =>
+    update({ permissions: { ...permissions, [id]: !permissions[id] } });
+
+  const handleConnect = async () => {
+    if (connected) {
+      update({ connected: false });
+      setNotice(null);
+      return;
+    }
+    setTesting(true);
+    setNotice(null);
+    const ok = await pingGateway();
+    setTesting(false);
+    if (ok) {
+      update({ connected: true });
+      setNotice("Reachable — Jabber can now administer website B.");
+    } else {
+      setNotice("Website B isn't reachable yet. Finish its gateway setup (shared secret + service-role fix), then try again.");
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -31,14 +54,16 @@ export default function ConnectionTab() {
             </div>
           </div>
           <button
-            onClick={() => setConnected((c) => !c)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            onClick={handleConnect}
+            disabled={testing}
+            className={`flex items-center gap-2 shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
               connected
                 ? "border border-border/60 text-foreground hover:bg-foreground/5"
                 : "bg-primary text-primary-foreground hover:opacity-80"
             }`}
           >
-            {connected ? "Disconnect" : "Connect"}
+            {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {connected ? "Disconnect" : testing ? "Testing…" : "Connect"}
           </button>
         </div>
         <div className="mt-4 flex items-center gap-2">
@@ -90,8 +115,13 @@ export default function ConnectionTab() {
         </div>
       </div>
 
+      {notice && (
+        <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
+          {notice}
+        </p>
+      )}
       <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-        Placeholder · no real workspace is accessed
+        {connected ? "Live · Jabber administers website B via the shared gateway" : "Gateway ready on this side · waiting for website B"}
       </p>
     </div>
   );

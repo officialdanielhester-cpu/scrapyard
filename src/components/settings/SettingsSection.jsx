@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Moon, Gauge, Shield, Bell, Languages } from "lucide-react";
 import ConnectionTab from "@/components/settings/ConnectionTab";
 import VoiceTab from "@/components/settings/VoiceTab";
+import { useJabberSettings, DEFAULT_JABBER_SETTINGS } from "@/hooks/use-jabber-settings";
 
 const TABS = [
   { id: "ambience", label: "Ambience" },
@@ -49,23 +50,10 @@ function Toggle({ on, onClick }) {
 
 export default function SettingsSection() {
   const [tab, setTab] = useState("ambience");
-  const [toggles, setToggles] = useState(() =>
-    Object.fromEntries(
-      SETTING_GROUPS.flatMap((g) =>
-        g.items.filter((i) => i.type === "toggle").map((i) => [i.id, i.default])
-      )
-    )
-  );
-  const [selects, setSelects] = useState(() =>
-    Object.fromEntries(
-      SETTING_GROUPS.flatMap((g) =>
-        g.items.filter((i) => i.type === "select").map((i) => [i.id, i.default])
-      )
-    )
-  );
+  const { settings, update } = useJabberSettings();
 
-  const toggle = (id) => setToggles((prev) => ({ ...prev, [id]: !prev[id] }));
-  const select = (id, val) => setSelects((prev) => ({ ...prev, [id]: val }));
+  const toggle = (id) => update({ [id]: !settings[id] });
+  const select = (id, val) => update({ [id]: val });
 
   const activeGroup = SETTING_GROUPS.find((g) => g.title.toLowerCase() === tab);
 
@@ -119,10 +107,10 @@ export default function SettingsSection() {
                           </div>
                         </div>
                         {item.type === "toggle" ? (
-                          <Toggle on={toggles[item.id]} onClick={() => toggle(item.id)} />
+                          <Toggle on={!!settings[item.id]} onClick={() => toggle(item.id)} />
                         ) : (
                           <select
-                            value={selects[item.id]}
+                            value={settings[item.id] ?? item.default}
                             onChange={(e) => select(item.id, e.target.value)}
                             className="rounded-md border border-border/60 bg-background px-3 py-1.5 font-mono text-xs focus:border-primary focus:outline-none"
                           >
@@ -142,14 +130,25 @@ export default function SettingsSection() {
                   <p className="font-body text-sm text-foreground/80">
                     Reset Jabber to its original state.
                   </p>
-                  <button className="mt-3 rounded-md border border-destructive/40 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-destructive transition-colors hover:bg-destructive/5">
+                  <button
+                    onClick={() =>
+                      update({
+                        theme: DEFAULT_JABBER_SETTINGS.theme,
+                        speed: DEFAULT_JABBER_SETTINGS.speed,
+                        private: DEFAULT_JABBER_SETTINGS.private,
+                        notify: DEFAULT_JABBER_SETTINGS.notify,
+                        lang: DEFAULT_JABBER_SETTINGS.lang,
+                      })
+                    }
+                    className="mt-3 rounded-md border border-destructive/40 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-destructive transition-colors hover:bg-destructive/5"
+                  >
                     Reset to Defaults
                   </button>
                 </div>
               )}
 
               <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                Placeholder · changes are not persisted
+                Synced with website B · stored locally until connected
               </p>
             </div>
           )}
