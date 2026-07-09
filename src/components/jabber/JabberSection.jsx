@@ -3,30 +3,30 @@ import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma } from "lucide-reac
 import { base44 } from "@/api/base44Client";
 import { useVoice } from "@/hooks/use-voice";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
-import { generateModel } from "@/components/grid/model-generator";
 import { callWebsiteB, formatAdminResult, adminErrorMessage } from "@/lib/websiteB";
+import { fetchRecentMemories, saveMemory, lookupAetheris } from "@/lib/jabber-memory";
 import FormulaLibrary from "@/components/jabber/FormulaLibrary";
 
 const SEED_MESSAGES = [
   {
     role: "assistant",
     content:
-      "I'm Jabber — your ambient intelligence layer. Ask me anything, or tell me what to make in The Grid and I'll build it.",
+      "I'm Jabber — your ambient intelligence layer. I remember our past chats, can look up what you've saved in Aetheris, and manage your list on website B.",
   },
 ];
 
 const SUGGESTIONS = [
-  "Make a 3D obsidian spire",
-  "Draw a crystalline orchid",
+  "What do you remember about our chats?",
+  "What models have I saved?",
   "What's on my website B list?",
 ];
 
 const CLASSIFY_SCHEMA = {
   type: "object",
   properties: {
-    intent: { type: "string", enum: ["create", "admin", "chat"] },
-    mode: { type: "string", enum: ["2d", "3d"] },
-    create_prompt: { type: "string" },
+    intent: { type: "string", enum: ["recall", "lookup", "admin", "chat"] },
+    recall_query: { type: "string", default: "" },
+    lookup_kind: { type: "string", enum: ["models", "experiments", "builds", "tasks"], default: "tasks" },
     gateway: {
       type: "object",
       properties: {
@@ -36,7 +36,7 @@ const CLASSIFY_SCHEMA = {
     },
     reply: { type: "string" },
   },
-  required: ["intent", "mode", "reply"],
+  required: ["intent", "reply"],
 };
 
 export default function JabberSection() {
@@ -44,49 +44,61 @@ export default function JabberSection() {
   const { settings } = useJabberSettings();
   const connected = !!settings.connected;
   const tasksAllowed = !!(settings.permissions && settings.permissions.tasks);
+  const persist = !settings.private;
   const [messages, setMessages] = useState(SEED_MESSAGES);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [admin, setAdmin] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [workLabel, setWorkLabel] = useState("");
   const [error, setError] = useState(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const scrollRef = useRef(null);
 
+  // Recall past conversations into the chat view on mount.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, thinking, creating, admin, speaking]);
+    (async () => {
+      const mems = await fetchRecentMemories(15);
+      if (mems.length) setMessages(mems.map((m) => ({ role: m.role, content: m.content })));
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, thinking, working, speaking]);
 
   const handleSend = async (text) => {
     const content = (text ?? input).trim();
-    if (!content || thinking || creating || admin) return;
+    if (!content || thinking || working) return;
     setError(null);
     setMessages((prev) => [...prev, { role: "user", content }]);
     setInput("");
     setThinking(true);
     try {
-      const history = messages
-        .slice(-6)
-        .map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`)
-        .join("\n");
-      const classifyPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. The app has "The Grid" where users create 2D images and 3D objects from descriptions. Aetheris is also linked to a second app called "website B" where Jabber can silently administer a task list.
+      const recent = await fetchRecentMemories(12);
+      const memoryContext = recent.length
+        ? recent.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n")
+        : "(no past conversations stored yet)";
+      await saveMemory("user", content, persist);
+
+      const classifyPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. You have a memory — past conversations are stored and shown below. You can also read saved files in Aetheris (models, experiments, builds, tasks) and manage a task list on a linked app called "website B".
 Current link status — connected to website B: ${connected}; tasks permission granted: ${tasksAllowed}.
 
 Decide the user's intent:
-- "create": they want to MAKE/BUILD/DRAW/DESIGN/GENERATE a visual model for The Grid (a thing/shape/object/image/model).
-- "admin": they want to manage tasks/items/to-dos/reminders on website B (create, list, mark done/complete, update, delete a task) OR they explicitly reference the other/second app ("website B", "my other app", "over there"). Only choose admin for task management on website B, never for making visuals.
-- "chat": anything else.
+- "recall": they ask what you remember, about past conversations, "do you remember", "what did we talk about", "last time", or reference something said before. Answer from the memory provided.
+- "lookup": they ask what they've saved/created/built in Aetheris — models, experiments, builds, or local tasks ("what models do I have?", "my experiments", "saved builds"). Set lookup_kind accordingly.
+- "admin": they want to manage tasks on website B (create, list, mark done/complete, update, delete) or reference the other/second app. Set gateway.action + gateway.params. Examples: create_task → {"action":"create_task","params":{"title":"buy milk"}}; list_tasks → {"action":"list_tasks","params":{}}; update_task → {"action":"update_task","params":{"title":"review notes","status":"done"}} (status: todo/in_progress/done); delete_task → {"action":"delete_task","params":{"title":"old draft"}}. Use the user's exact words for titles.
+- "chat": anything else — answer naturally.
 
 Return JSON:
 - intent
-- mode: "2d" for image/picture/drawing/sprite; "3d" for object/sculpture/figure/model/3D; default "2d" if unclear
-- create_prompt: if intent is create, a concise refined description of exactly what to make (under 40 words); else ""
-- gateway: if intent is admin, an object with action (one of list_tasks, create_task, update_task, delete_task) and params. Examples: create_task → {"action":"create_task","params":{"title":"buy milk"}}; list_tasks → {"action":"list_tasks","params":{}}; update_task → {"action":"update_task","params":{"title":"review notes","status":"done"}} (status is one of todo/in_progress/done); delete_task → {"action":"delete_task","params":{"title":"old draft"}}. Use the user's exact words for titles. Omit/null otherwise.
-- reply: a calm, concise 1-3 sentence Jabber reply. If create, briefly acknowledge what you're making (no technical steps). If admin, acknowledge the task action in one short line (no technical steps). If chat, answer naturally.
+- recall_query: if recall, short keywords (else "")
+- lookup_kind: if lookup, one of models/experiments/builds/tasks (else "tasks")
+- gateway: if admin, {action, params}; else null
+- reply: a calm, concise 1-3 sentence reply. For recall, answer from memory (say you don't recall it if it's not there). For lookup/admin, a one-line ack (the data is fetched separately). For chat, answer naturally.
 
-${history}
+Recent memory (oldest first):
+${memoryContext}
+
 User: ${content}`;
 
       const res = await base44.integrations.Core.InvokeLLM({
@@ -94,66 +106,46 @@ User: ${content}`;
         response_json_schema: CLASSIFY_SCHEMA,
       });
       const intent = res?.intent || "chat";
-      const reply = (res?.reply || "I'm here.").trim();
+      setThinking(false);
+
+      let reply = (res?.reply || "I'm here.").trim();
 
       if (intent === "admin") {
-        // Silent administration: no chatty ack — just act, then report the outcome.
-        setThinking(false);
         const gw = res.gateway || {};
         if (!connected || !tasksAllowed) {
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: "I'm not connected to website B yet. Turn it on in Settings → Connection." },
-          ]);
+          reply = "I'm not connected to website B yet. Turn it on in Settings → Connection.";
         } else if (!gw.action) {
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: "I wasn't sure exactly what to do on website B — try \"add X to my list\", \"what's on my list?\", or \"mark X as done\"." },
-          ]);
+          reply = 'I wasn\'t sure what to do on website B — try "add X to my list", "what\'s on my list?", or "mark X as done".';
         } else {
-          setAdmin(true);
+          setWorkLabel("Administering website B…");
+          setWorking(true);
           try {
             const data = await callWebsiteB(gw.action, gw.params || {});
-            const summary = formatAdminResult(gw.action, gw.params || {}, data);
-            setMessages((prev) => [...prev, { role: "assistant", content: summary }]);
-            if (speakEnabled) speak(summary);
+            reply = formatAdminResult(gw.action, gw.params || {}, data);
           } catch (e) {
-            setMessages((prev) => [...prev, { role: "assistant", content: adminErrorMessage(e) }]);
+            reply = adminErrorMessage(e);
           } finally {
-            setAdmin(false);
+            setWorking(false);
           }
         }
-      } else {
-        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-        if (speakEnabled) speak(reply);
-
-        if (intent === "create") {
-          setThinking(false);
-          setCreating(true);
-          try {
-            const mode = res.mode === "3d" ? "3d" : "2d";
-            const model = await generateModel((res.create_prompt || content).slice(0, 200), mode);
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content: `Done — "${model.name}" is now in The Grid (${mode.toUpperCase()}). Switch to The Grid to open, orient, and mark it up.`,
-              },
-            ]);
-          } catch (e) {
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: `I couldn't build that just now — ${e.message || "please try again."}` },
-            ]);
-          } finally {
-            setCreating(false);
-          }
+      } else if (intent === "lookup") {
+        setWorkLabel("Reading your saved files…");
+        setWorking(true);
+        try {
+          reply = await lookupAetheris(res.lookup_kind || "tasks");
+        } finally {
+          setWorking(false);
         }
       }
+
+      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      await saveMemory("assistant", reply, persist);
+      if (speakEnabled) speak(reply);
     } catch (e) {
       setError(e.message || "Jabber stumbled — try again.");
     } finally {
       setThinking(false);
+      setWorking(false);
     }
   };
 
@@ -186,10 +178,7 @@ User: ${content}`;
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8 md:px-12">
         <div className="mx-auto max-w-3xl space-y-6">
           {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
+            <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               {msg.role === "assistant" && (
                 <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
                   <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
@@ -197,9 +186,7 @@ User: ${content}`;
               )}
               <div
                 className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed transition-all ${
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border/50 bg-background"
+                  msg.role === "user" ? "bg-primary text-primary-foreground" : "border border-border/50 bg-background"
                 }`}
               >
                 {msg.content}
@@ -207,13 +194,13 @@ User: ${content}`;
             </div>
           ))}
 
-          {(thinking || creating || admin) && (
+          {(thinking || working) && (
             <div className="flex justify-start">
               <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
                 <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
               </div>
               <div className="flex items-center gap-2 rounded-2xl border border-border/50 px-5 py-4">
-                {(creating || admin) ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : null}
+                {working ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : null}
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
@@ -222,13 +209,13 @@ User: ${content}`;
                   />
                 ))}
                 <span className="ml-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {admin ? "Administering website B…" : creating ? "Building in The Grid…" : "Thinking"}
+                  {working ? workLabel : "Thinking"}
                 </span>
               </div>
             </div>
           )}
 
-          {messages.length === 1 && !thinking && !creating && !admin && (
+          {messages.length === 1 && !thinking && !working && (
             <div className="flex flex-wrap gap-2 pt-2">
               {SUGGESTIONS.map((s) => (
                 <button
@@ -247,17 +234,14 @@ User: ${content}`;
       <div className="border-t border-border/40 px-6 py-6 md:px-12">
         <div className="mx-auto max-w-3xl">
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
+            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
             className="group relative"
           >
             <div className="flex items-end gap-3 border-b border-border pb-3 transition-colors focus-within:border-primary">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything, make something in The Grid, or manage website B…"
+                placeholder="Ask anything, recall a past chat, or manage website B…"
                 className="flex-1 bg-transparent py-1 font-body text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
               <button
@@ -272,7 +256,7 @@ User: ${content}`;
               </button>
               <button
                 type="submit"
-                disabled={!input.trim() || thinking || creating || admin}
+                disabled={!input.trim() || thinking || working}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:opacity-80 disabled:opacity-30"
               >
                 <ArrowUp className="h-4 w-4" strokeWidth={2} />
@@ -281,7 +265,9 @@ User: ${content}`;
           </form>
           {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
           <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-            {speakEnabled ? "Voice on — replies spoken aloud" : "Voice off · type to talk with Jabber"}
+            {settings.private
+              ? "Private mode on — conversations aren't stored"
+              : `${speakEnabled ? "Voice on — " : ""}Memory on — Jabber remembers this chat`}
           </p>
         </div>
       </div>
