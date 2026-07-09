@@ -30,9 +30,9 @@ export default function ConnectionTab() {
     setTesting(false);
     if (ok) {
       update({ connected: true });
-      setNotice("Reachable — Jabber can now administer website B.");
+      setNotice("Reachable — Jabber can now administer Recall.");
     } else {
-      setNotice("Website B isn't reachable yet. Finish its gateway setup (shared secret + service-role fix), then try again.");
+      setNotice("Recall isn't reachable yet. Finish its gateway setup (shared secret + service-role fix), then try again.");
     }
   };
 
@@ -121,7 +121,7 @@ export default function ConnectionTab() {
         </p>
       )}
       <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-        {connected ? "Live · Jabber administers website B via the shared gateway" : "Gateway ready on this side · waiting for website B"}
+        {connected ? "Live · Jabber administers Recall via the shared gateway" : "Gateway ready on this side · waiting for Recall"}
       </p>
     </div>
   );

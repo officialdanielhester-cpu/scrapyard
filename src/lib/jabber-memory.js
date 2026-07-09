@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 // Jabber's memory + file-access layer.
 // - Memories: every turn is persisted (unless Private Mode is on) so Jabber can recall past chats.
 // - Lookup: reads saved records (models, experiments, builds, tasks) from Aetheris.
-// Website B's saved tasks are read through the admin/list_tasks gateway path.
+// Recall's saved tasks are read through the admin/list_tasks gateway path.
 
 const LOOKUP_MAP = {
   models: () => base44.entities.Model.list("-updated_date", 20),

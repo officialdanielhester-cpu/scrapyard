@@ -11,14 +11,14 @@ const SEED_MESSAGES = [
   {
     role: "assistant",
     content:
-      "I'm Jabber — your ambient intelligence layer. I remember our past chats, can look up what you've saved in Aetheris, and manage your list on website B.",
+      "I'm Jabber — your ambient intelligence layer. I remember our past chats, can look up what you've saved in Aetheris, and manage your list on Recall.",
   },
 ];
 
 const SUGGESTIONS = [
   "What do you remember about our chats?",
   "What models have I saved?",
-  "What's on my website B list?",
+  "What's on my Recall list?",
 ];
 
 const CLASSIFY_SCHEMA = {
@@ -80,13 +80,13 @@ export default function JabberSection() {
         : "(no past conversations stored yet)";
       await saveMemory("user", content, persist);
 
-      const classifyPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. You have a memory — past conversations are stored and shown below. You can also read saved files in Aetheris (models, experiments, builds, tasks) and manage a task list on a linked app called "website B".
-Current link status — connected to website B: ${connected}; tasks permission granted: ${tasksAllowed}.
+      const classifyPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. You have a memory — past conversations are stored and shown below. You can also read saved files in Aetheris (models, experiments, builds, tasks) and manage a task list on a linked app called "Recall".
+Current link status — connected to Recall: ${connected}; tasks permission granted: ${tasksAllowed}.
 
 Decide the user's intent:
 - "recall": they ask what you remember, about past conversations, "do you remember", "what did we talk about", "last time", or reference something said before. Answer from the memory provided.
 - "lookup": they ask what they've saved/created/built in Aetheris — models, experiments, builds, or local tasks ("what models do I have?", "my experiments", "saved builds"). Set lookup_kind accordingly.
-- "admin": they want to manage tasks on website B (create, list, mark done/complete, update, delete) or reference the other/second app. Set gateway.action + gateway.params. Examples: create_task → {"action":"create_task","params":{"title":"buy milk"}}; list_tasks → {"action":"list_tasks","params":{}}; update_task → {"action":"update_task","params":{"title":"review notes","status":"done"}} (status: todo/in_progress/done); delete_task → {"action":"delete_task","params":{"title":"old draft"}}. Use the user's exact words for titles.
+- "admin": they want to manage tasks on Recall (create, list, mark done/complete, update, delete) or reference the other/second app. Set gateway.action + gateway.params. Examples: create_task → {"action":"create_task","params":{"title":"buy milk"}}; list_tasks → {"action":"list_tasks","params":{}}; update_task → {"action":"update_task","params":{"title":"review notes","status":"done"}} (status: todo/in_progress/done); delete_task → {"action":"delete_task","params":{"title":"old draft"}}. Use the user's exact words for titles.
 - "chat": anything else — answer naturally.
 
 Return JSON:
@@ -113,11 +113,11 @@ User: ${content}`;
       if (intent === "admin") {
         const gw = res.gateway || {};
         if (!connected || !tasksAllowed) {
-          reply = "I'm not connected to website B yet. Turn it on in Settings → Connection.";
+          reply = "I'm not connected to Recall yet. Turn it on in Settings → Connection.";
         } else if (!gw.action) {
-          reply = 'I wasn\'t sure what to do on website B — try "add X to my list", "what\'s on my list?", or "mark X as done".';
+          reply = 'I wasn\'t sure what to do on Recall — try "add X to my list", "what\'s on my list?", or "mark X as done".';
         } else {
-          setWorkLabel("Administering website B…");
+          setWorkLabel("Administering Recall…");
           setWorking(true);
           try {
             const data = await callWebsiteB(gw.action, gw.params || {});
@@ -241,7 +241,7 @@ User: ${content}`;
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything, recall a past chat, or manage website B…"
+                placeholder="Ask anything, recall a past chat, or manage Recall…"
                 className="flex-1 bg-transparent py-1 font-body text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
               <button

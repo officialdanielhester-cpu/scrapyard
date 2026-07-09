@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Moon, Gauge, Shield, Bell, Languages } from "lucide-react";
 import ConnectionTab from "@/components/settings/ConnectionTab";
 import VoiceTab from "@/components/settings/VoiceTab";
+import AccountTab from "@/components/settings/AccountTab";
 import { useJabberSettings, DEFAULT_JABBER_SETTINGS } from "@/hooks/use-jabber-settings";
 
 const TABS = [
@@ -9,6 +10,7 @@ const TABS = [
   { id: "voice", label: "Voice" },
   { id: "trust", label: "Trust" },
   { id: "connection", label: "Connection" },
+  { id: "account", label: "Account" },
 ];
 
 const SETTING_GROUPS = [
@@ -88,6 +90,8 @@ export default function SettingsSection() {
             <ConnectionTab />
           ) : tab === "voice" ? (
             <VoiceTab />
+          ) : tab === "account" ? (
+            <AccountTab />
           ) : (
             <div className="space-y-12">
               <section>
@@ -148,7 +152,7 @@ export default function SettingsSection() {
               )}
 
               <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                Synced with website B · stored locally until connected
+                Synced with Recall · stored locally until connected
               </p>
             </div>
           )}

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 
 // Shared Jabber settings store. Canonical source for behavioral settings is
-// website B's aiGateway (get_settings / set_settings); localStorage holds the
+// Recall's aiGateway (get_settings / set_settings); localStorage holds the
 // local-only fields (speak, connected, permissions) and is the instant fallback.
 const LS_KEY = "aetheris-jabber-settings";
 

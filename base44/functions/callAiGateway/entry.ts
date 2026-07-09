@@ -15,8 +15,8 @@ Deno.serve(async (req) => {
     let body = {};
     try { body = await req.json(); } catch (_) {}
     const payload = (body && body.payload !== undefined) ? body.payload : body;
-    // Tag every gateway call with the Aetheris user's linked website B identity
-    // so website B can scope tasks to that profile (per-user, not shared).
+    // Tag every gateway call with the Aetheris user's linked Recall identity
+    // so Recall can scope tasks to that profile (per-user, not shared).
     const linkedEmail = user?.linked_website_b?.email;
     if (linkedEmail && payload && typeof payload === 'object' && !Array.isArray(payload)) {
       payload.owner_email = linkedEmail;

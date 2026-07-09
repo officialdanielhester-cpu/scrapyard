@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Boxes, SlidersHorizontal, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown, User } from "lucide-react";
+import { Sparkles, Boxes, SlidersHorizontal, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
 const TOP_ITEMS = [
@@ -12,10 +12,7 @@ const ENV_CHILDREN = [
   { id: "dashboard", label: "Dashboard", icon: LineChart },
 ];
 const ENV_IDS = ENV_CHILDREN.map((c) => c.id);
-const BOTTOM_ITEMS = [
-  { id: "settings", label: "Settings", icon: SlidersHorizontal },
-  { id: "profile", label: "Account", icon: User },
-];
+const BOTTOM_ITEMS = [{ id: "settings", label: "Settings", icon: SlidersHorizontal }];
 
 export default function JabberNav({ active, onSelect }) {
   const { theme, toggle } = useTheme();
