@@ -7,6 +7,7 @@ import VehicleSelector from "@/components/environment/VehicleSelector";
 import EnvironmentSelector from "@/components/environment/EnvironmentSelector";
 import EngineeringControls from "@/components/environment/EngineeringControls";
 import PlanetMission from "@/components/environment/PlanetMission";
+import SteeringControl from "@/components/environment/SteeringControl";
 
 export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [vehicleType, setVehicleType] = useState("rocket");
@@ -17,8 +18,9 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [launched, setLaunched] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
   const [zoom, setZoom] = useState(1);
+  const steerRef = useRef({ steer: 0 });
   const [view, setView] = useState("pad");
-  const [metrics, setMetrics] = useState({ altitude: 0, velocity: 0, maxSpeed: 0, maxAltitude: 0, distance: 0, flightTime: 0, acceleration: 0, fuel: params.fuel, landed: false });
+  const [metrics, setMetrics] = useState({ altitude: 0, velocity: 0, maxSpeed: 0, maxAltitude: 0, distance: 0, flightTime: 0, acceleration: 0, fuel: params.fuel, landed: false, pitch: 0, goalReached: false, goalX: 120 });
   const [experiments, setExperiments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,6 +55,22 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
     setResetSignal((s) => s + 1);
     onConsumed?.();
   }, [pendingBuild]);
+
+  useEffect(() => {
+    if (view !== "pad") return;
+    const onDown = (e) => {
+      if (e.key === "ArrowUp") { steerRef.current.steer = 1; e.preventDefault(); }
+      else if (e.key === "ArrowDown") { steerRef.current.steer = -1; e.preventDefault(); }
+    };
+    const onUp = (e) => { if (e.key === "ArrowUp" || e.key === "ArrowDown") steerRef.current.steer = 0; };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+      steerRef.current.steer = 0;
+    };
+  }, [view]);
 
   const selectVehicle = (type) => {
     setVehicleType(type);
@@ -137,16 +155,37 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   };
 
   const fuelPct = Math.max(0, Math.min(100, (metrics.fuel / (params.fuel || 1)) * 100));
-  const statusLabel = recording ? "Recording" : !launched ? "Ready" : metrics.landed ? "Landed" : running ? "In Flight" : "Paused";
+  const isGround = VEHICLES[vehicleType]?.category === "ground";
+  const isFlyer = !isGround;
+  const statusLabel = recording
+    ? "Recording"
+    : !launched
+    ? "Ready"
+    : metrics.goalReached
+    ? "Goal Reached"
+    : metrics.landed
+    ? "Landed"
+    : running
+    ? "In Flight"
+    : "Paused";
 
-  const metricCards = [
-    { label: "Altitude", value: metrics.altitude.toFixed(1), unit: "m" },
-    { label: "Velocity", value: metrics.velocity.toFixed(1), unit: "m/s" },
-    { label: "Max Speed", value: metrics.maxSpeed.toFixed(1), unit: "m/s" },
-    { label: "Distance", value: metrics.distance.toFixed(1), unit: "m" },
-    { label: "Flight Time", value: metrics.flightTime.toFixed(1), unit: "s" },
-    { label: "Accel", value: metrics.acceleration.toFixed(1), unit: "m/s²" },
-  ];
+  const metricCards = isGround
+    ? [
+        { label: "Distance", value: metrics.distance.toFixed(1), unit: "m" },
+        { label: "Velocity", value: metrics.velocity.toFixed(1), unit: "m/s" },
+        { label: "Max Speed", value: metrics.maxSpeed.toFixed(1), unit: "m/s" },
+        { label: "To Goal", value: Math.max(0, (metrics.goalX || 120) - metrics.distance).toFixed(0), unit: "m" },
+        { label: "Flight Time", value: metrics.flightTime.toFixed(1), unit: "s" },
+        { label: "Accel", value: metrics.acceleration.toFixed(1), unit: "m/s²" },
+      ]
+    : [
+        { label: "Altitude", value: metrics.altitude.toFixed(1), unit: "m" },
+        { label: "Velocity", value: metrics.velocity.toFixed(1), unit: "m/s" },
+        { label: "Max Speed", value: metrics.maxSpeed.toFixed(1), unit: "m/s" },
+        { label: "Distance", value: metrics.distance.toFixed(1), unit: "m" },
+        { label: "Flight Time", value: metrics.flightTime.toFixed(1), unit: "s" },
+        { label: "Accel", value: metrics.acceleration.toFixed(1), unit: "m/s²" },
+      ];
 
   return (
     <div className="min-h-screen pb-10">
@@ -227,6 +266,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                 onMetrics={handleMetrics}
                 zoom={zoom}
                 onZoom={setZoom}
+                steerRef={steerRef}
               />
               <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1.5 backdrop-blur">
                 <span className={`h-1.5 w-1.5 rounded-full ${recording ? "animate-pulse bg-destructive" : metrics.landed ? "bg-amber-500" : launched ? "bg-emerald-500" : "bg-muted-foreground"}`} />
@@ -254,6 +294,15 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                   <ZoomOut className="h-4 w-4" strokeWidth={1.5} />
                 </button>
               </div>
+              {isFlyer && (
+                <div className="absolute bottom-16 left-1/2 -translate-x-1/2">
+                  <SteeringControl
+                    pitchDeg={Math.round(((metrics.pitch || 0) * 180) / Math.PI)}
+                    onSteer={(dir) => { steerRef.current.steer = dir; }}
+                    onSteerEnd={() => { steerRef.current.steer = 0; }}
+                  />
+                </div>
+              )}
               {/* fuel gauge */}
               <div className="absolute inset-x-4 bottom-4">
                 <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">

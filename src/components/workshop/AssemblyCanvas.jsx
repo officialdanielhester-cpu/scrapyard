@@ -166,7 +166,7 @@ export default function AssemblyCanvas({ applied, vehicleType, onRemoveInstance,
                 return (
                   <g key={key} {...handlers(p.id, key)} opacity={isHover ? 0.7 : 1}>
                     <title>{`${PARTS_BY_ID[p.id]?.label || p.id} — click to remove`}</title>
-                    {drawShape(p.id, { cx: p.cx, y: p.y, w: p.w, colors: COLORS })}
+                    {drawShape(p.id, { cx: p.cx, y: p.y, w: p.w, h: p.h, colors: COLORS })}
                     {isHover && (
                       <rect
                         x={p.cx - p.w / 2 - 4}

@@ -1,4 +1,4 @@
-import { Flame, Plane, Cog, Fuel, Triangle, Fan, Shield, Disc, Package, Battery } from "lucide-react";
+import { Flame, Plane, Cog, Fuel, Triangle, Fan, Shield, Disc, Package, Battery, Satellite, Atom, Wind, Layers } from "lucide-react";
 import { VEHICLES } from "@/components/environment/presets";
 
 const G = 9.81;
@@ -21,6 +21,26 @@ export const PARTS = [
   { id: "wheel", label: "Wheel Gear", icon: Disc, category: "Ground", apply: ["ground", "winged"], mass: 0.3, thrust: 0, lift: 0, drag: 0.05, fuel: 0, note: "Landing assembly" },
   { id: "payload", label: "Payload", icon: Package, category: "Utility", apply: ["launch", "winged", "rotor", "ground"], mass: 2.0, thrust: 0, lift: 0, drag: 0.02, fuel: 0, note: "Cargo mass" },
   { id: "battery", label: "Battery Pack", icon: Battery, category: "Utility", apply: ["ground", "rotor"], mass: 0.8, thrust: 0, lift: 0, drag: 0.02, fuel: 0, note: "Electric storage" },
+  // Payload variants — pick a size & shape
+  { id: "payload_capsule", label: "Crew Capsule", icon: Package, category: "Utility", apply: ["launch", "winged", "rotor", "ground"], mass: 1.2, thrust: 0, lift: 0, drag: 0.05, fuel: 0, note: "Crew compartment" },
+  { id: "payload_cargo", label: "Cargo Bay", icon: Package, category: "Utility", apply: ["launch", "winged", "rotor", "ground"], mass: 2.5, thrust: 0, lift: 0, drag: 0.04, fuel: 0, note: "Pressurized cargo" },
+  { id: "payload_sat", label: "Satellite", icon: Satellite, category: "Utility", apply: ["launch", "winged"], mass: 1.8, thrust: 0, lift: 0, drag: 0.07, fuel: 0, note: "Orbital payload" },
+  // Propulsion
+  { id: "ion_engine", label: "Ion Thruster", icon: Atom, category: "Propulsion", apply: ["launch"], mass: 0.3, thrust: 6, lift: 0, drag: 0, fuel: 25, note: "High-Isp electric" },
+  { id: "nuclear_engine", label: "Nuclear Engine", icon: Flame, category: "Propulsion", apply: ["launch"], mass: 2.0, thrust: 150, lift: 0, drag: 0.02, fuel: 12, note: "Thermal nuclear" },
+  { id: "ramjet", label: "Ramjet", icon: Wind, category: "Propulsion", apply: ["winged"], mass: 1.2, thrust: 110, lift: 0, drag: 0.08, fuel: 6, note: "Supersonic air-breather" },
+  // Aero
+  { id: "delta_wing", label: "Delta Wing", icon: Triangle, category: "Aero", apply: ["winged"], mass: 0.8, thrust: 0, lift: 1.1, drag: 0.18, fuel: 0, note: "High-lift planform" },
+  { id: "swept_wing", label: "Swept Wing", icon: Triangle, category: "Aero", apply: ["winged"], mass: 0.7, thrust: 0, lift: 0.9, drag: 0.12, fuel: 0, note: "Low-drag swept" },
+  { id: "grid_fin", label: "Grid Fin", icon: Layers, category: "Aero", apply: ["launch"], mass: 0.3, thrust: 0, lift: 0.05, drag: 0.18, fuel: 0, note: "Grid control surface" },
+  { id: "parachute", label: "Descent Chute", icon: Wind, category: "Aero", apply: ["launch"], mass: 0.2, thrust: 0, lift: 0, drag: 0.6, fuel: 0, note: "Descent drag canopy" },
+  { id: "landing_legs", label: "Landing Legs", icon: Triangle, category: "Aero", apply: ["launch", "winged"], mass: 0.4, thrust: 0, lift: 0, drag: 0.05, fuel: 0, note: "Gear legs" },
+  // Fuel
+  { id: "fuel_tank_large", label: "Large Tank", icon: Fuel, category: "Fuel", apply: ["launch", "winged", "rotor"], mass: 2.2, thrust: 0, lift: 0, drag: 0.04, fuel: 22, note: "Extended burn" },
+  // Ground
+  { id: "treads", label: "Tank Treads", icon: Disc, category: "Ground", apply: ["ground"], mass: 1.5, thrust: 0, lift: 0, drag: 0.12, fuel: 0, note: "Tracked traction" },
+  { id: "offroad_tire", label: "Off-road Tire", icon: Disc, category: "Ground", apply: ["ground", "winged"], mass: 0.4, thrust: 0, lift: 0, drag: 0.06, fuel: 0, note: "All-terrain grip" },
+  { id: "spoiler", label: "Spoiler", icon: Triangle, category: "Aero", apply: ["ground", "winged"], mass: 0.2, thrust: 0, lift: 0, drag: 0.1, fuel: 0, note: "Downforce" },
 ];
 
 export const PARTS_BY_ID = Object.fromEntries(PARTS.map((p) => [p.id, p]));

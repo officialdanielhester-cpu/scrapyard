@@ -5,6 +5,7 @@ import { VEHICLES } from "@/components/environment/presets";
 const SCALE = 0.22; // scene units per meter
 const ARENA_M = 160; // half-width in meters
 const CEILING_M = 320;
+const GOAL_X = 120;
 const TRAIL_MAX = 400;
 
 function buildVehicle(type) {
@@ -88,7 +89,7 @@ function buildVehicle(type) {
   return { group: g, rotor };
 }
 
-export default function SimulationCanvas({ vehicleType, params, variables, running, launched, resetSignal, onMetrics, zoom = 1, onZoom }) {
+export default function SimulationCanvas({ vehicleType, params, variables, running, launched, resetSignal, onMetrics, zoom = 1, onZoom, steerRef = { current: { steer: 0 } } }) {
   const mountRef = useRef(null);
   const vehicleTypeRef = useRef(vehicleType);
   const paramsRef = useRef(params);
@@ -160,6 +161,19 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     pad.position.y = 0.03;
     scene.add(pad);
 
+    // finish-line gate for ground-vehicle goals
+    const gate = new THREE.Group();
+    const gateMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xfbbf24, emissiveIntensity: 0.35 });
+    [-1.3, 1.3].forEach((z) => {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.6, 8), gateMat);
+      post.position.set(0, 1.3, z); gate.add(post);
+    });
+    const gateBar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 2.7), gateMat);
+    gateBar.position.set(0, 2.6, 0); gate.add(gateBar);
+    gate.position.set(GOAL_X * SCALE, 0, 0);
+    gate.visible = false;
+    scene.add(gate);
+
     // starfield
     const starGeo = new THREE.BufferGeometry();
     const starPos = new Float32Array(400 * 3);
@@ -189,6 +203,8 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     let vel = new THREE.Vector3(0, 0, 0);
     let fuel = 0;
     let initialFuel = 0;
+    let pitch = 0;
+    let goalReached = false;
     let flightTime = 0;
     let landed = false;
     let maxSpeed = 0;
@@ -217,6 +233,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       pos.set(0, 0, 0); vel.set(0, 0, 0);
       fuel = paramsRef.current.fuel;
       initialFuel = paramsRef.current.fuel;
+      pitch = 0; goalReached = false;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
       vehicle.group.position.set(0, 0, 0);
@@ -226,6 +243,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       pos.set(0, 0, 0); vel.set(0, 0, 0);
       fuel = paramsRef.current.fuel;
       initialFuel = paramsRef.current.fuel;
+      pitch = 0; goalReached = false;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
     };
@@ -242,7 +260,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       if (launchedNow && !lastLaunched) {
         const cat = VEHICLES[vehicleTypeRef.current]?.category;
         vel.set(cat === "winged" ? 8 : 0, 0, 0);
-        landed = false; fuel = paramsRef.current.fuel; initialFuel = paramsRef.current.fuel; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail();
+        landed = false; fuel = paramsRef.current.fuel; initialFuel = paramsRef.current.fuel; pitch = 0; goalReached = false; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail();
       }
       lastLaunched = launchedNow;
 
@@ -279,22 +297,35 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
         const vHat = speed > 0.0001 ? vel.clone().multiplyScalar(1 / speed) : new THREE.Vector3();
         const dragMag = (0.5 * density * p.drag * speed * speed) / mass;
 
+        // Pilot steering: pitch the thrust/lift vector to alter the trajectory.
+        const isFlyer = cat === "launch" || cat === "winged" || cat === "rotor";
+        if (isFlyer) {
+          pitch += (steerRef.current?.steer || 0) * 1.2 * dt;
+          pitch = Math.max(-1.05, Math.min(1.05, pitch));
+        }
+        const sp = Math.sin(pitch), cp = Math.cos(pitch);
+
         if (cat === "launch") {
-          const tdir = new THREE.Vector3(vehicleTypeRef.current === "missile" ? 0.12 : 0, 1, 0).normalize();
+          const tdir = new THREE.Vector3(-sp + (vehicleTypeRef.current === "missile" ? 0.12 : 0), cp, 0).normalize();
           accel.addScaledVector(tdir, thrustMag / mass);
           accel.y -= g;
           accel.x += wind * 0.04;
           accel.addScaledVector(vHat, -dragMag);
         } else if (cat === "winged") {
-          const fwd = Math.abs(vel.x);
+          const fwd = Math.abs(vel.x * cp + vel.y * sp);
           // Quadratic lift: a = 0.5 * rho * CL * A * v^2 / m, opposing gravity.
           const liftMag = (0.5 * density * p.lift * fwd * fwd) / mass;
-          accel.x = thrustMag / mass;
-          accel.y = liftMag - g;
+          const forward = new THREE.Vector3(cp, sp, 0);
+          const up = new THREE.Vector3(-sp, cp, 0);
+          accel.addScaledVector(forward, thrustMag / mass);
+          accel.addScaledVector(up, liftMag);
+          accel.y -= g;
           accel.x += wind * 0.03;
           accel.addScaledVector(vHat, -dragMag);
         } else if (cat === "rotor") {
-          accel.y = thrustMag / mass - g;
+          const tdir = new THREE.Vector3(-sp, cp, 0);
+          accel.addScaledVector(tdir, thrustMag / mass);
+          accel.y -= g;
           accel.x += wind * 0.05;
           accel.addScaledVector(vHat, -dragMag);
         } else {
@@ -317,11 +348,16 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
           if (cat === "winged" || cat === "launch") { vel.set(0, 0, 0); landed = true; }
           else { vel.y = 0; }
         }
-        if (cat === "ground") { pos.y = 0; if (Math.abs(vel.x) < 0.2 && thrustMag === 0) landed = true; }
+        if (cat === "ground") {
+          pos.y = 0;
+          if (pos.x >= GOAL_X) { pos.x = GOAL_X; vel.x = 0; goalReached = true; landed = true; }
+          if (Math.abs(vel.x) < 0.2 && thrustMag === 0) landed = true;
+        }
         if (pos.x > ARENA_M) { pos.x = ARENA_M; vel.x = 0; landed = true; }
         if (pos.x < -ARENA_M) { pos.x = -ARENA_M; vel.x = 0; landed = true; }
         if (pos.y > CEILING_M) { pos.y = CEILING_M; if (vel.y > 0) vel.y = 0; }
 
+        if (landed) pitch = 0;
         if (speed > maxSpeed) maxSpeed = speed;
         if (pos.y > maxAlt) maxAlt = pos.y;
       }
@@ -329,9 +365,11 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       // place vehicle
       vehicle.group.position.set(pos.x * SCALE, pos.y * SCALE, pos.z * SCALE);
       if (vehicle.rotor) vehicle.rotor.rotation.y += rawDt * 25;
+      vehicle.group.rotation.z = cat === "launch" || cat === "winged" || cat === "rotor" ? pitch : 0;
       if ((cat === "winged" || cat === "ground") && vel.x !== 0) {
         vehicle.group.rotation.y = vel.x < 0 ? Math.PI : 0;
       }
+      if (gate) gate.visible = cat === "ground";
 
       // trail
       if (launchedNow && !landed && frame % 3 === 0 && trailCount < TRAIL_MAX) {
@@ -355,6 +393,9 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
           acceleration: lastAccel,
           fuel,
           landed,
+          pitch,
+          goalReached,
+          goalX: GOAL_X,
         });
       }
 

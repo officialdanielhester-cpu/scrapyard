@@ -31,54 +31,124 @@ function partGroup(id, r, h3D) {
       g.add(band);
       break;
     }
+    case "fuel_tank_large": {
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 1.05, r * 1.05, h3D, 28), mat(PALETTE.body, 0.7, 0.25)));
+      const b1 = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.07, r * 1.07, h3D * 0.05, 28), mat(PALETTE.bodyHi, 0.6, 0.3));
+      b1.position.y = h3D * 0.3; g.add(b1);
+      const b2 = b1.clone(); b2.position.y = -h3D * 0.3; g.add(b2);
+      break;
+    }
     case "payload":
       g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.8, r * 0.8, h3D, 20), mat(PALETTE.accent, 0.3, 0.5)));
       break;
+    case "payload_capsule": {
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.78, r * 0.78, h3D * 0.7, 20), mat(PALETTE.accent, 0.3, 0.5)));
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(r * 0.78, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat(PALETTE.body, 0.4, 0.4));
+      dome.position.y = h3D * 0.35; g.add(dome);
+      break;
+    }
+    case "payload_cargo":
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(r * 1.5, h3D, r * 1.5), mat(PALETTE.accent, 0.3, 0.5)));
+      break;
+    case "payload_sat": {
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(r * 1.1, h3D, r * 1.1), mat(PALETTE.accent, 0.3, 0.5)));
+      [-1, 1].forEach((s) => {
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(r * 1.4, h3D * 0.5, 0.03), mat(0x1e3a8a, 0.2, 0.7));
+        panel.position.set(s * r * 1.3, 0, 0); g.add(panel);
+      });
+      break;
+    }
     case "battery":
       g.add(new THREE.Mesh(new THREE.BoxGeometry(r * 1.6, h3D, r * 1.6), mat(PALETTE.struct, 0.4, 0.6)));
       break;
     case "heat_shield":
       g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 1.06, r * 0.94, h3D, 24), mat(PALETTE.struct, 0.3, 0.7)));
       break;
+    case "parachute": {
+      const canopy = new THREE.Mesh(new THREE.SphereGeometry(r * 0.9, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat(PALETTE.bodyHi, 0.2, 0.6));
+      canopy.scale.y = 0.5; g.add(canopy);
+      break;
+    }
     case "liquid_engine": {
       const chamber = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r * 0.55, h3D * 0.4, 20), mat(PALETTE.engine, 0.8, 0.3));
-      chamber.position.y = h3D * 0.3;
-      g.add(chamber);
+      chamber.position.y = h3D * 0.3; g.add(chamber);
       const noz = new THREE.Mesh(new THREE.ConeGeometry(r * 0.5, h3D * 0.6, 20), mat(PALETTE.engine, 0.8, 0.3));
-      noz.position.y = -h3D * 0.1;
-      noz.rotation.x = Math.PI;
-      g.add(noz);
+      noz.position.y = -h3D * 0.1; noz.rotation.x = Math.PI; g.add(noz);
+      break;
+    }
+    case "ion_engine": {
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h3D * 0.6, 8), mat(PALETTE.struct));
+      stem.position.y = h3D * 0.1; g.add(stem);
+      const dish = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.2, h3D * 0.2, 20), mat(PALETTE.engine, 0.6, 0.4));
+      dish.position.y = -h3D * 0.3; g.add(dish);
+      break;
+    }
+    case "nuclear_engine": {
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.6, r * 0.6, h3D * 0.5, 20), mat(PALETTE.engine, 0.7, 0.3)));
+      [-1, 1].forEach((s) => {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, h3D * 0.5, r * 0.4), mat(PALETTE.engine, 0.7, 0.3));
+        fin.position.set(s * r * 0.7, 0, 0); g.add(fin);
+      });
+      const noz = new THREE.Mesh(new THREE.ConeGeometry(r * 0.4, h3D * 0.4, 20), mat(PALETTE.engine, 0.8, 0.3));
+      noz.position.y = -h3D * 0.35; noz.rotation.x = Math.PI; g.add(noz);
       break;
     }
     case "jet_engine": {
       g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.5, h3D, 20), mat(PALETTE.engine, 0.7, 0.3)));
       const intake = new THREE.Mesh(new THREE.TorusGeometry(r * 0.5, 0.04, 8, 20), mat(PALETTE.bodyHi, 0.6, 0.3));
-      intake.rotation.x = Math.PI / 2;
-      intake.position.y = h3D / 2;
-      g.add(intake);
+      intake.rotation.x = Math.PI / 2; intake.position.y = h3D / 2; g.add(intake);
+      break;
+    }
+    case "ramjet": {
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.45, r * 0.45, h3D, 20), mat(PALETTE.engine, 0.7, 0.3)));
+      const intake = new THREE.Mesh(new THREE.TorusGeometry(r * 0.45, 0.05, 8, 20), mat(PALETTE.bodyHi, 0.6, 0.3));
+      intake.rotation.x = Math.PI / 2; intake.position.y = h3D / 2; g.add(intake);
       break;
     }
     case "turboshaft": {
       g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.6, r * 0.6, h3D, 20), mat(PALETTE.engine, 0.7, 0.3)));
       const cap = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.62, r * 0.62, h3D * 0.15, 20), mat(PALETTE.struct));
-      cap.position.y = h3D / 2;
-      g.add(cap);
+      cap.position.y = h3D / 2; g.add(cap);
       break;
     }
     case "rotor_blade": {
       g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h3D, 8), mat(PALETTE.struct)));
       const blade = new THREE.Mesh(new THREE.BoxGeometry(r * 4, 0.03, 0.12), mat(PALETTE.aero, 0.5, 0.4));
-      blade.position.y = h3D / 2;
-      g.add(blade);
+      blade.position.y = h3D / 2; g.add(blade);
       break;
     }
     case "wheel": {
       g.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, h3D, 0.06), mat(PALETTE.struct)));
       [-0.35, 0.35].forEach((z) => {
         const w = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.5, 0.12, 16), mat(PALETTE.gear, 0.2, 0.8));
-        w.rotation.x = Math.PI / 2;
-        w.position.set(0, -h3D * 0.3, z);
-        g.add(w);
+        w.rotation.x = Math.PI / 2; w.position.set(0, -h3D * 0.3, z); g.add(w);
+      });
+      break;
+    }
+    case "offroad_tire": {
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, h3D, 0.06), mat(PALETTE.struct)));
+      [-0.4, 0.4].forEach((z) => {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r * 0.7, 0.16, 16), mat(PALETTE.gear, 0.2, 0.9));
+        w.rotation.x = Math.PI / 2; w.position.set(0, -h3D * 0.25, z); g.add(w);
+      });
+      break;
+    }
+    case "treads": {
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(r * 1.8, h3D * 0.6, r * 1.8), mat(PALETTE.gear, 0.2, 0.9)));
+      [-0.3, 0.3].forEach((z) => {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.35, r * 0.35, r * 1.8, 16), mat(PALETTE.struct, 0.4, 0.6));
+        w.rotation.z = Math.PI / 2; w.position.set(0, 0, z); g.add(w);
+      });
+      break;
+    }
+    case "landing_legs": {
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.5, h3D * 0.2, 12), mat(PALETTE.struct));
+      top.position.y = h3D * 0.3; g.add(top);
+      [-1, 1].forEach((s) => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, h3D * 0.9, 8), mat(PALETTE.struct));
+        leg.position.set(s * r * 0.7, -h3D * 0.1, 0); leg.rotation.z = s * 0.4; g.add(leg);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 8), mat(PALETTE.gear));
+        foot.position.set(s * r * 1.0, -h3D * 0.45, 0); g.add(foot);
       });
       break;
     }
@@ -90,8 +160,13 @@ function partGroup(id, r, h3D) {
 
 function sideGroup(id, r) {
   const g = new THREE.Group();
-  const len = id === "wing" ? r * 2.4 : id === "canard" ? r * 1.4 : r * 1.6;
-  const d = id === "wing" ? 0.5 : 0.18;
+  let len, d;
+  if (id === "wing") { len = r * 2.4; d = 0.5; }
+  else if (id === "delta_wing") { len = r * 3.0; d = 0.6; }
+  else if (id === "swept_wing") { len = r * 2.6; d = 0.4; }
+  else if (id === "canard") { len = r * 1.4; d = 0.18; }
+  else if (id === "spoiler") { len = r * 1.1; d = 0.1; }
+  else { len = r * 1.6; d = 0.18; }
   for (let i = 0; i < 4; i++) {
     const ang = (i * Math.PI) / 2;
     const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, d), mat(PALETTE.aero, 0.4, 0.5));
