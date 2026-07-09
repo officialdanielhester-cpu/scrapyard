@@ -1,11 +1,12 @@
 import React from "react";
-import { Sparkles, Boxes, SlidersHorizontal, Sun, Moon, FlaskConical } from "lucide-react";
+import { Sparkles, Boxes, SlidersHorizontal, Sun, Moon, FlaskConical, Hammer } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
 const NAV_ITEMS = [
   { id: "jabber", label: "Jabber", icon: Sparkles },
   { id: "grid", label: "The Grid", icon: Boxes },
   { id: "env", label: "Environment", icon: FlaskConical },
+  { id: "workshop", label: "Workshop", icon: Hammer },
   { id: "settings", label: "Settings", icon: SlidersHorizontal },
 ];
 

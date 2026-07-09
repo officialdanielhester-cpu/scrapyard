@@ -1,0 +1,52 @@
+{
+  "name": "VehicleBuild",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "vehicle_type": {
+      "type": "string",
+      "default": "rocket"
+    },
+    "parts": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "thrust": {
+      "type": "number",
+      "default": 0
+    },
+    "mass": {
+      "type": "number",
+      "default": 0
+    },
+    "drag": {
+      "type": "number",
+      "default": 0
+    },
+    "lift": {
+      "type": "number",
+      "default": 0
+    },
+    "fuel": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "vehicle_type"
+  ]
+}
