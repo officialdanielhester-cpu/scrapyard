@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { User, Mail, Shield, Link2, Unlink, LogOut, Sparkles, Boxes, FlaskConical, Hammer, ListTodo, Loader2 } from "lucide-react";
+import { User, Mail, Shield, Link2, Unlink, LogOut, Sparkles, Boxes, FlaskConical, Hammer, ListTodo, Loader2, ChevronDown } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
 
 const DATA_CARDS = [
-  { key: "memories", label: "Memories", icon: Sparkles, entity: "Memory" },
-  { key: "models", label: "Models", icon: Boxes, entity: "Model" },
-  { key: "experiments", label: "Experiments", icon: FlaskConical, entity: "Experiment" },
-  { key: "builds", label: "Builds", icon: Hammer, entity: "VehicleBuild" },
-  { key: "tasks", label: "Tasks", icon: ListTodo, entity: "Task" },
+  { key: "memories", label: "Memories", icon: Sparkles, entity: "Memory", summary: (i) => `${i.role}: ${i.content}` },
+  { key: "models", label: "Models", icon: Boxes, entity: "Model", summary: (i) => i.name },
+  { key: "experiments", label: "Experiments", icon: FlaskConical, entity: "Experiment", summary: (i) => i.name },
+  { key: "builds", label: "Builds", icon: Hammer, entity: "VehicleBuild", summary: (i) => i.name },
+  { key: "tasks", label: "Tasks", icon: ListTodo, entity: "Task", summary: (i) => `${i.title}${i.status ? ` · ${i.status}` : ""}` },
 ];
 
 export default function AccountTab() {
@@ -18,6 +18,8 @@ export default function AccountTab() {
   const [linkEmail, setLinkEmail] = useState("");
   const [linking, setLinking] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [data, setData] = useState({});
+  const [openKey, setOpenKey] = useState(null);
   const { settings, update } = useJabberSettings();
 
   const load = async () => {
@@ -45,6 +47,19 @@ export default function AccountTab() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const toggleCard = async (c) => {
+    if (openKey === c.key) { setOpenKey(null); return; }
+    setOpenKey(c.key);
+    if (!data[c.key]) {
+      try {
+        const items = await base44.entities[c.entity].list("-created_date", 100);
+        setData((d) => ({ ...d, [c.key]: items || [] }));
+      } catch {
+        setData((d) => ({ ...d, [c.key]: [] }));
+      }
+    }
+  };
 
   const linkProfile = async () => {
     const email = linkEmail.trim();
@@ -101,14 +116,49 @@ export default function AccountTab() {
 
       <div>
         <h4 className="mb-3 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Your Data</h4>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="space-y-3">
           {DATA_CARDS.map((c) => {
             const Icon = c.icon;
+            const open = openKey === c.key;
+            const items = data[c.key];
             return (
-              <div key={c.key} className="rounded-2xl border border-border/50 p-4">
-                <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
-                <p className="mt-3 font-heading text-2xl font-extrabold">{loading ? "—" : counts[c.key] ?? 0}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{c.label}</p>
+              <div key={c.key} className="overflow-hidden rounded-2xl border border-border/50">
+                <button
+                  onClick={() => toggleCard(c)}
+                  className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-foreground/5"
+                >
+                  <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+                  <span className="text-sm font-medium">{c.label}</span>
+                  <span className="ml-auto font-heading text-lg font-extrabold">
+                    {loading ? "—" : counts[c.key] ?? 0}
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                    strokeWidth={1.5}
+                  />
+                </button>
+                {open && (
+                  <div className="max-h-64 overflow-y-auto border-t border-border/40 px-4 py-3">
+                    {!items ? (
+                      <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+                      </div>
+                    ) : items.length === 0 ? (
+                      <p className="py-2 text-xs text-muted-foreground">Nothing here yet.</p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {items.map((it) => (
+                          <li
+                            key={it.id}
+                            className="truncate rounded-md bg-foreground/5 px-2.5 py-1.5 text-xs text-foreground/80"
+                          >
+                            {c.summary(it)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
