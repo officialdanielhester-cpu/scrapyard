@@ -6,6 +6,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import EnvironmentSection from "@/components/environment/EnvironmentSection";
 import WorkshopSection from "@/components/workshop/WorkshopSection";
 import DashboardSection from "@/components/dashboard/DashboardSection";
+import ProfileSection from "@/components/profile/ProfileSection";
 
 export default function Home() {
   const [active, setActive] = useState("jabber");
@@ -50,6 +51,11 @@ export default function Home() {
         {active === "settings" && (
           <div className="min-h-screen">
             <SettingsSection />
+          </div>
+        )}
+        {active === "profile" && (
+          <div className="min-h-screen">
+            <ProfileSection />
           </div>
         )}
       </main>
