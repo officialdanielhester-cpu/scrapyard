@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Pause, Rocket, RotateCcw, Circle, Square, Box as BoxIcon, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit, HelpCircle, Crosshair } from "lucide-react";
 import { base44 } from "@/api/base44Client";
-import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES } from "@/components/environment/presets";
+import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES, DEFAULT_GROUND_CONFIG } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
 import Sim2DView from "@/components/environment/Sim2DView";
 import VehicleSelector from "@/components/environment/VehicleSelector";
 import EnvironmentSelector from "@/components/environment/EnvironmentSelector";
+import TerrainClimateGoal from "@/components/environment/TerrainClimateGoal";
 import EngineeringControls from "@/components/environment/EngineeringControls";
 import PlanetMission from "@/components/environment/PlanetMission";
 import EnvironmentHelp from "@/components/environment/EnvironmentHelp";
@@ -23,6 +24,9 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [launchAngle, setLaunchAngle] = useState(0);
   const [cameraMode, setCameraMode] = useState("free");
   const [recenterSignal, setRecenterSignal] = useState(0);
+  const [terrain, setTerrain] = useState("flat");
+  const [climate, setClimate] = useState("clear");
+  const [goal, setGoal] = useState("slalom");
   const steerRef = useRef({ steer: 0, yaw: 0, turn: 0, throttle: 0 });
   const [view, setView] = useState("pad");
   const [buildInstances, setBuildInstances] = useState(null);
@@ -92,6 +96,10 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const selectVehicle = (type) => {
     setVehicleType(type);
     setParams(VEHICLES[type].defaults);
+    const gc = DEFAULT_GROUND_CONFIG(type);
+    setTerrain(gc.terrain);
+    setClimate(gc.climate);
+    setGoal(gc.goal);
     setLaunched(false);
     setResetSignal((s) => s + 1);
   };
@@ -177,8 +185,8 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
     ? "Recording"
     : !launched
     ? "Ready"
-    : metrics.goalReached
-    ? "Goal Reached"
+    : metrics.goalComplete
+    ? "Goal Complete"
     : metrics.landed
     ? (isGround && !metrics.goalReached ? "Stopped" : "Landed")
     : running
@@ -190,9 +198,9 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
         { label: "Distance", value: metrics.distance.toFixed(1), unit: "m" },
         { label: "Velocity", value: metrics.velocity.toFixed(1), unit: "m/s" },
         { label: "Max Speed", value: metrics.maxSpeed.toFixed(1), unit: "m/s" },
-        { label: "To Goal", value: Math.max(0, (metrics.goalX || 120) - metrics.distance).toFixed(0), unit: "m" },
+        { label: "Checkpoints", value: `${metrics.checkpointsPassed || 0}/${metrics.checkpointsTotal || 0}`, unit: "" },
         { label: "Flight Time", value: metrics.flightTime.toFixed(1), unit: "s" },
-        { label: "Accel", value: metrics.acceleration.toFixed(1), unit: "m/s²" },
+        { label: "Goal", value: metrics.goalComplete ? "DONE" : "—", unit: "" },
       ]
     : [
         { label: "Altitude", value: metrics.altitude.toFixed(1), unit: "m" },
@@ -308,6 +316,9 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                   launchAngle={launchAngle}
                   cameraMode={cameraMode}
                   recenterSignal={recenterSignal}
+                  terrain={terrain}
+                  climate={climate}
+                  goal={goal}
                 />
               ) : (
                 <Sim2DView build={buildInstances} metrics={metrics} vehicleType={vehicleType} />
@@ -395,6 +406,16 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
           <div className="space-y-6">
             <VehicleSelector value={vehicleType} onSelect={selectVehicle} />
             <EnvironmentSelector value={envKey} onSelect={selectEnv} />
+            {isGround && (
+              <TerrainClimateGoal
+                terrain={terrain}
+                climate={climate}
+                goal={goal}
+                onTerrain={setTerrain}
+                onClimate={setClimate}
+                onGoal={setGoal}
+              />
+            )}
             <EngineeringControls
               params={params}
               onParam={onParam}

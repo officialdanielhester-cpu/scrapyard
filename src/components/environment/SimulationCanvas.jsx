@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
-import { VEHICLES } from "@/components/environment/presets";
+import { VEHICLES, TERRAINS, CLIMATES, GROUND_GOALS, terrainHeight } from "@/components/environment/presets";
 import { buildInstances3D } from "@/components/workshop/part-3d";
 
 const SCALE = 0.22; // scene units per meter
-const ARENA_M = 160; // half-width in meters
+const ARENA_M = 160;
 const CEILING_M = 320;
 const GOAL_X = 120;
 const TRAIL_MAX = 400;
@@ -92,6 +92,8 @@ function buildVehicle(type) {
 
 // Free-flight camera: drag to orbit, shift-drag / two-finger to pan,
 // wheel / pinch to zoom, optional follow mode, recenter signal.
+// Ground vehicles honor terrain (height + friction), climate (fog/wind/grip),
+// and goal checkpoints.
 export default function SimulationCanvas({
   vehicleType,
   params,
@@ -107,6 +109,9 @@ export default function SimulationCanvas({
   launchAngle = 0,
   cameraMode = "free",
   recenterSignal = 0,
+  terrain = "flat",
+  climate = "clear",
+  goal = "slalom",
 }) {
   const mountRef = useRef(null);
   const vehicleTypeRef = useRef(vehicleType);
@@ -122,6 +127,9 @@ export default function SimulationCanvas({
   const launchAngleRef = useRef(launchAngle);
   const camModeRef = useRef(cameraMode);
   const recenterSigRef = useRef(recenterSignal);
+  const terrainRef = useRef(terrain);
+  const climateRef = useRef(climate);
+  const goalRef = useRef(goal);
 
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { paramsRef.current = params; }, [params]);
@@ -136,6 +144,9 @@ export default function SimulationCanvas({
   useEffect(() => { launchAngleRef.current = launchAngle; }, [launchAngle]);
   useEffect(() => { camModeRef.current = cameraMode; }, [cameraMode]);
   useEffect(() => { recenterSigRef.current = recenterSignal; }, [recenterSignal]);
+  useEffect(() => { terrainRef.current = terrain; }, [terrain]);
+  useEffect(() => { climateRef.current = climate; }, [climate]);
+  useEffect(() => { goalRef.current = goal; }, [goal]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -179,7 +190,7 @@ export default function SimulationCanvas({
     scene.add(rim);
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 120),
+      new THREE.PlaneGeometry(120, 120, 48, 48),
       new THREE.MeshStandardMaterial({ color: varsRef.current.groundColor || "#1a2238", roughness: 0.95, metalness: 0.05 })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -209,6 +220,11 @@ export default function SimulationCanvas({
     gate.visible = false;
     scene.add(gate);
 
+    // checkpoint gates for ground-vehicle goals (slalom)
+    const checkpointGroup = new THREE.Group();
+    scene.add(checkpointGroup);
+    let checkpointGates = [];
+
     const starGeo = new THREE.BufferGeometry();
     const starPos = new Float32Array(400 * 3);
     for (let i = 0; i < 400; i++) {
@@ -229,6 +245,7 @@ export default function SimulationCanvas({
 
     const bgTarget = new THREE.Color();
     const groundTarget = new THREE.Color();
+    const fogColorTarget = new THREE.Color();
 
     // sim state
     let vehicle = { group: new THREE.Group(), rotor: null };
@@ -251,6 +268,8 @@ export default function SimulationCanvas({
     let lastReset = resetRef.current;
     let lastLaunched = false;
     let lastRecenter = recenterSigRef.current;
+    let lastTerrain = null;
+    let lastGoal = null;
     let frame = 0;
 
     const clearTrail = () => { trailCount = 0; trailGeo.setDrawRange(0, 0); };
@@ -261,6 +280,10 @@ export default function SimulationCanvas({
         if (o.geometry) o.geometry.dispose();
         if (o.material && o.material.dispose) o.material.dispose();
       });
+    };
+
+    const resetCheckpoints = () => {
+      checkpointGates.forEach((g) => { g.passed = false; g.mat.color.setHex(0xfbbf24); g.mat.emissive.setHex(0xfbbf24); });
     };
 
     const buildVehicleInto = (type) => {
@@ -274,6 +297,7 @@ export default function SimulationCanvas({
       pitch = 0; yaw = 0; heading = 0; goalReached = false;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
+      resetCheckpoints();
       vehicle.group.position.set(0, 0, 0);
     };
 
@@ -284,6 +308,42 @@ export default function SimulationCanvas({
       pitch = 0; yaw = 0; heading = 0; goalReached = false;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
+      resetCheckpoints();
+    };
+
+    // terrain height displacement on the ground mesh
+    const applyTerrain = (key) => {
+      const attr = ground.geometry.attributes.position;
+      for (let i = 0; i < attr.count; i++) {
+        const lx = attr.getX(i), ly = attr.getY(i);
+        attr.setZ(i, terrainHeight(lx / SCALE, -ly / SCALE, key) * SCALE);
+      }
+      attr.needsUpdate = true;
+      ground.geometry.computeVertexNormals();
+    };
+
+    // rebuild checkpoint gates for a goal
+    const rebuildCheckpoints = (goalKey) => {
+      while (checkpointGroup.children.length) {
+        const c = checkpointGroup.children[0];
+        checkpointGroup.remove(c);
+        c.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      }
+      checkpointGates = [];
+      const cfg = GROUND_GOALS[goalKey] || GROUND_GOALS.slalom;
+      (cfg.checkpoints || []).forEach((cp) => {
+        const m = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xfbbf24, emissiveIntensity: 0.3 });
+        const grp = new THREE.Group();
+        [-1, 1].forEach((z) => {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2, 8), m);
+          post.position.set(0, 1.1, z); grp.add(post);
+        });
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 2.1), m);
+        bar.position.set(0, 2.2, 0); grp.add(bar);
+        grp.position.set(cp.x * SCALE, 0, cp.z * SCALE);
+        checkpointGroup.add(grp);
+        checkpointGates.push({ mat: m, cp, passed: false });
+      });
     };
 
     // camera pointer navigation
@@ -370,6 +430,8 @@ export default function SimulationCanvas({
 
       if (vehicleTypeRef.current !== lastType || buildRef.current !== lastBuild) { buildVehicleInto(vehicleTypeRef.current); lastType = vehicleTypeRef.current; lastBuild = buildRef.current; lastLaunched = false; }
       if (resetRef.current !== lastReset) { resetSim(); lastReset = resetRef.current; lastLaunched = false; }
+      if (terrainRef.current !== lastTerrain) { applyTerrain(terrainRef.current); lastTerrain = terrainRef.current; }
+      if (goalRef.current !== lastGoal) { rebuildCheckpoints(goalRef.current); resetCheckpoints(); lastGoal = goalRef.current; }
 
       const launchedNow = launchedRef.current;
       if (launchedNow && !lastLaunched) {
@@ -380,7 +442,7 @@ export default function SimulationCanvas({
         landed = false; fuel = paramsRef.current.fuel; initialFuel = paramsRef.current.fuel;
         pitch = cat0 === "ground" ? 0 : la;
         yaw = 0; heading = cat0 === "ground" ? la : 0;
-        goalReached = false; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail();
+        goalReached = false; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail(); resetCheckpoints();
       }
       lastLaunched = launchedNow;
 
@@ -393,10 +455,25 @@ export default function SimulationCanvas({
       const dt = runningRef.current && launchedNow && !landed ? rawDt * (v.timeScale || 1) : 0;
 
       bgTarget.set(v.bgColor || "#080B14");
-      groundTarget.set(v.groundColor || "#1a2238");
       scene.background.lerp(bgTarget, 0.06);
-      ground.material.color.lerp(groundTarget, 0.06);
       stars.material.opacity = (v.atmosphere || 0) < 0.1 ? 0.8 : 0.25;
+
+      // ground color + climate fog
+      const tCfg = TERRAINS[terrainRef.current] || TERRAINS.flat;
+      const cCfg = CLIMATES[climateRef.current] || CLIMATES.clear;
+      groundTarget.set(cat === "ground" ? tCfg.color : (v.groundColor || "#1a2238"));
+      ground.material.color.lerp(groundTarget, 0.06);
+      if (cat === "ground") {
+        fogColorTarget.set(cCfg.fogColor);
+        scene.fog.color.lerp(fogColorTarget, 0.08);
+        scene.fog.near += (cCfg.fogNear - scene.fog.near) * 0.1;
+        scene.fog.far += (cCfg.fogFar - scene.fog.far) * 0.1;
+      } else {
+        fogColorTarget.set(v.bgColor || "#080B14");
+        scene.fog.color.lerp(fogColorTarget, 0.08);
+        scene.fog.near += (60 - scene.fog.near) * 0.1;
+        scene.fog.far += (160 - scene.fog.far) * 0.1;
+      }
 
       const g = v.gravity ?? 9.8;
       const atm = v.atmosphere ?? 1;
@@ -448,16 +525,18 @@ export default function SimulationCanvas({
           accel.x += wind * 0.05;
           accel.addScaledVector(vHat, -dragMag);
         } else {
-          // ground — 2D on xz plane with heading + throttle steering
+          // ground — 2D on xz plane with heading + throttle, terrain + climate surface grip
+          const surfaceGrip = tCfg.friction * cCfg.grip;
+          const windEff = wind + cCfg.wind;
           const turn = steerRef.current?.turn || 0;
-          heading += turn * 1.1 * dt;
+          heading += turn * 1.1 * dt * surfaceGrip;
           const thrustEff = (fuel > 0 && throttle > 0) ? p.thrust : 0;
           const brake = throttle < 0 ? 1 : 0;
           const hx = Math.cos(heading), hz = -Math.sin(heading);
           accel.x = (thrustEff / mass) * hx;
           accel.z = (thrustEff / mass) * hz;
           const speed2 = Math.hypot(vel.x, vel.z);
-          const fric = 0.02 * g + (brake ? 0.5 * g : 0);
+          const fric = (0.02 * g + (brake ? 0.5 * g : 0)) * surfaceGrip;
           if (speed2 > 0.001) {
             accel.x -= fric * (vel.x / speed2);
             accel.z -= fric * (vel.z / speed2);
@@ -465,7 +544,7 @@ export default function SimulationCanvas({
             accel.x -= dragMag2 * (vel.x / speed2);
             accel.z -= dragMag2 * (vel.z / speed2);
           }
-          accel.x += wind * 0.02;
+          accel.x += windEff * 0.02;
         }
 
         vel.addScaledVector(accel, dt);
@@ -483,11 +562,19 @@ export default function SimulationCanvas({
           else { vel.y = 0; }
         }
         if (cat === "ground") {
-          pos.y = 0;
+          pos.y = terrainHeight(pos.x, pos.z, terrainRef.current);
           const toGoal = Math.hypot(GOAL_X - pos.x, -pos.z);
           if (toGoal < 6) { vel.x = 0; vel.z = 0; goalReached = true; landed = true; }
           const sp2 = Math.hypot(vel.x, vel.z);
           if (sp2 < 0.3 && throttle <= 0) landed = true;
+          // checkpoint passage
+          for (const cg of checkpointGates) {
+            if (!cg.passed && Math.hypot(pos.x - cg.cp.x, pos.z - cg.cp.z) < 8) {
+              cg.passed = true;
+              cg.mat.color.setHex(0x10b981);
+              cg.mat.emissive.setHex(0x10b981);
+            }
+          }
         }
         if (Math.abs(pos.x) > ARENA_M) { pos.x = Math.sign(pos.x) * ARENA_M; vel.x = 0; }
         if (Math.abs(pos.z) > ARENA_M) { pos.z = Math.sign(pos.z) * ARENA_M; vel.z = 0; }
@@ -499,6 +586,9 @@ export default function SimulationCanvas({
         if (pos.y > maxAlt) maxAlt = pos.y;
       }
 
+      const passedCount = checkpointGates.filter((g) => g.passed).length;
+      const goalComplete = goalReached && passedCount === checkpointGates.length;
+
       // place vehicle
       vehicle.group.position.set(pos.x * SCALE, pos.y * SCALE, pos.z * SCALE);
       if (vehicle.rotor) vehicle.rotor.rotation.y += rawDt * 25;
@@ -506,7 +596,8 @@ export default function SimulationCanvas({
       if (cat === "ground") { vehicle.group.rotation.y = heading; vehicle.group.rotation.z = 0; }
       else if (isFlyer) { vehicle.group.rotation.z = pitch; vehicle.group.rotation.y = yaw; }
       else { vehicle.group.rotation.z = 0; vehicle.group.rotation.y = 0; }
-      if (gate) gate.visible = cat === "ground";
+      gate.visible = cat === "ground";
+      checkpointGroup.visible = cat === "ground";
 
       if (launchedNow && !landed && frame % 3 === 0 && trailCount < TRAIL_MAX) {
         trailPositions[trailCount * 3] = vehicle.group.position.x;
@@ -534,6 +625,9 @@ export default function SimulationCanvas({
           heading,
           throttle,
           goalReached,
+          goalComplete,
+          checkpointsPassed: passedCount,
+          checkpointsTotal: checkpointGates.length,
           goalX: GOAL_X,
         });
       }

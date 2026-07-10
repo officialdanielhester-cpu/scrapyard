@@ -64,3 +64,44 @@ export const DEFAULT_VARIABLES = (envKey) => {
     groundColor: e.ground,
   };
 };
+
+// Ground-vehicle terrain types: visual color + height field + surface friction.
+export const TERRAINS = {
+  flat: { label: "Plains", color: "#1a2a1a", friction: 1.0 },
+  hills: { label: "Hills", color: "#2a3a1a", friction: 1.0 },
+  desert: { label: "Desert", color: "#3a2a0a", friction: 1.3 },
+  ice: { label: "Ice", color: "#9ab4c4", friction: 0.4 },
+  mountain: { label: "Mountain", color: "#3a3030", friction: 1.2 },
+};
+
+// Climate conditions: fog, wind, and grip (traction) for ground vehicles.
+export const CLIMATES = {
+  clear: { label: "Clear", fogNear: 140, fogFar: 220, fogColor: "#080B14", wind: 0, grip: 1.0 },
+  rain: { label: "Rain", fogNear: 60, fogFar: 130, fogColor: "#0a1018", wind: 2, grip: 0.7 },
+  snow: { label: "Snow", fogNear: 40, fogFar: 100, fogColor: "#1a2028", wind: 3, grip: 0.5 },
+  storm: { label: "Storm", fogNear: 25, fogFar: 70, fogColor: "#05070d", wind: 8, grip: 0.6 },
+  fog: { label: "Fog", fogNear: 15, fogFar: 50, fogColor: "#12161e", wind: 0, grip: 1.0 },
+};
+
+// Per-run goals for ground vehicles. Checkpoints are gates the driver must weave through.
+export const GROUND_GOALS = {
+  slalom: { label: "Slalom", checkpoints: [{ x: 30, z: 12 }, { x: 55, z: -14 }, { x: 80, z: 12 }] },
+  sprint: { label: "Sprint", checkpoints: [] },
+  endurance: { label: "Endurance", checkpoints: [] },
+};
+
+// Terrain height field (meters) at a world (x, z) position in meters.
+export const terrainHeight = (x, z, key) => {
+  switch (key) {
+    case "hills": return 4 * Math.sin(x * 0.08) * Math.cos(z * 0.07) + 2 * Math.sin(x * 0.13);
+    case "desert": return 5 * Math.sin(x * 0.06) + 1.5 * Math.sin(z * 0.09);
+    case "mountain": return 8 * Math.abs(Math.sin(x * 0.05)) * Math.cos(z * 0.04) + 4 * Math.sin(x * 0.12);
+    case "ice": return 0.5 * Math.sin(x * 0.1);
+    default: return 0;
+  }
+};
+
+export const DEFAULT_GROUND_CONFIG = (vehicleType) => {
+  if (vehicleType === "tank") return { terrain: "mountain", climate: "clear", goal: "sprint" };
+  return { terrain: "flat", climate: "clear", goal: "slalom" };
+};
