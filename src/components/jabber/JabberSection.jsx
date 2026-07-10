@@ -12,18 +12,18 @@ import CodeLibrary from "@/components/jabber/CodeLibrary";
 import AttachmentBar from "@/components/jabber/AttachmentBar";
 
 const SEED_MESSAGES = [
-  {
-    role: "assistant",
-    content:
-      "I'm Jabber — your ambient intelligence layer. I remember our past chats, can look up what you've saved in Aetheris, and manage your list on Recall.",
-  },
-];
+{
+  role: "assistant",
+  content:
+  "I'm Jabber — your ambient intelligence layer. I remember our past chats, can look up what you've saved in Aetheris, and manage your list on Recall."
+}];
+
 
 const SUGGESTIONS = [
-  "What do you remember about our chats?",
-  "Write a function to reverse a string",
-  "What's on my Recall list?",
-];
+"What do you remember about our chats?",
+"Write a function to reverse a string",
+"What's on my Recall list?"];
+
 
 const CLASSIFY_SCHEMA = {
   type: "object",
@@ -35,8 +35,8 @@ const CLASSIFY_SCHEMA = {
       type: "object",
       properties: {
         action: { type: "string", enum: ["list_tasks", "create_task", "update_task", "delete_task"] },
-        params: { type: "object" },
-      },
+        params: { type: "object" }
+      }
     },
     code: {
       type: "object",
@@ -44,12 +44,12 @@ const CLASSIFY_SCHEMA = {
         name: { type: "string" },
         language: { type: "string" },
         description: { type: "string" },
-        content: { type: "string" },
-      },
+        content: { type: "string" }
+      }
     },
-    reply: { type: "string" },
+    reply: { type: "string" }
   },
-  required: ["intent", "reply"],
+  required: ["intent", "reply"]
 };
 
 export default function JabberSection() {
@@ -97,9 +97,9 @@ export default function JabberSection() {
     setThinking(true);
     try {
       const recent = await fetchRecentMemories(12);
-      const memoryContext = recent.length
-        ? recent.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n")
-        : "(no past conversations stored yet)";
+      const memoryContext = recent.length ?
+      recent.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n") :
+      "(no past conversations stored yet)";
       await saveMemory("user", content + (activeAttachments.length ? ` ${activeAttachments.map((a) => a.text).join(" ")}` : ""), persist);
 
       if (activeAttachments.length) {
@@ -112,7 +112,7 @@ export default function JabberSection() {
           file_urls: fileUrls.length ? fileUrls : undefined,
           add_context_from_internet: hasLink,
           model: hasLink ? "gemini_3_flash" : undefined,
-          response_json_schema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"] },
+          response_json_schema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"] }
         });
         let reply = (dres?.reply || "I couldn't make sense of that — try again.").trim();
         setThinking(false);
@@ -147,7 +147,7 @@ User: ${content}`;
 
       const res = await base44.integrations.Core.InvokeLLM({
         prompt: classifyPrompt,
-        response_json_schema: CLASSIFY_SCHEMA,
+        response_json_schema: CLASSIFY_SCHEMA
       });
       const intent = res?.intent || "chat";
       setThinking(false);
@@ -192,7 +192,7 @@ User: ${content}`;
               name: code.name || "snippet",
               language: code.language || "javascript",
               description: code.description || "",
-              content: String(code.content),
+              content: String(code.content)
             });
             reply = `Saved "${created.name}" (${created.language}) to your Code Library — open it via the Code button to view or copy.${code.description ? ` ${code.description}` : ""}`;
           } catch (e) {
@@ -226,21 +226,21 @@ User: ${content}`;
         <div className="flex items-center gap-3">
           <button
             onClick={() => setFormulaOpen(true)}
-            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary"
-          >
+            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary">
+            
             <Sigma className="h-4 w-4" strokeWidth={1.5} />
             Formulas
           </button>
           <button
             onClick={() => setCodeOpen(true)}
-            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary"
-          >
+            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary">
+            
             <FileCode2 className="h-4 w-4" strokeWidth={1.5} />
             Code
           </button>
-          <div className="flex items-center gap-2 rounded-full border border-border/60 px-3 py-1.5">
+          <div className="flex items-center gap-2 rounded-full border border-border/60 px-3 py-1.5 hidden">
             <span className={`h-1.5 w-1.5 rounded-full ${speaking ? "bg-primary animate-pulse" : "bg-emerald-500"}`} />
-            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground hidden">
               {speaking ? "Speaking" : "Listening"}
             </span>
           </div>
@@ -249,63 +249,63 @@ User: ${content}`;
 
       <PullToRefresh ref={scrollRef} onRefresh={refresh} className="flex-1 overflow-y-auto px-6 py-8 md:px-12">
         <div className="mx-auto max-w-3xl space-y-6">
-          {messages.map((msg, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {msg.role === "assistant" && (
-                <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
+          {messages.map((msg, idx) =>
+          <motion.div
+            key={idx}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            
+              {msg.role === "assistant" &&
+            <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
                   <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
                 </div>
-              )}
+            }
               <div
-                className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed transition-all ${
-                  msg.role === "user" ? "bg-primary text-primary-foreground" : "border border-border/50 bg-background"
-                }`}
-              >
+              className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed transition-all ${
+              msg.role === "user" ? "bg-primary text-primary-foreground" : "border border-border/50 bg-background"}`
+              }>
+              
                 {msg.content}
               </div>
             </motion.div>
-          ))}
+          )}
 
-          {(thinking || working) && (
-            <div className="flex justify-start">
+          {(thinking || working) &&
+          <div className="flex justify-start">
               <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
                 <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
               </div>
               <div className="flex items-center gap-2 rounded-2xl border border-border/50 px-5 py-4">
                 {working ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : null}
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="h-1.5 w-1.5 rounded-full bg-primary/70"
-                    style={{ animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }}
-                  />
-                ))}
+                {[0, 1, 2].map((i) =>
+              <span
+                key={i}
+                className="h-1.5 w-1.5 rounded-full bg-primary/70"
+                style={{ animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+
+              )}
                 <span className="ml-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                   {working ? workLabel : "Thinking"}
                 </span>
               </div>
             </div>
-          )}
+          }
 
-          {messages.length === 1 && !thinking && !working && (
-            <div className="flex flex-wrap gap-2 pt-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => handleSend(s)}
-                  className="rounded-full border border-border/60 px-4 py-2 text-sm text-foreground/80 transition-all hover:border-primary hover:text-primary"
-                >
+          {messages.length === 1 && !thinking && !working &&
+          <div className="flex flex-wrap gap-2 pt-2">
+              {SUGGESTIONS.map((s) =>
+            <button
+              key={s}
+              onClick={() => handleSend(s)}
+              className="rounded-full border border-border/60 px-4 py-2 text-sm text-foreground/80 transition-all hover:border-primary hover:text-primary">
+              
                   {s}
                 </button>
-              ))}
+            )}
             </div>
-          )}
+          }
         </div>
       </PullToRefresh>
 
@@ -313,40 +313,40 @@ User: ${content}`;
         <div className="mx-auto max-w-3xl">
           <AttachmentBar attachments={attachments} setAttachments={setAttachments} />
           <form
-            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-            className="group relative"
-          >
+            onSubmit={(e) => {e.preventDefault();handleSend();}}
+            className="group relative">
+            
             <div className="flex items-end gap-3 border-b border-border pb-3 transition-colors focus-within:border-primary">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask anything, recall a past chat, or manage Recall…"
-                className="flex-1 bg-transparent py-1 font-body text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-              />
+                className="flex-1 bg-transparent py-1 font-body text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none" />
+              
               <button
                 type="button"
                 onClick={() => setSpeakEnabled(!speakEnabled)}
                 title={speakEnabled ? "Voice on" : "Voice off"}
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-                  speakEnabled ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
+                speakEnabled ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`
+                }>
+                
                 {speakEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
               </button>
               <button
                 type="submit"
                 disabled={!input.trim() || thinking || working}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:opacity-80 disabled:opacity-30"
-              >
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:opacity-80 disabled:opacity-30">
+                
                 <ArrowUp className="h-4 w-4" strokeWidth={2} />
               </button>
             </div>
           </form>
           {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
           <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-            {settings.private
-              ? "Private mode on — conversations aren't stored"
-              : `${speakEnabled ? "Voice on — " : ""}Memory on — Jabber remembers this chat`}
+            {settings.private ?
+            "Private mode on — conversations aren't stored" :
+            `${speakEnabled ? "Voice on — " : ""}Memory on — Jabber remembers this chat`}
           </p>
         </div>
       </div>
@@ -354,9 +354,9 @@ User: ${content}`;
       <FormulaLibrary
         open={formulaOpen}
         onClose={() => setFormulaOpen(false)}
-        onInsert={(eq) => { setInput(eq); setFormulaOpen(false); }}
-      />
+        onInsert={(eq) => {setInput(eq);setFormulaOpen(false);}} />
+      
       <CodeLibrary open={codeOpen} onClose={() => setCodeOpen(false)} />
-    </div>
-  );
+    </div>);
+
 }
