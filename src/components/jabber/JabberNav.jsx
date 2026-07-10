@@ -72,10 +72,10 @@ export default function JabberNav({ active, onSelect }) {
               <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
             </span>
-            <span className="font-heading text-xl font-extrabold tracking-tight">Scrapyard</span>
+            <span className="font-heading text-xl font-extrabold tracking-tight">Jabber</span>
           </div>
-          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-            Ambient Intelligence
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">The workspace
+
           </p>
 
           <nav className="mt-16 flex flex-col gap-1">
