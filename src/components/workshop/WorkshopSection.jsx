@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Save, Loader2, RotateCcw } from "lucide-react";
+import { Save, Loader2, RotateCcw, BarChart3 } from "lucide-react";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { base44 } from "@/api/base44Client";
 import { computeStats, normalizeInstances } from "@/components/workshop/parts-catalog";
 import { countByType } from "@/components/workshop/part-3d";
@@ -108,7 +109,7 @@ export default function WorkshopSection({ onImportBuild }) {
 
   return (
     <div className="min-h-screen pb-10">
-      <header className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-12">
+      <header className="flex flex-col gap-4 px-6 py-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:flex-row md:items-center md:justify-between md:px-12">
         <div>
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Workshop</h1>
           <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -180,6 +181,30 @@ export default function WorkshopSection({ onImportBuild }) {
             <SavedBuilds builds={builds} loading={loading} onLoad={handleLoad} onDelete={handleDelete} />
           </div>
         </div>
+
+        {/* Mobile floating button for stats/parts/builds drawer */}
+        <Sheet>
+          <SheetTrigger asChild>
+            <button className="fixed bottom-24 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg md:hidden">
+              <BarChart3 className="h-5 w-5" strokeWidth={1.5} />
+            </button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-80 overflow-y-auto p-0">
+            <SheetHeader className="px-4 pt-4">
+              <SheetTitle className="font-mono text-xs uppercase tracking-wider">Build Panel</SheetTitle>
+            </SheetHeader>
+            <div className="space-y-6 p-4">
+              <BuildStats stats={stats} />
+              <div>
+                <h3 className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                  Applied Parts
+                </h3>
+                <AppliedPartsList applied={appliedCounts} onInc={addPart} onDec={removeOne} onRemove={removeAll} />
+              </div>
+              <SavedBuilds builds={builds} loading={loading} onLoad={handleLoad} onDelete={handleDelete} />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </div>
   );

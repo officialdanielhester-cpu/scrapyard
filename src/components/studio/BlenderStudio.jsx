@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
+import { SlidersHorizontal } from "lucide-react";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import StudioViewport from "@/components/studio/StudioViewport";
 import StudioSidebar from "@/components/studio/StudioSidebar";
 import ImportModelsPanel from "@/components/studio/ImportModelsPanel";
@@ -129,43 +131,99 @@ export default function BlenderStudio() {
         </p>
       </div>
 
-      <StudioSidebar
-        objects={objects}
-        selectedId={selectedId}
-        mode={mode}
-        brush={brush}
-        brushSize={brushSize}
-        brushStrength={brushStrength}
-        paintColor={paintColor}
-        theme={theme}
-        snap={snap}
-        cameraLock={cameraLock}
-        canUndo={undoStack.length > 0}
-        canRedo={redoStack.length > 0}
-        onModeChange={setMode}
-        onBrushChange={setBrush}
-        onBrushSize={setBrushSize}
-        onBrushStrength={setBrushStrength}
-        onPaintColor={setPaintColor}
-        onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
-        onToggleSnap={() => setSnap(s => !s)}
-        onToggleCameraLock={() => setCameraLock(v => !v)}
-        onUndo={undo}
-        onRedo={redo}
-        onSelectObject={setSelectedId}
-        onUpdateObject={updateObject}
-        onDelete={handleDelete}
-        onDuplicate={handleDuplicate}
-        onAddMesh={addMesh}
-        onExtrude={handleExtrude}
-        onSubdivide={handleSubdivide}
-        onMerge={handleMerge}
-        onMirror={handleMirror}
-        onDeleteFaces={handleDeleteFaces}
-        onImport={() => setImportOpen(true)}
-        onGenerate={() => setJabberOpen(true)}
-        onPresets={() => setPresetOpen(true)}
-      />
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <StudioSidebar
+          objects={objects}
+          selectedId={selectedId}
+          mode={mode}
+          brush={brush}
+          brushSize={brushSize}
+          brushStrength={brushStrength}
+          paintColor={paintColor}
+          theme={theme}
+          snap={snap}
+          cameraLock={cameraLock}
+          canUndo={undoStack.length > 0}
+          canRedo={redoStack.length > 0}
+          onModeChange={setMode}
+          onBrushChange={setBrush}
+          onBrushSize={setBrushSize}
+          onBrushStrength={setBrushStrength}
+          onPaintColor={setPaintColor}
+          onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
+          onToggleSnap={() => setSnap(s => !s)}
+          onToggleCameraLock={() => setCameraLock(v => !v)}
+          onUndo={undo}
+          onRedo={redo}
+          onSelectObject={setSelectedId}
+          onUpdateObject={updateObject}
+          onDelete={handleDelete}
+          onDuplicate={handleDuplicate}
+          onAddMesh={addMesh}
+          onExtrude={handleExtrude}
+          onSubdivide={handleSubdivide}
+          onMerge={handleMerge}
+          onMirror={handleMirror}
+          onDeleteFaces={handleDeleteFaces}
+          onImport={() => setImportOpen(true)}
+          onGenerate={() => setJabberOpen(true)}
+          onPresets={() => setPresetOpen(true)}
+        />
+      </div>
+
+      {/* Mobile floating button + drawer for the sidebar */}
+      <Sheet>
+        <SheetTrigger asChild>
+          <button className="fixed bottom-24 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg lg:hidden">
+            <SlidersHorizontal className="h-5 w-5" strokeWidth={1.5} />
+          </button>
+        </SheetTrigger>
+        <SheetContent side="right" className="w-80 overflow-y-auto p-0">
+          <SheetHeader className="px-4 pt-4">
+            <SheetTitle className="font-mono text-xs uppercase tracking-wider">Studio Panel</SheetTitle>
+          </SheetHeader>
+          <div className="p-2">
+            <StudioSidebar
+              objects={objects}
+              selectedId={selectedId}
+              mode={mode}
+              brush={brush}
+              brushSize={brushSize}
+              brushStrength={brushStrength}
+              paintColor={paintColor}
+              theme={theme}
+              snap={snap}
+              cameraLock={cameraLock}
+              canUndo={undoStack.length > 0}
+              canRedo={redoStack.length > 0}
+              onModeChange={setMode}
+              onBrushChange={setBrush}
+              onBrushSize={setBrushSize}
+              onBrushStrength={setBrushStrength}
+              onPaintColor={setPaintColor}
+              onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
+              onToggleSnap={() => setSnap(s => !s)}
+              onToggleCameraLock={() => setCameraLock(v => !v)}
+              onUndo={undo}
+              onRedo={redo}
+              onSelectObject={setSelectedId}
+              onUpdateObject={updateObject}
+              onDelete={handleDelete}
+              onDuplicate={handleDuplicate}
+              onAddMesh={addMesh}
+              onExtrude={handleExtrude}
+              onSubdivide={handleSubdivide}
+              onMerge={handleMerge}
+              onMirror={handleMirror}
+              onDeleteFaces={handleDeleteFaces}
+              onImport={() => setImportOpen(true)}
+              onGenerate={() => setJabberOpen(true)}
+              onPresets={() => setPresetOpen(true)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <ImportModelsPanel open={importOpen} onClose={() => setImportOpen(false)} onImport={addSpec} />
       <JabberModelGen open={jabberOpen} onClose={() => setJabberOpen(false)} onAdd={addSpec} />

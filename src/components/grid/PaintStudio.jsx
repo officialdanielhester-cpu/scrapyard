@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { SlidersHorizontal, Layers as LayersIcon } from "lucide-react";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import DrawCanvas from "@/components/grid/DrawCanvas";
 import ToolSidebar from "@/components/grid/ToolSidebar";
 import LayersPanel from "@/components/grid/LayersPanel";
@@ -259,8 +261,9 @@ export default function PaintStudio() {
 
   return (
     <div className="flex h-full">
+      {/* Desktop tool sidebar */}
       <ToolSidebar
-        className="w-60 shrink-0 overflow-y-auto border-r border-border/40 bg-background/60"
+        className="hidden md:flex w-60 shrink-0 overflow-y-auto border-r border-border/40 bg-background/60"
         tool={tool} setTool={setTool} brush={brush} setBrush={setBrush}
         size={size} setSize={setSize} opacity={opacity} setOpacity={setOpacity}
         color={color} setColor={setColor} recent={recent} pushRecent={pushRecent}
@@ -271,6 +274,7 @@ export default function PaintStudio() {
         onZoomOut={() => setZoom((z) => Math.max(0.05, z / 1.2))}
         presets={PRESETS} onPreset={onPreset} activePreset={artworkSize}
       />
+
       <div className="relative min-w-0 flex-1">
         <DrawCanvas
           artworkSize={artworkSize} layers={layers} activeId={activeId} canvasMapRef={canvasMapRef}
@@ -279,7 +283,57 @@ export default function PaintStudio() {
           onHistoryPush={pushHistory} onColorPick={onColorPick} onChange={bump}
           version={version} spacePan={spacePan}
         />
+
+        {/* Mobile floating buttons for tool & layer sheets */}
+        <div className="absolute right-3 top-3 z-20 flex flex-col gap-2 md:hidden">
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/90 shadow-md backdrop-blur transition-colors hover:border-primary hover:text-primary">
+                <SlidersHorizontal className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 overflow-y-auto p-0">
+              <SheetHeader className="px-4 pt-4">
+                <SheetTitle className="font-mono text-xs uppercase tracking-wider">Tools</SheetTitle>
+              </SheetHeader>
+              <ToolSidebar
+                className="border-0 bg-transparent"
+                tool={tool} setTool={setTool} brush={brush} setBrush={setBrush}
+                size={size} setSize={setSize} opacity={opacity} setOpacity={setOpacity}
+                color={color} setColor={setColor} recent={recent} pushRecent={pushRecent}
+                onUndo={undo} onRedo={redo} undoCount={undoCount} redoCount={redoCount}
+                onClear={clearLayer} onExport={exportPNG}
+                zoom={zoom}
+                onZoomIn={() => setZoom((z) => Math.min(16, z * 1.2))}
+                onZoomOut={() => setZoom((z) => Math.max(0.05, z / 1.2))}
+                presets={PRESETS} onPreset={onPreset} activePreset={artworkSize}
+              />
+            </SheetContent>
+          </Sheet>
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/90 shadow-md backdrop-blur transition-colors hover:border-primary hover:text-primary">
+                <LayersIcon className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72 overflow-y-auto p-0">
+              <SheetHeader className="px-4 pt-4">
+                <SheetTitle className="font-mono text-xs uppercase tracking-wider">Layers</SheetTitle>
+              </SheetHeader>
+              <LayersPanel
+                className="border-0 bg-transparent"
+                layers={layers} activeId={activeId} canvasMapRef={canvasMapRef} version={version}
+                onSelect={setActiveId} onAdd={addLayer} onDelete={deleteLayer}
+                onToggleVisible={toggleVisible} onOpacity={setLayerOpacity}
+                onMoveUp={(id) => moveLayer(id, 1)} onMoveDown={(id) => moveLayer(id, -1)}
+                onDuplicate={duplicateLayer} onMergeDown={mergeDown}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
+
+      {/* Desktop layers panel */}
       <LayersPanel
         className="hidden w-60 shrink-0 border-l border-border/40 bg-background/60 lg:flex"
         layers={layers} activeId={activeId} canvasMapRef={canvasMapRef} version={version}

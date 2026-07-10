@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import JabberNav from "@/components/jabber/JabberNav";
 import JabberSection from "@/components/jabber/JabberSection";
 import GridSection from "@/components/grid/GridSection";
@@ -10,13 +11,43 @@ import StudioSection from "@/components/studio/StudioSection";
 import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
 
-export default function Home() {
-  const [active, setActive] = useState("jabber");
+const PATH_TO_SECTION = {
+  "": "jabber",
+  jabber: "jabber",
+  grid: "grid",
+  studio: "studio",
+  "video-editor": "video-editor",
+  "photo-editor": "photo-editor",
+  env: "env",
+  workshop: "workshop",
+  dashboard: "dashboard",
+  settings: "settings",
+};
+
+export default function Home({ section: sectionProp }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [active, setActive] = useState(sectionProp || "jabber");
   const [pendingBuild, setPendingBuild] = useState(null);
+
+  // When the route changes (prop or URL), sync the active section.
+  useEffect(() => {
+    if (sectionProp) setActive(sectionProp);
+    else {
+      const seg = location.pathname.replace(/^\//, "");
+      setActive(PATH_TO_SECTION[seg] || "jabber");
+    }
+  }, [sectionProp, location.pathname]);
+
+  // Navigate to a route — called by the nav bar.
+  const handleSelect = useCallback((id) => {
+    setActive(id);
+    navigate(id === "jabber" ? "/" : `/${id}`);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <JabberNav active={active} onSelect={setActive} />
+      <JabberNav active={active} onSelect={handleSelect} />
 
       {/* Main canvas — offset for desktop sidebar */}
       <main className="md:ml-64 min-h-screen pb-[calc(5rem_+_env(safe-area-inset-bottom))] md:pb-0">
@@ -40,7 +71,7 @@ export default function Home() {
             <WorkshopSection
               onImportBuild={(payload) => {
                 setPendingBuild(payload);
-                setActive("env");
+                handleSelect("env");
               }}
             />
           </div>

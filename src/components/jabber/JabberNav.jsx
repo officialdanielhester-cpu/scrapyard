@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Sparkles, Boxes, Box, SlidersHorizontal, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Sparkles, Boxes, Box, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import GalleryNav from "@/components/jabber/GalleryNav";
 
@@ -14,23 +14,29 @@ const ENV_CHILDREN = [
   { id: "dashboard", label: "Dashboard", icon: LineChart },
 ];
 const ENV_IDS = ENV_CHILDREN.map((c) => c.id);
-const BOTTOM_ITEMS = [{ id: "settings", label: "Settings", icon: SlidersHorizontal }];
+const BOTTOM_ITEMS = [{ id: "settings", label: "Settings", icon: Sun }];
 
 export default function JabberNav({ active, onSelect }) {
   const { theme, toggle } = useTheme();
   const ThemeIcon = theme === "dark" ? Sun : Moon;
   const [open, setOpen] = useState(ENV_IDS.includes(active));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileRef = useRef(null);
 
   useEffect(() => {
     if (ENV_IDS.includes(active)) setOpen(true);
   }, [active]);
 
+  // Close mobile dropdown on outside tap.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onDoc = (e) => { if (mobileRef.current && !mobileRef.current.contains(e.target)) setMobileOpen(false); };
+    document.addEventListener("pointerdown", onDoc);
+    return () => document.removeEventListener("pointerdown", onDoc);
+  }, [mobileOpen]);
+
   const groupActive = ENV_IDS.includes(active);
-  const selectMobile = (id) => {
-    onSelect(id);
-    setMobileOpen(false);
-  };
+  const selectMobile = (id) => { onSelect(id); setMobileOpen(false); };
 
   const renderTop = (item) => {
     const Icon = item.icon;
@@ -52,7 +58,7 @@ export default function JabberNav({ active, onSelect }) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex fixed top-0 left-0 h-screen w-64 flex-col justify-between border-r border-border/60 bg-background/70 backdrop-blur-xl px-8 py-10 z-40">
+      <aside className="hidden md:flex fixed top-0 left-0 h-screen w-64 flex-col justify-between border-r border-border/60 bg-background/70 backdrop-blur-xl px-8 py-10 pt-[env(safe-area-inset-top)] z-40">
         <div>
           <div className="flex items-center gap-2.5">
             <span className="relative flex h-2.5 w-2.5">
@@ -129,8 +135,11 @@ export default function JabberNav({ active, onSelect }) {
       </aside>
 
       {/* Mobile bottom bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="flex items-center justify-around px-4 py-2">
+      <nav
+        ref={mobileRef}
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-around px-2 pt-2">
           {TOP_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.id;
@@ -138,7 +147,7 @@ export default function JabberNav({ active, onSelect }) {
               <button
                 key={item.id}
                 onClick={() => selectMobile(item.id)}
-                className={`flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center gap-1 py-2 ${
+                className={`flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center gap-1 py-1 ${
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >
@@ -152,7 +161,7 @@ export default function JabberNav({ active, onSelect }) {
           <div className="relative flex-1">
             <button
               onClick={() => setMobileOpen((o) => !o)}
-              className={`flex min-h-[44px] w-full flex-col items-center gap-1 py-2 ${
+              className={`flex min-h-[44px] w-full flex-col items-center gap-1 py-1 ${
                 groupActive ? "text-primary" : "text-muted-foreground"
               }`}
             >
@@ -190,7 +199,7 @@ export default function JabberNav({ active, onSelect }) {
               <button
                 key={item.id}
                 onClick={() => selectMobile(item.id)}
-                className={`flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center gap-1 py-2 ${
+                className={`flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center gap-1 py-1 ${
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >
@@ -201,7 +210,7 @@ export default function JabberNav({ active, onSelect }) {
           })}
           <button
             onClick={toggle}
-            className="flex min-h-[44px] flex-1 flex-col items-center gap-1 py-2 text-muted-foreground"
+            className="flex min-h-[44px] flex-1 flex-col items-center gap-1 py-1 text-muted-foreground"
           >
             <ThemeIcon className="h-5 w-5" strokeWidth={1.5} />
             <span className="font-mono text-[9px] uppercase tracking-wider">{theme === "dark" ? "Light" : "Dark"}</span>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Rocket, RotateCcw, Ruler, Clock, Gauge, Compass } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PLANETS, planetById, effOrbit, distanceAU, AU_TO_KM } from "@/components/environment/planets";
 import { VEHICLES } from "@/components/environment/presets";
 
@@ -107,9 +108,14 @@ export default function PlanetMission({ params, vehicleType }) {
   const PlanetPicker = ({ value, onChange, label }) => (
     <div>
       <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
-      <select value={value} onChange={(e) => { onChange(e.target.value); reset(); }} className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none">
-        {PLANETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-      </select>
+      <Select value={value} onValueChange={(v) => { onChange(v); reset(); }}>
+        <SelectTrigger className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm focus:border-primary">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PLANETS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
     </div>
   );
   const Stat = ({ icon: Icon, label, value, tone }) => (

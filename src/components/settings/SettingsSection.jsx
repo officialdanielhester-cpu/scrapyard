@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Moon, Gauge, Shield, Bell, Languages } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import ConnectionTab from "@/components/settings/ConnectionTab";
 import VoiceTab from "@/components/settings/VoiceTab";
 import AccountTab from "@/components/settings/AccountTab";
@@ -61,7 +62,7 @@ export default function SettingsSection() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <header className="px-6 py-5 md:px-12">
+      <header className="px-6 py-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:px-12">
         <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Settings</h1>
         <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
           Tune The Ambient Layer
@@ -113,15 +114,19 @@ export default function SettingsSection() {
                         {item.type === "toggle" ? (
                           <Toggle on={!!settings[item.id]} onClick={() => toggle(item.id)} />
                         ) : (
-                          <select
+                          <Select
                             value={settings[item.id] ?? item.default}
-                            onChange={(e) => select(item.id, e.target.value)}
-                            className="rounded-md border border-border/60 bg-background px-3 py-1.5 font-mono text-xs focus:border-primary focus:outline-none"
+                            onValueChange={(v) => select(item.id, v)}
                           >
-                            {item.options.map((o) => (
-                              <option key={o} value={o}>{o}</option>
-                            ))}
-                          </select>
+                            <SelectTrigger className="w-[140px] rounded-md border border-border/60 bg-background px-3 py-1.5 font-mono text-xs focus:border-primary">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {item.options.map((o) => (
+                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         )}
                       </div>
                     );

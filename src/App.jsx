@@ -9,6 +9,11 @@ import ScrollToTop from './components/ScrollToTop';
 import Home from '@/pages/Home';
 // Add page imports here
 
+const SECTIONS = [
+  "jabber", "grid", "studio", "video-editor", "photo-editor",
+  "env", "workshop", "dashboard", "settings",
+];
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
@@ -36,7 +41,10 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       {/* Add your page Route elements here */}
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<Home section="jabber" />} />
+      {SECTIONS.map((s) => (
+        <Route key={s} path={`/${s}`} element={<Home section={s} />} />
+      ))}
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
