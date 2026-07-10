@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Sparkles, Boxes, Box, SlidersHorizontal, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
   { id: "jabber", label: "Jabber", icon: Sparkles },
@@ -106,6 +107,8 @@ export default function JabberNav({ active, onSelect }) {
               )}
             </div>
 
+            <GalleryNav variant="desktop" />
+
             {BOTTOM_ITEMS.map(renderTop)}
           </nav>
         </div>
@@ -177,6 +180,8 @@ export default function JabberNav({ active, onSelect }) {
               </div>
             )}
           </div>
+
+          <GalleryNav variant="mobile" />
 
           {BOTTOM_ITEMS.map((item) => {
             const Icon = item.icon;
