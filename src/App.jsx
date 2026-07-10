@@ -10,7 +10,7 @@ import Home from '@/pages/Home';
 // Add page imports here
 
 const SECTIONS = [
-  "jabber", "grid", "studio", "video-editor", "photo-editor",
+  "jabber", "sound", "grid", "studio", "video-editor", "photo-editor",
   "env", "workshop", "dashboard", "settings",
 ];
 

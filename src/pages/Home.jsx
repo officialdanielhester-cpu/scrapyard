@@ -10,11 +10,13 @@ import DashboardSection from "@/components/dashboard/DashboardSection";
 import StudioSection from "@/components/studio/StudioSection";
 import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
+import SoundSection from "@/components/sound/SoundSection";
 import { motion, AnimatePresence } from "framer-motion";
 
 const PATH_TO_SECTION = {
   "": "jabber",
   jabber: "jabber",
+  sound: "sound",
   grid: "grid",
   studio: "studio",
   "video-editor": "video-editor",
@@ -63,6 +65,11 @@ export default function Home({ section: sectionProp }) {
         {active === "jabber" && (
           <div className="h-screen">
             <JabberSection />
+          </div>
+        )}
+        {active === "sound" && (
+          <div className="h-screen">
+            <SoundSection />
           </div>
         )}
         {active === "grid" && (
@@ -121,7 +128,9 @@ export default function Home({ section: sectionProp }) {
           style={{
             width:
               active === "jabber"
-                ? "14%"
+                ? "12%"
+                : active === "sound"
+                ? "22%"
                 : active === "grid"
                 ? "28%"
                 : active === "studio"

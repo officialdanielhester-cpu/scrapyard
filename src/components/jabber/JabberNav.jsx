@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette } from "lucide-react";
+import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music } from "lucide-react";
 import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
-{ id: "jabber", label: "Jabber", icon: Sparkles }];
+{ id: "jabber", label: "Jabber", icon: Sparkles },
+{ id: "sound", label: "Sound", icon: Music }];
 
 const CANVAS_CHILDREN = [
 { id: "grid", label: "The Grid", icon: Boxes },
