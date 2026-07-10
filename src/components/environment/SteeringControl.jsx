@@ -1,38 +1,49 @@
 import React from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
-// On-screen pitch steering for flying vehicles. Hold a button to pitch the
-// thrust/lift vector and alter the trajectory. Pitch attitude is shown in degrees.
-export default function SteeringControl({ pitchDeg, onSteer, onSteerEnd }) {
+// Unified steering D-pad — adapts to vehicle category.
+// Flyers (launch/winged/rotor): vertical = pitch, horizontal = yaw
+// Ground: vertical = throttle, horizontal = turn
+// axis "v" = vertical buttons, "h" = horizontal buttons; dir +1/-1.
+export default function SteeringControl({ category, onInput, onEnd, pitchDeg, yawDeg, headingDeg, throttlePct }) {
+  const isGround = category === "ground";
+  const vLabel = isGround ? "Throttle" : "Pitch";
+  const hLabel = isGround ? "Turn" : "Yaw";
+  const vVal = isGround ? `${Math.round((throttlePct || 0) * 100)}%` : `${pitchDeg ?? 0}°`;
+  const hVal = isGround ? `${headingDeg ?? 0}°` : `${yawDeg ?? 0}°`;
   const btn =
-    "flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground backdrop-blur transition-colors hover:border-primary hover:text-primary select-none touch-none";
+    "flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-background/80 text-foreground backdrop-blur transition-colors hover:border-primary hover:text-primary active:bg-primary active:text-primary-foreground select-none touch-none";
+  const hold = (axis, dir) => ({
+    onPointerDown: (e) => { e.preventDefault(); onInput?.(axis, dir); },
+    onPointerUp: onEnd,
+    onPointerLeave: onEnd,
+    onPointerCancel: onEnd,
+  });
+
   return (
-    <div className="steering flex flex-col items-center gap-1 rounded-2xl border border-border/60 bg-background/70 px-2 py-1.5 backdrop-blur">
+    <div className="steering flex flex-col items-center gap-1.5 rounded-2xl border border-border/60 bg-background/70 px-3 py-2 backdrop-blur">
       <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Steer</span>
+      <button {...hold("v", 1)} className={btn} aria-label={`${vLabel} up`}>
+        <ChevronUp className="h-5 w-5" strokeWidth={2.5} />
+      </button>
       <div className="flex items-center gap-1.5">
-        <button
-          onPointerDown={(e) => { e.preventDefault(); onSteer(1); }}
-          onPointerUp={onSteerEnd}
-          onPointerLeave={onSteerEnd}
-          onPointerCancel={onSteerEnd}
-          className={btn}
-          aria-label="Pitch up"
-        >
-          <ChevronUp className="h-4 w-4" strokeWidth={2.5} />
+        <button {...hold("h", -1)} className={btn} aria-label={`${hLabel} left`}>
+          <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
         </button>
-        <div className="flex w-10 flex-col items-center">
-          <span className="font-mono text-[11px] font-semibold text-primary">{pitchDeg}°</span>
+        <div className="flex w-16 flex-col items-center">
+          <span className="font-mono text-[11px] font-semibold text-primary">{vVal}</span>
+          <span className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">{vLabel}</span>
         </div>
-        <button
-          onPointerDown={(e) => { e.preventDefault(); onSteer(-1); }}
-          onPointerUp={onSteerEnd}
-          onPointerLeave={onSteerEnd}
-          onPointerCancel={onSteerEnd}
-          className={btn}
-          aria-label="Pitch down"
-        >
-          <ChevronDown className="h-4 w-4" strokeWidth={2.5} />
+        <button {...hold("h", 1)} className={btn} aria-label={`${hLabel} right`}>
+          <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
         </button>
+      </div>
+      <button {...hold("v", -1)} className={btn} aria-label={`${vLabel} down`}>
+        <ChevronDown className="h-5 w-5" strokeWidth={2.5} />
+      </button>
+      <div className="flex w-full items-center justify-between font-mono text-[9px] text-muted-foreground">
+        <span>{hLabel}</span>
+        <span className="text-primary">{hVal}</span>
       </div>
     </div>
   );

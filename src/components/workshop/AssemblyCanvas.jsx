@@ -6,7 +6,7 @@ import AssemblyCanvas3D from "@/components/workshop/AssemblyCanvas3D";
 
 // Assembly bay wrapper: free-form 2D editor (drag/select/move/scale/recolor)
 // or a 3D preview of the placed parts.
-export default function AssemblyCanvas({ instances, setInstances, vehicleType, onRemoveInstance, onImport }) {
+export default function AssemblyCanvas({ instances, setInstances, vehicleType, onRemoveInstance, onAddInstance, onImport }) {
   const [mode, setMode] = useState("2d");
   const hasContent = instances.length > 0;
 
@@ -46,7 +46,7 @@ export default function AssemblyCanvas({ instances, setInstances, vehicleType, o
         <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Assembly Bay</h3>
         <div className="flex items-center gap-3">
           <span className="hidden font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 sm:inline">
-            {mode === "2d" ? "drag · select · move · scale · recolor" : "drag to orbit · click to remove"}
+            {mode === "2d" ? "drag · select · move · scale · recolor" : "drag to orbit · shift-drag to pan · click to select"}
           </span>
           {ImportBtn}
           {Toggle}
@@ -56,7 +56,7 @@ export default function AssemblyCanvas({ instances, setInstances, vehicleType, o
       {mode === "3d" ? (
         <div className="h-[480px]">
           {hasContent ? (
-            <AssemblyCanvas3D instances={instances} onRemoveInstance={onRemoveInstance} />
+            <AssemblyCanvas3D instances={instances} onRemoveInstance={onRemoveInstance} onAddInstance={onAddInstance} setInstances={setInstances} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <Boxes className="h-8 w-8 text-muted-foreground/40" strokeWidth={1} />

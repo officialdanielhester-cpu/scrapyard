@@ -45,7 +45,7 @@ function Slider({ item, value, onChange }) {
   );
 }
 
-export default function EngineeringControls({ params, onParam, variables, onVariable, envKey }) {
+export default function EngineeringControls({ params, onParam, variables, onVariable, envKey, launchAngle, onLaunchAngle, launchLabel }) {
   return (
     <div className="space-y-6">
       <div>
@@ -54,6 +54,11 @@ export default function EngineeringControls({ params, onParam, variables, onVari
           <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Engineering</h3>
         </div>
         <div className="space-y-4 rounded-2xl border border-border/50 p-4">
+          <Slider
+            item={{ key: "launchAngle", label: launchLabel || "Launch Angle", unit: "°", min: -45, max: 90, step: 1 }}
+            value={launchAngle ?? 0}
+            onChange={(k, val) => onLaunchAngle?.(val)}
+          />
           {ENGINEERING.map((item) => (
             <Slider key={item.key} item={item} value={params[item.key]} onChange={onParam} />
           ))}

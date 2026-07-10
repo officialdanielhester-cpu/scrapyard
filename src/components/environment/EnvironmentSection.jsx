@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Rocket, RotateCcw, Circle, Square, Box as BoxIcon, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit, HelpCircle } from "lucide-react";
+import { Play, Pause, Rocket, RotateCcw, Circle, Square, Box as BoxIcon, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit, HelpCircle, Crosshair } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
@@ -20,7 +20,10 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [launched, setLaunched] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
   const [zoom, setZoom] = useState(1);
-  const steerRef = useRef({ steer: 0 });
+  const [launchAngle, setLaunchAngle] = useState(0);
+  const [cameraMode, setCameraMode] = useState("free");
+  const [recenterSignal, setRecenterSignal] = useState(0);
+  const steerRef = useRef({ steer: 0, yaw: 0, turn: 0, throttle: 0 });
   const [view, setView] = useState("pad");
   const [buildInstances, setBuildInstances] = useState(null);
   const [view3D, setView3D] = useState(true);
@@ -61,21 +64,30 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
     onConsumed?.();
   }, [pendingBuild]);
 
+  const isGround = VEHICLES[vehicleType]?.category === "ground";
+  const onSteerInput = (axis, dir) => {
+    if (isGround) steerRef.current = { steer: 0, yaw: 0, turn: axis === "h" ? dir : 0, throttle: axis === "v" ? dir : 0 };
+    else steerRef.current = { steer: axis === "v" ? dir : 0, yaw: axis === "h" ? dir : 0, turn: 0, throttle: 0 };
+  };
+  const onSteerEnd = () => { steerRef.current = { steer: 0, yaw: 0, turn: 0, throttle: 0 }; };
+
   useEffect(() => {
     if (view !== "pad") return;
     const onDown = (e) => {
-      if (e.key === "ArrowUp") { steerRef.current.steer = 1; e.preventDefault(); }
-      else if (e.key === "ArrowDown") { steerRef.current.steer = -1; e.preventDefault(); }
+      if (e.key === "ArrowUp") { onSteerInput("v", 1); e.preventDefault(); }
+      else if (e.key === "ArrowDown") { onSteerInput("v", -1); e.preventDefault(); }
+      else if (e.key === "ArrowLeft") { onSteerInput("h", -1); e.preventDefault(); }
+      else if (e.key === "ArrowRight") { onSteerInput("h", 1); e.preventDefault(); }
     };
-    const onUp = (e) => { if (e.key === "ArrowUp" || e.key === "ArrowDown") steerRef.current.steer = 0; };
+    const onUp = () => onSteerEnd();
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
-      steerRef.current.steer = 0;
+      onSteerEnd();
     };
-  }, [view]);
+  }, [view, isGround]);
 
   const selectVehicle = (type) => {
     setVehicleType(type);
@@ -95,6 +107,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const onVariable = (key, val) => setVariables((prev) => ({ ...prev, [key]: val }));
 
   const handleLaunch = () => {
+    onSteerEnd();
     setLaunched(false);
     setResetSignal((s) => s + 1);
     setTimeout(() => setLaunched(true), 30);
@@ -160,8 +173,6 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   };
 
   const fuelPct = Math.max(0, Math.min(100, (metrics.fuel / (params.fuel || 1)) * 100));
-  const isGround = VEHICLES[vehicleType]?.category === "ground";
-  const isFlyer = !isGround;
   const statusLabel = recording
     ? "Recording"
     : !launched
@@ -169,7 +180,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
     : metrics.goalReached
     ? "Goal Reached"
     : metrics.landed
-    ? "Landed"
+    ? (isGround && !metrics.goalReached ? "Stopped" : "Landed")
     : running
     ? "In Flight"
     : "Paused";
@@ -294,6 +305,9 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                   onZoom={setZoom}
                   steerRef={steerRef}
                   build={buildInstances}
+                  launchAngle={launchAngle}
+                  cameraMode={cameraMode}
+                  recenterSignal={recenterSignal}
                 />
               ) : (
                 <Sim2DView build={buildInstances} metrics={metrics} vehicleType={vehicleType} />
@@ -310,6 +324,24 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
               </div>
               <div className="absolute right-4 top-16 flex flex-col gap-1.5">
                 <button
+                  onClick={() => setCameraMode((m) => (m === "follow" ? "free" : "follow"))}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border bg-background/70 backdrop-blur transition-colors hover:border-primary hover:text-primary ${
+                    cameraMode === "follow" ? "border-primary text-primary" : "border-border/60 text-foreground"
+                  }`}
+                  aria-label="Follow vehicle"
+                  title="Follow vehicle"
+                >
+                  <Orbit className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+                <button
+                  onClick={() => setRecenterSignal((s) => s + 1)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground backdrop-blur transition-colors hover:border-primary hover:text-primary"
+                  aria-label="Recenter view"
+                  title="Recenter view"
+                >
+                  <Crosshair className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+                <button
                   onClick={() => setZoom((z) => Math.max(0.4, z * 0.85))}
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground backdrop-blur transition-colors hover:border-primary hover:text-primary"
                   aria-label="Zoom in"
@@ -324,15 +356,17 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                   <ZoomOut className="h-4 w-4" strokeWidth={1.5} />
                 </button>
               </div>
-              {isFlyer && (
-                <div className="absolute bottom-16 left-1/2 -translate-x-1/2">
-                  <SteeringControl
-                    pitchDeg={Math.round(((metrics.pitch || 0) * 180) / Math.PI)}
-                    onSteer={(dir) => { steerRef.current.steer = dir; }}
-                    onSteerEnd={() => { steerRef.current.steer = 0; }}
-                  />
-                </div>
-              )}
+              <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
+                <SteeringControl
+                  category={VEHICLES[vehicleType]?.category}
+                  onInput={onSteerInput}
+                  onEnd={onSteerEnd}
+                  pitchDeg={Math.round(((metrics.pitch || 0) * 180) / Math.PI)}
+                  yawDeg={Math.round(((metrics.yaw || 0) * 180) / Math.PI)}
+                  headingDeg={Math.round(((metrics.heading || 0) * 180) / Math.PI)}
+                  throttlePct={metrics.throttle || 0}
+                />
+              </div>
               {/* fuel gauge */}
               <div className="absolute inset-x-4 bottom-4">
                 <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -361,7 +395,16 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
           <div className="space-y-6">
             <VehicleSelector value={vehicleType} onSelect={selectVehicle} />
             <EnvironmentSelector value={envKey} onSelect={selectEnv} />
-            <EngineeringControls params={params} onParam={onParam} variables={variables} onVariable={onVariable} envKey={envKey} />
+            <EngineeringControls
+              params={params}
+              onParam={onParam}
+              variables={variables}
+              onVariable={onVariable}
+              envKey={envKey}
+              launchAngle={launchAngle}
+              onLaunchAngle={setLaunchAngle}
+              launchLabel={isGround ? "Launch Heading" : "Launch Pitch"}
+            />
           </div>
         </div>
         ) : view === "mission" ? (

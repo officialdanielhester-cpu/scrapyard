@@ -90,7 +90,24 @@ function buildVehicle(type) {
   return { group: g, rotor };
 }
 
-export default function SimulationCanvas({ vehicleType, params, variables, running, launched, resetSignal, onMetrics, zoom = 1, onZoom, steerRef = { current: { steer: 0 } }, build }) {
+// Free-flight camera: drag to orbit, shift-drag / two-finger to pan,
+// wheel / pinch to zoom, optional follow mode, recenter signal.
+export default function SimulationCanvas({
+  vehicleType,
+  params,
+  variables,
+  running,
+  launched,
+  resetSignal,
+  onMetrics,
+  zoom = 1,
+  onZoom,
+  steerRef = { current: { steer: 0, yaw: 0, turn: 0, throttle: 0 } },
+  build,
+  launchAngle = 0,
+  cameraMode = "free",
+  recenterSignal = 0,
+}) {
   const mountRef = useRef(null);
   const vehicleTypeRef = useRef(vehicleType);
   const paramsRef = useRef(params);
@@ -102,6 +119,9 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
   const zoomRef = useRef(zoom);
   const onZoomRef = useRef(onZoom);
   const buildRef = useRef(build);
+  const launchAngleRef = useRef(launchAngle);
+  const camModeRef = useRef(cameraMode);
+  const recenterSigRef = useRef(recenterSignal);
 
   useEffect(() => { vehicleTypeRef.current = vehicleType; }, [vehicleType]);
   useEffect(() => { paramsRef.current = params; }, [params]);
@@ -113,6 +133,9 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { onZoomRef.current = onZoom; }, [onZoom]);
   useEffect(() => { buildRef.current = build; }, [build]);
+  useEffect(() => { launchAngleRef.current = launchAngle; }, [launchAngle]);
+  useEffect(() => { camModeRef.current = cameraMode; }, [cameraMode]);
+  useEffect(() => { recenterSigRef.current = recenterSignal; }, [recenterSignal]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -122,18 +145,29 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(varsRef.current.bgColor || "#080B14");
-    scene.fog = new THREE.Fog(varsRef.current.bgColor || "#080B14", 60, 140);
+    scene.fog = new THREE.Fog(varsRef.current.bgColor || "#080B14", 60, 160);
 
-    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 300);
-    const camTarget = new THREE.Vector3(0, 12, 0);
-    const camDirN = new THREE.Vector3(0, 12, 52).normalize();
-    const camBaseDist = Math.hypot(0, 12, 52);
-    camera.position.copy(camTarget).addScaledVector(camDirN, camBaseDist * (zoomRef.current || 1));
-    camera.lookAt(camTarget);
+    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 600);
+    let camTheta = 0.6, camPhi = 1.15;
+    const camTarget = new THREE.Vector3(0, 10, 0);
+    const camRight = new THREE.Vector3();
+    const camUp = new THREE.Vector3();
+    const updateCam = () => {
+      const r = 60 * (zoomRef.current || 1);
+      camera.position.set(
+        camTarget.x + r * Math.sin(camPhi) * Math.sin(camTheta),
+        camTarget.y + r * Math.cos(camPhi),
+        camTarget.z + r * Math.sin(camPhi) * Math.cos(camTheta)
+      );
+      camera.lookAt(camTarget);
+    };
+    updateCam();
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.touchAction = "none";
+    renderer.domElement.style.cursor = "grab";
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -155,7 +189,6 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     grid.position.y = 0.02;
     scene.add(grid);
 
-    // launch pad marker
     const pad = new THREE.Mesh(
       new THREE.RingGeometry(2.2, 2.6, 32),
       new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
@@ -164,7 +197,6 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     pad.position.y = 0.03;
     scene.add(pad);
 
-    // finish-line gate for ground-vehicle goals
     const gate = new THREE.Group();
     const gateMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xfbbf24, emissiveIntensity: 0.35 });
     [-1.3, 1.3].forEach((z) => {
@@ -177,7 +209,6 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     gate.visible = false;
     scene.add(gate);
 
-    // starfield
     const starGeo = new THREE.BufferGeometry();
     const starPos = new Float32Array(400 * 3);
     for (let i = 0; i < 400; i++) {
@@ -189,7 +220,6 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.35, transparent: true, opacity: 0.6 }));
     scene.add(stars);
 
-    // trail
     const trailGeo = new THREE.BufferGeometry();
     const trailPositions = new Float32Array(TRAIL_MAX * 3);
     trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3));
@@ -207,6 +237,8 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     let fuel = 0;
     let initialFuel = 0;
     let pitch = 0;
+    let yaw = 0;
+    let heading = 0;
     let goalReached = false;
     let flightTime = 0;
     let landed = false;
@@ -218,6 +250,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     let lastBuild = null;
     let lastReset = resetRef.current;
     let lastLaunched = false;
+    let lastRecenter = recenterSigRef.current;
     let frame = 0;
 
     const clearTrail = () => { trailCount = 0; trailGeo.setDrawRange(0, 0); };
@@ -238,7 +271,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       pos.set(0, 0, 0); vel.set(0, 0, 0);
       fuel = paramsRef.current.fuel;
       initialFuel = paramsRef.current.fuel;
-      pitch = 0; goalReached = false;
+      pitch = 0; yaw = 0; heading = 0; goalReached = false;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
       vehicle.group.position.set(0, 0, 0);
@@ -248,10 +281,87 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       pos.set(0, 0, 0); vel.set(0, 0, 0);
       fuel = paramsRef.current.fuel;
       initialFuel = paramsRef.current.fuel;
-      pitch = 0; goalReached = false;
+      pitch = 0; yaw = 0; heading = 0; goalReached = false;
       flightTime = 0; landed = false; maxSpeed = 0; maxAlt = 0; lastAccel = 0;
       clearTrail();
     };
+
+    // camera pointer navigation
+    const pointers = new Map();
+    let panMode = false;
+    let lastOrbit = { x: 0, y: 0 };
+    let lastPan = { x: 0, y: 0 };
+    let pinchDist = 0;
+
+    const panBy = (dx, dy) => {
+      camera.updateMatrixWorld();
+      camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+      camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+      const k = 60 * (zoomRef.current || 1) * 0.0016;
+      camTarget.addScaledVector(camRight, -dx * k);
+      camTarget.addScaledVector(camUp, dy * k);
+    };
+
+    const onPointerDown = (e) => {
+      try { renderer.domElement.setPointerCapture(e.pointerId); } catch {}
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      renderer.domElement.style.cursor = "grabbing";
+      if (pointers.size === 1) {
+        panMode = e.shiftKey || e.button === 2;
+        lastOrbit = { x: e.clientX, y: e.clientY };
+        lastPan = { x: e.clientX, y: e.clientY };
+      } else if (pointers.size === 2) {
+        const pts = [...pointers.values()];
+        pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        lastPan = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      }
+    };
+    const onPointerMove = (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        const pts = [...pointers.values()];
+        const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (pinchDist) {
+          const ratio = pinchDist / d;
+          onZoomRef.current?.((z) => Math.max(0.4, Math.min(3, (z || 1) * ratio)));
+        }
+        pinchDist = d;
+        const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+        panBy(mx - lastPan.x, my - lastPan.y);
+        lastPan = { x: mx, y: my };
+      } else if (pointers.size === 1) {
+        const dx = e.clientX - lastOrbit.x, dy = e.clientY - lastOrbit.y;
+        lastOrbit = { x: e.clientX, y: e.clientY };
+        if (panMode) panBy(dx, dy);
+        else {
+          camTheta -= dx * 0.005;
+          camPhi = Math.max(0.15, Math.min(Math.PI - 0.15, camPhi - dy * 0.005));
+        }
+      }
+    };
+    const onPointerUp = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinchDist = 0;
+      if (pointers.size === 1) {
+        const p = [...pointers.values()][0];
+        lastOrbit = { x: p.x, y: p.y };
+        panMode = false;
+      }
+      renderer.domElement.style.cursor = "grab";
+    };
+    const onContext = (e) => e.preventDefault();
+    const onWheel = (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.12 : 0.89;
+      onZoomRef.current?.((z) => Math.max(0.4, Math.min(3, (z || 1) * factor)));
+    };
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointerup", onPointerUp);
+    renderer.domElement.addEventListener("pointercancel", onPointerUp);
+    renderer.domElement.addEventListener("contextmenu", onContext);
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     const clock = new THREE.Clock();
     let raf;
@@ -263,15 +373,23 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
 
       const launchedNow = launchedRef.current;
       if (launchedNow && !lastLaunched) {
-        const cat = VEHICLES[vehicleTypeRef.current]?.category;
-        vel.set(cat === "winged" ? 8 : 0, 0, 0);
-        landed = false; fuel = paramsRef.current.fuel; initialFuel = paramsRef.current.fuel; pitch = 0; goalReached = false; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail();
+        const cat0 = VEHICLES[vehicleTypeRef.current]?.category;
+        const la = (launchAngleRef.current || 0) * Math.PI / 180;
+        if (cat0 === "winged") vel.set(Math.cos(la) * 8, Math.sin(la) * 8, 0);
+        else vel.set(0, 0, 0);
+        landed = false; fuel = paramsRef.current.fuel; initialFuel = paramsRef.current.fuel;
+        pitch = cat0 === "ground" ? 0 : la;
+        yaw = 0; heading = cat0 === "ground" ? la : 0;
+        goalReached = false; flightTime = 0; maxSpeed = 0; maxAlt = 0; clearTrail();
       }
       lastLaunched = launchedNow;
 
       const v = varsRef.current;
       const p = paramsRef.current;
       const rawDt = Math.min(clock.getDelta(), 0.05);
+      const cat = VEHICLES[vehicleTypeRef.current]?.category;
+      const isFlyer = cat === "launch" || cat === "winged" || cat === "rotor";
+      const throttle = steerRef.current?.throttle || 0;
       const dt = runningRef.current && launchedNow && !landed ? rawDt * (v.timeScale || 1) : 0;
 
       bgTarget.set(v.bgColor || "#080B14");
@@ -280,7 +398,6 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       ground.material.color.lerp(groundTarget, 0.06);
       stars.material.opacity = (v.atmosphere || 0) < 0.1 ? 0.8 : 0.25;
 
-      const cat = VEHICLES[vehicleTypeRef.current]?.category;
       const g = v.gravity ?? 9.8;
       const atm = v.atmosphere ?? 1;
       const wind = v.wind ?? 0;
@@ -290,64 +407,76 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
         const thrustMag = fuel > 0 ? p.thrust : 0;
         const speed = vel.length();
 
-        // Variable mass: the vehicle lightens as fuel burns (rocket-equation feel).
         const fuelRatio = initialFuel > 0 ? Math.max(0, fuel / initialFuel) : 0;
         const fuelFrac = cat === "launch" ? 0.6 : cat === "winged" ? 0.35 : cat === "rotor" ? 0.3 : 0.12;
         const mass = p.mass * (1 - fuelFrac * (1 - fuelRatio));
 
-        // Atmospheric density falls off with altitude (exponential atmosphere).
         const density = atm * Math.exp(-Math.max(0, pos.y) / 8500);
 
-        // Quadratic aerodynamic drag opposing velocity: a = -(0.5 * rho * CdA * v^2 / m) * v_hat
         const vHat = speed > 0.0001 ? vel.clone().multiplyScalar(1 / speed) : new THREE.Vector3();
         const dragMag = (0.5 * density * p.drag * speed * speed) / mass;
 
-        // Pilot steering: pitch the thrust/lift vector to alter the trajectory.
-        const isFlyer = cat === "launch" || cat === "winged" || cat === "rotor";
         if (isFlyer) {
           pitch += (steerRef.current?.steer || 0) * 1.2 * dt;
           pitch = Math.max(-1.05, Math.min(1.05, pitch));
+          yaw += (steerRef.current?.yaw || 0) * 1.0 * dt;
+          yaw = Math.max(-1.4, Math.min(1.4, yaw));
         }
         const sp = Math.sin(pitch), cp = Math.cos(pitch);
+        const sy = Math.sin(yaw), cy = Math.cos(yaw);
 
         if (cat === "launch") {
-          const tdir = new THREE.Vector3(-sp + (vehicleTypeRef.current === "missile" ? 0.12 : 0), cp, 0).normalize();
+          const tdir = new THREE.Vector3(-sp * cy + (vehicleTypeRef.current === "missile" ? 0.12 : 0), cp, sp * sy).normalize();
           accel.addScaledVector(tdir, thrustMag / mass);
           accel.y -= g;
           accel.x += wind * 0.04;
           accel.addScaledVector(vHat, -dragMag);
         } else if (cat === "winged") {
-          const fwd = Math.abs(vel.x * cp + vel.y * sp);
-          // Quadratic lift: a = 0.5 * rho * CL * A * v^2 / m, opposing gravity.
+          const forward = new THREE.Vector3(cp * cy, sp, -cp * sy);
+          const fwd = Math.abs(vel.dot(forward));
           const liftMag = (0.5 * density * p.lift * fwd * fwd) / mass;
-          const forward = new THREE.Vector3(cp, sp, 0);
-          const up = new THREE.Vector3(-sp, cp, 0);
+          const up = new THREE.Vector3(-sp * cy, cp, sp * sy);
           accel.addScaledVector(forward, thrustMag / mass);
           accel.addScaledVector(up, liftMag);
           accel.y -= g;
           accel.x += wind * 0.03;
           accel.addScaledVector(vHat, -dragMag);
         } else if (cat === "rotor") {
-          const tdir = new THREE.Vector3(-sp, cp, 0);
+          const tdir = new THREE.Vector3(-sp * cy, cp, sp * sy);
           accel.addScaledVector(tdir, thrustMag / mass);
           accel.y -= g;
           accel.x += wind * 0.05;
           accel.addScaledVector(vHat, -dragMag);
         } else {
-          // ground
-          accel.x = thrustMag / mass;
-          accel.x -= 0.02 * g * Math.sign(vel.x || 1);
-          accel.x -= (0.5 * density * p.drag * vel.x * Math.abs(vel.x)) / mass;
+          // ground — 2D on xz plane with heading + throttle steering
+          const turn = steerRef.current?.turn || 0;
+          heading += turn * 1.1 * dt;
+          const thrustEff = (fuel > 0 && throttle > 0) ? p.thrust : 0;
+          const brake = throttle < 0 ? 1 : 0;
+          const hx = Math.cos(heading), hz = -Math.sin(heading);
+          accel.x = (thrustEff / mass) * hx;
+          accel.z = (thrustEff / mass) * hz;
+          const speed2 = Math.hypot(vel.x, vel.z);
+          const fric = 0.02 * g + (brake ? 0.5 * g : 0);
+          if (speed2 > 0.001) {
+            accel.x -= fric * (vel.x / speed2);
+            accel.z -= fric * (vel.z / speed2);
+            const dragMag2 = (0.5 * density * p.drag * speed2 * speed2) / mass;
+            accel.x -= dragMag2 * (vel.x / speed2);
+            accel.z -= dragMag2 * (vel.z / speed2);
+          }
           accel.x += wind * 0.02;
         }
 
         vel.addScaledVector(accel, dt);
         pos.addScaledVector(vel, dt);
-        if (fuel > 0) fuel = Math.max(0, fuel - dt);
+        if (fuel > 0) {
+          if (cat === "ground") { if (throttle > 0) fuel = Math.max(0, fuel - dt); }
+          else fuel = Math.max(0, fuel - dt);
+        }
         flightTime += dt;
         lastAccel = accel.length();
 
-        // bounds
         if (cat !== "ground" && pos.y <= 0 && vel.y < 0) {
           pos.y = 0;
           if (cat === "winged" || cat === "launch") { vel.set(0, 0, 0); landed = true; }
@@ -355,15 +484,18 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
         }
         if (cat === "ground") {
           pos.y = 0;
-          if (pos.x >= GOAL_X) { pos.x = GOAL_X; vel.x = 0; goalReached = true; landed = true; }
-          if (Math.abs(vel.x) < 0.2 && thrustMag === 0) landed = true;
+          const toGoal = Math.hypot(GOAL_X - pos.x, -pos.z);
+          if (toGoal < 6) { vel.x = 0; vel.z = 0; goalReached = true; landed = true; }
+          const sp2 = Math.hypot(vel.x, vel.z);
+          if (sp2 < 0.3 && throttle <= 0) landed = true;
         }
-        if (pos.x > ARENA_M) { pos.x = ARENA_M; vel.x = 0; landed = true; }
-        if (pos.x < -ARENA_M) { pos.x = -ARENA_M; vel.x = 0; landed = true; }
+        if (Math.abs(pos.x) > ARENA_M) { pos.x = Math.sign(pos.x) * ARENA_M; vel.x = 0; }
+        if (Math.abs(pos.z) > ARENA_M) { pos.z = Math.sign(pos.z) * ARENA_M; vel.z = 0; }
         if (pos.y > CEILING_M) { pos.y = CEILING_M; if (vel.y > 0) vel.y = 0; }
 
         if (landed) pitch = 0;
-        if (speed > maxSpeed) maxSpeed = speed;
+        const speedNow = cat === "ground" ? Math.hypot(vel.x, vel.z) : vel.length();
+        if (speedNow > maxSpeed) maxSpeed = speedNow;
         if (pos.y > maxAlt) maxAlt = pos.y;
       }
 
@@ -371,13 +503,11 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       vehicle.group.position.set(pos.x * SCALE, pos.y * SCALE, pos.z * SCALE);
       if (vehicle.rotor) vehicle.rotor.rotation.y += rawDt * 25;
       (vehicle.rotorMeshes || []).forEach((r) => { r.rotation.y += rawDt * 25; });
-      vehicle.group.rotation.z = cat === "launch" || cat === "winged" || cat === "rotor" ? pitch : 0;
-      if ((cat === "winged" || cat === "ground") && vel.x !== 0) {
-        vehicle.group.rotation.y = vel.x < 0 ? Math.PI : 0;
-      }
+      if (cat === "ground") { vehicle.group.rotation.y = heading; vehicle.group.rotation.z = 0; }
+      else if (isFlyer) { vehicle.group.rotation.z = pitch; vehicle.group.rotation.y = yaw; }
+      else { vehicle.group.rotation.z = 0; vehicle.group.rotation.y = 0; }
       if (gate) gate.visible = cat === "ground";
 
-      // trail
       if (launchedNow && !landed && frame % 3 === 0 && trailCount < TRAIL_MAX) {
         trailPositions[trailCount * 3] = vehicle.group.position.x;
         trailPositions[trailCount * 3 + 1] = vehicle.group.position.y;
@@ -391,7 +521,7 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
       if (frame % 6 === 0) {
         onMetricsRef.current?.({
           altitude: pos.y,
-          velocity: vel.length(),
+          velocity: cat === "ground" ? Math.hypot(vel.x, vel.z) : vel.length(),
           maxSpeed,
           maxAltitude: maxAlt,
           distance: Math.hypot(pos.x, pos.z),
@@ -400,14 +530,22 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
           fuel,
           landed,
           pitch,
+          yaw,
+          heading,
+          throttle,
           goalReached,
           goalX: GOAL_X,
         });
       }
 
-      const camDist = camBaseDist * (zoomRef.current || 1);
-      camera.position.copy(camTarget).addScaledVector(camDirN, camDist);
-      camera.lookAt(camTarget);
+      // camera: recenter / follow / free
+      if (recenterSigRef.current !== lastRecenter) {
+        camTheta = 0.6; camPhi = 1.15; camTarget.set(0, 10, 0); lastRecenter = recenterSigRef.current;
+      }
+      if (camModeRef.current === "follow") {
+        camTarget.lerp(vehicle.group.position, 0.08);
+      }
+      updateCam();
 
       renderer.render(scene, camera);
     };
@@ -422,16 +560,14 @@ export default function SimulationCanvas({ vehicleType, params, variables, runni
     });
     ro.observe(mount);
 
-    const onWheel = (e) => {
-      e.preventDefault();
-      const factor = e.deltaY > 0 ? 1.12 : 0.89;
-      onZoomRef.current?.((z) => Math.max(0.4, Math.min(3, (z || 1) * factor)));
-    };
-    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
-
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("pointermove", onPointerMove);
+      renderer.domElement.removeEventListener("pointerup", onPointerUp);
+      renderer.domElement.removeEventListener("pointercancel", onPointerUp);
+      renderer.domElement.removeEventListener("contextmenu", onContext);
       renderer.domElement.removeEventListener("wheel", onWheel);
       disposeVehicle();
       scene.traverse((o) => {

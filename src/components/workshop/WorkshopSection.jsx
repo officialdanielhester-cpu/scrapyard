@@ -153,6 +153,7 @@ export default function WorkshopSection({ onImportBuild }) {
               setInstances={setInstances}
               vehicleType={vehicleType}
               onRemoveInstance={removeOne}
+              onAddInstance={addPart}
               onImport={() =>
                 onImportBuild?.({
                   vehicle_type: vehicleType,
