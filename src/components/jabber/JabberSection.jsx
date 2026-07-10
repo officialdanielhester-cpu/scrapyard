@@ -219,7 +219,7 @@ User: ${content}`;
       <header className="flex items-center justify-between border-b border-border/40 px-6 py-5 md:px-12">
         <div>
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Jabber</h1>
-          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">ho
+          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Nerd ahh hb
 
           </p>
         </div>
