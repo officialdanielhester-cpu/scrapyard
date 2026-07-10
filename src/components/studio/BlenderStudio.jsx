@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
-import { Box, Circle, Hexagon, Triangle, Octagon, Square, Trash2, Plus, Download, Sparkles, Boxes, Copy, Layers, Scissors, Crop } from "lucide-react";
+import { Trash2, Download, Sparkles, Boxes, Copy, Layers, Scissors, Crop } from "lucide-react";
 import ImportModelsPanel from "@/components/studio/ImportModelsPanel";
 import JabberModelGen from "@/components/studio/JabberModelGen";
 import ModelPresetsPanel from "@/components/studio/ModelPresetsPanel";
@@ -29,29 +29,35 @@ Object.keys(GEO).forEach((t) => {
   g.dispose();
 });
 
-const PRIMITIVES = [
-  { type: "box", label: "Cube", icon: Box },
-  { type: "sphere", label: "Sphere", icon: Circle },
-  { type: "cylinder", label: "Cylinder", icon: Hexagon },
-  { type: "cone", label: "Cone", icon: Triangle },
-  { type: "torus", label: "Torus", icon: Octagon },
-  { type: "plane", label: "Plane", icon: Square },
-];
-const PALETTE = ["#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#a855f7", "#ec4899", "#14b8a6", "#e5e7eb"];
-const TYPES = Object.keys(GEO);
+const LIGHT_GREY = "#d4d4d8";
 
 const newId = () => `o-${Math.random().toString(36).slice(2, 9)}`;
 
-// Build a single-part object from a model-like spec (used by palette, import, Jabber).
+// Build an object from a model spec — multi-part (Jabber composition) or single
+// (imported Grid model). Every part spawns light grey; the user customizes after.
 function objectFromSpec(spec) {
-  const type = GEO[spec.geometry] ? spec.geometry : "box";
+  let parts;
+  if (Array.isArray(spec.parts) && spec.parts.length) {
+    parts = spec.parts.map((p) => ({
+      type: GEO[p.type] ? p.type : "box",
+      ox: p.ox || 0, oy: p.oy || 0, oz: p.oz || 0,
+      sx: p.sx ?? 1, sy: p.sy ?? 1, sz: p.sz ?? 1,
+      rx: p.rx || 0, ry: p.ry || 0, rz: p.rz || 0,
+      color: LIGHT_GREY,
+    }));
+  } else {
+    const type = GEO[spec.geometry] ? spec.geometry : "box";
+    parts = [{ type, ox: 0, oy: 0, oz: 0, sx: 1, sy: 1, sz: 1, rx: 0, ry: 0, rz: 0, color: LIGHT_GREY }];
+  }
   return {
     id: newId(),
-    name: spec.name || type.charAt(0).toUpperCase() + type.slice(1),
+    name: spec.name || "Model",
     pos: [0, 0.8, 0],
     scale: spec.scale || 1,
     rot: [spec.rotX || 0, spec.rotY || 0, spec.rotZ || 0],
-    parts: [{ type, ox: 0, oy: 0, oz: 0, sx: 1, sy: 1, sz: 1, rx: 0, ry: 0, rz: 0, color: spec.color || "#3b82f6" }],
+    metal: 0.3,
+    rough: 0.55,
+    parts,
   };
 }
 
@@ -107,8 +113,8 @@ export default function BlenderStudio() {
       o.parts.forEach((p) => {
         const mat = new THREE.MeshStandardMaterial({
           color: p.color,
-          metalness: 0.3,
-          roughness: 0.5,
+          metalness: o.metal ?? 0.3,
+          roughness: o.rough ?? 0.55,
           side: p.type === "plane" ? THREE.DoubleSide : THREE.FrontSide,
         });
         if (isSel) mat.emissive = new THREE.Color(p.color).multiplyScalar(0.35);
@@ -288,19 +294,13 @@ export default function BlenderStudio() {
     };
   }, []);
 
-  const addObject = (type) => {
-    const color = PALETTE[objects.length % PALETTE.length];
-    const o = objectFromSpec({ geometry: type, color, scale: 1, name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${objects.length + 1}` });
-    setObjects((p) => [...p, o]);
-    setSelectedId(o.id);
-  };
   const addSpec = (spec) => {
     const o = objectFromSpec(spec);
     setObjects((p) => [...p, o]);
     setSelectedId(o.id);
   };
   const addPreset = (preset) => {
-    const o = { id: newId(), name: preset.name, pos: [0, 0.8, 0], scale: 1, rot: [0, 0, 0], parts: preset.parts.map((p) => ({ ...p })) };
+    const o = { id: newId(), name: preset.name, pos: [0, 0.8, 0], scale: 1, rot: [0, 0, 0], metal: 0.3, rough: 0.55, parts: preset.parts.map((p) => ({ ...p, color: LIGHT_GREY })) };
     setObjects((p) => [...p, o]);
     setSelectedId(o.id);
   };
@@ -359,32 +359,18 @@ export default function BlenderStudio() {
     <div className="flex flex-col gap-4 lg:flex-row">
       <div className="flex-1">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Add:</span>
-          {PRIMITIVES.map((p) => {
-            const Icon = p.icon;
-            return (
-              <button
-                key={p.type}
-                onClick={() => addObject(p.type)}
-                className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs transition-colors hover:border-primary hover:text-primary"
-              >
-                <Plus className="h-3 w-3" strokeWidth={2} />
-                <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
-                {p.label}
-              </button>
-            );
-          })}
+          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Create:</span>
+          <button
+            onClick={() => setJabberOpen(true)}
+            className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} /> Generate Model
+          </button>
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs transition-colors hover:border-primary hover:text-primary"
           >
             <Download className="h-3.5 w-3.5" strokeWidth={1.5} /> Import
-          </button>
-          <button
-            onClick={() => setJabberOpen(true)}
-            className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs transition-colors hover:border-primary hover:text-primary"
-          >
-            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} /> Jabber
           </button>
           <button
             onClick={() => setPresetOpen(true)}
@@ -413,7 +399,7 @@ export default function BlenderStudio() {
         <div className="rounded-2xl border border-border/50 p-4">
           <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Outliner</h3>
           {objects.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Empty scene — add or import an object.</p>
+            <p className="text-xs text-muted-foreground">Empty scene — generate a model to begin.</p>
           ) : (
             <ul className="space-y-1">
               {objects.map((o) => (
@@ -441,9 +427,33 @@ export default function BlenderStudio() {
               <label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Color</label>
               <input
                 type="color"
-                value={sel.parts[0]?.color || "#3b82f6"}
+                value={sel.parts[0]?.color || "#d4d4d8"}
                 onChange={(e) => setColor(e.target.value)}
                 className="h-8 w-full cursor-pointer rounded border border-border/60 bg-transparent"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Metalness {Math.round((sel.metal ?? 0.3) * 100)}%</label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={sel.metal ?? 0.3}
+                onChange={(e) => updateSel({ metal: Number(e.target.value) })}
+                className="w-full accent-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Roughness {Math.round((sel.rough ?? 0.55) * 100)}%</label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={sel.rough ?? 0.55}
+                onChange={(e) => updateSel({ rough: Number(e.target.value) })}
+                className="w-full accent-primary"
               />
             </div>
             <div className="grid grid-cols-3 gap-2">

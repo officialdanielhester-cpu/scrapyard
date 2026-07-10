@@ -6,20 +6,28 @@ const SCHEMA = {
   type: "object",
   properties: {
     name: { type: "string" },
-    type: { type: "string", enum: ["box", "sphere", "cylinder", "cone", "torus", "plane", "octahedron", "icosahedron", "tetrahedron", "dodecahedron"] },
-    color: { type: "string" },
-    scale: { type: "number" },
-    rotX: { type: "number" },
-    rotY: { type: "number" },
-    rotZ: { type: "number" },
+    parts: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["box", "sphere", "cylinder", "cone", "torus", "plane", "octahedron", "icosahedron", "tetrahedron", "dodecahedron"] },
+          ox: { type: "number" }, oy: { type: "number" }, oz: { type: "number" },
+          sx: { type: "number" }, sy: { type: "number" }, sz: { type: "number" },
+          rx: { type: "number" }, ry: { type: "number" }, rz: { type: "number" },
+        },
+        required: ["type", "ox", "oy", "oz", "sx", "sy", "sz"],
+      },
+    },
   },
-  required: ["name", "type", "color"],
+  required: ["name", "parts"],
 };
 
-const EXAMPLES = ["a glossy red apple", "a tall green crystal", "a flat blue landing pad", "a golden ring"];
+const PRIMS = "box, sphere, cylinder, cone, torus, plane, octahedron, icosahedron, tetrahedron, dodecahedron";
+const EXAMPLES = ["a medieval longsword", "a pine tree", "an office chair", "a sports car", "a coffee mug"];
 
-// Slide-over that asks Jabber to generate a model spec from a description,
-// then drops the resulting object into the workspace.
+// Slide-over that asks Jabber to compose a detailed, recognizable multi-part 3D
+// model from a description, then drops it into the workspace as a neutral grey sculpt.
 export default function JabberModelGen({ open, onClose, onAdd }) {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,18 +41,10 @@ export default function JabberModelGen({ open, onClose, onAdd }) {
     setErr(null);
     try {
       const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are Jabber generating a 3D model spec for a Blender-style studio. From the user's description, choose the best primitive type from [box, sphere, cylinder, cone, torus, plane, octahedron, icosahedron, tetrahedron, dodecahedron], a fitting hex color, a scale between 0.5 and 3, and rotation in radians (rotX/rotY/rotZ). Give a short name. User: "${prompt}"`,
+        prompt: `You are Jabber, a 3D model composer in a Blender-style studio. Build a detailed multi-part 3D model that resembles the user's request as closely and recognizably as possible, composing primitive building blocks [${PRIMS}]. Use 5 to 30 parts with precise offsets (ox/oy/oz), scales (sx/sy/sz), and rotations (rx/ry/rz in radians) so the assembled object is proportional and clearly recognizable. Reason about the real silhouette first: e.g. a sword = long thin box blade + crossguard box + cylindrical handle + spherical pommel; a tree = brown cylinder trunk + several green spheres for foliage; a chair = seat box + four leg boxes + back box; a car = low body box + cabin box + four wheel cylinders. The origin sits at the object's base center; keep the whole model roughly within a 3x3x3 unit volume centered on the origin and resting just above y=0. Do not assign color — the model spawns neutral grey and is customized later. Give a short, specific name. Output only the JSON. User request: "${prompt}"`,
         response_json_schema: SCHEMA,
       });
-      onAdd({
-        name: res.name || "Generated",
-        geometry: res.type,
-        color: res.color || "#3b82f6",
-        scale: res.scale || 1,
-        rotX: res.rotX || 0,
-        rotY: res.rotY || 0,
-        rotZ: res.rotZ || 0,
-      });
+      onAdd({ name: res.name || "Generated", parts: Array.isArray(res.parts) ? res.parts : [] });
       setPrompt("");
       onClose();
     } catch (e) {
@@ -61,7 +61,7 @@ export default function JabberModelGen({ open, onClose, onAdd }) {
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/40 bg-background px-5 py-4">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
-            <h3 className="font-heading text-sm font-bold">Jabber Model</h3>
+            <h3 className="font-heading text-sm font-bold">Generate Model</h3>
           </div>
           <button onClick={onClose} className="text-muted-foreground transition-colors hover:text-foreground">
             <X className="h-4 w-4" />
@@ -70,12 +70,12 @@ export default function JabberModelGen({ open, onClose, onAdd }) {
 
         <div className="space-y-4 p-5">
           <p className="text-sm text-muted-foreground">
-            Describe a shape and Jabber will generate and drop it into the workspace — then edit it like any object.
+            Describe anything and Jabber composes a detailed, recognizable 3D model from it — spawning in neutral grey so you can sculpt, color, and finish it yourself.
           </p>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. a glossy red apple"
+            placeholder="e.g. a medieval longsword"
             rows={3}
             className="w-full resize-none rounded-xl border border-border/60 bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
           />
@@ -97,7 +97,7 @@ export default function JabberModelGen({ open, onClose, onAdd }) {
             className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {busy ? "Generating…" : "Generate & Add"}
+            {busy ? "Composing…" : "Generate & Add"}
           </button>
         </div>
       </div>
