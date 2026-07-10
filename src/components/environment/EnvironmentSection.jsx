@@ -28,6 +28,16 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   const [climate, setClimate] = useState("clear");
   const [goal, setGoal] = useState("slalom");
   const steerRef = useRef({ steer: 0, yaw: 0, turn: 0, throttle: 0 });
+  const canvasBoxRef = useRef(null);
+  const [boxBounds, setBoxBounds] = useState({ w: 600, h: 460 });
+  const [steerPos, setSteerPos] = useState(() => {
+    try { const s = localStorage.getItem("aetheris.steerPos"); if (s) return JSON.parse(s); } catch {}
+    return null;
+  });
+  const [steerSize, setSteerSize] = useState(() => {
+    try { const s = localStorage.getItem("aetheris.steerSize"); if (s) return Number(s); } catch {}
+    return 1;
+  });
   const [view, setView] = useState("pad");
   const [buildInstances, setBuildInstances] = useState(null);
   const [view3D, setView3D] = useState(true);
@@ -69,11 +79,17 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   }, [pendingBuild]);
 
   const isGround = VEHICLES[vehicleType]?.category === "ground";
+  // Independent axes so throttle+turn (ground) or pitch+yaw (flyer) can combine.
   const onSteerInput = (axis, dir) => {
-    if (isGround) steerRef.current = { steer: 0, yaw: 0, turn: axis === "h" ? dir : 0, throttle: axis === "v" ? dir : 0 };
-    else steerRef.current = { steer: axis === "v" ? dir : 0, yaw: axis === "h" ? dir : 0, turn: 0, throttle: 0 };
+    const s = steerRef.current;
+    if (isGround) { if (axis === "v") s.throttle = dir; else s.turn = dir; }
+    else { if (axis === "v") s.steer = dir; else s.yaw = dir; }
   };
-  const onSteerEnd = () => { steerRef.current = { steer: 0, yaw: 0, turn: 0, throttle: 0 }; };
+  const onSteerEnd = (axis) => {
+    const s = steerRef.current;
+    if (isGround) { if (axis === "v") s.throttle = 0; else s.turn = 0; }
+    else { if (axis === "v") s.steer = 0; else s.yaw = 0; }
+  };
 
   useEffect(() => {
     if (view !== "pad") return;
@@ -83,15 +99,36 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
       else if (e.key === "ArrowLeft") { onSteerInput("h", -1); e.preventDefault(); }
       else if (e.key === "ArrowRight") { onSteerInput("h", 1); e.preventDefault(); }
     };
-    const onUp = () => onSteerEnd();
+    const onUp = (e) => {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") onSteerEnd("v");
+      else if (e.key === "ArrowLeft" || e.key === "ArrowRight") onSteerEnd("h");
+    };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
-      onSteerEnd();
+      steerRef.current = { steer: 0, yaw: 0, turn: 0, throttle: 0 };
     };
   }, [view, isGround]);
+
+  // Measure the sim viewport so the steering pad can be moved and clamped inside it.
+  useEffect(() => {
+    const el = canvasBoxRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setBoxBounds({ w: r.width, h: r.height });
+      setSteerPos((prev) => prev ?? { left: r.width / 2, top: r.height - 160 });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => { if (steerPos) try { localStorage.setItem("aetheris.steerPos", JSON.stringify(steerPos)); } catch {} }, [steerPos]);
+  useEffect(() => { try { localStorage.setItem("aetheris.steerSize", String(steerSize)); } catch {} }, [steerSize]);
 
   const selectVehicle = (type) => {
     setVehicleType(type);
@@ -299,7 +336,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
         {view === "pad" ? (
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-3">
-            <div className="relative h-[440px] overflow-hidden rounded-2xl border border-border/50 md:h-[540px]">
+            <div ref={canvasBoxRef} className="relative h-[440px] overflow-hidden rounded-2xl border border-border/50 md:h-[540px]">
               {view3D ? (
                 <SimulationCanvas
                   vehicleType={vehicleType}
@@ -367,7 +404,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                   <ZoomOut className="h-4 w-4" strokeWidth={1.5} />
                 </button>
               </div>
-              <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
+              {steerPos && (
                 <SteeringControl
                   category={VEHICLES[vehicleType]?.category}
                   onInput={onSteerInput}
@@ -376,8 +413,14 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                   yawDeg={Math.round(((metrics.yaw || 0) * 180) / Math.PI)}
                   headingDeg={Math.round(((metrics.heading || 0) * 180) / Math.PI)}
                   throttlePct={metrics.throttle || 0}
+                  size={steerSize}
+                  onSizeChange={setSteerSize}
+                  pos={steerPos}
+                  onPosChange={setSteerPos}
+                  onReset={() => { setSteerSize(1); setSteerPos({ left: boxBounds.w / 2, top: boxBounds.h - 160 }); }}
+                  bounds={boxBounds}
                 />
-              </div>
+              )}
               {/* fuel gauge */}
               <div className="absolute inset-x-4 bottom-4">
                 <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
