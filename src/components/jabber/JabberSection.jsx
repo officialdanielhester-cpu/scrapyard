@@ -238,12 +238,12 @@ User: ${content}`;
             <FileCode2 className="h-4 w-4" strokeWidth={1.5} />
             Code
           </button>
-          <div className="flex items-center gap-2 rounded-full border border-border/60 px-3 py-1.5 hidden">
-            <span className={`h-1.5 w-1.5 rounded-full ${speaking ? "bg-primary animate-pulse" : "bg-emerald-500"}`} />
-            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground hidden">
-              {speaking ? "Speaking" : "Listening"}
-            </span>
-          </div>
+          
+
+
+
+
+          
         </div>
       </header>
 
