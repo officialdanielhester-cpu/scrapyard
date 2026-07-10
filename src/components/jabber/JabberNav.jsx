@@ -107,7 +107,7 @@ export default function JabberNav({ active, onSelect }) {
               )}
             </div>
 
-            <GalleryNav variant="desktop" />
+            <GalleryNav variant="desktop" active={active} onSelect={onSelect} />
 
             {BOTTOM_ITEMS.map(renderTop)}
           </nav>
@@ -181,7 +181,7 @@ export default function JabberNav({ active, onSelect }) {
             )}
           </div>
 
-          <GalleryNav variant="mobile" />
+          <GalleryNav variant="mobile" active={active} onSelect={onSelect} />
 
           {BOTTOM_ITEMS.map((item) => {
             const Icon = item.icon;
