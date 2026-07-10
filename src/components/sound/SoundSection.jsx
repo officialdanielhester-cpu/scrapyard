@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Download } from "lucide-react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { base44 } from "@/api/base44Client";
 import SoundEngine, { INSTRUMENTS, DEFAULT_BEAT } from "@/components/sound/SoundEngine";
 import TrackRow from "@/components/sound/TrackRow";
@@ -8,6 +9,7 @@ import TransportBar from "@/components/sound/TransportBar";
 export default function SoundSection() {
   const [tracks, setTracks] = useState(DEFAULT_BEAT);
   const [bpm, setBpm] = useState(120);
+  const [masterVolume, setMasterVolume] = useState(0.75);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(-1);
   const [projectName, setProjectName] = useState("Untitled Beat");
@@ -20,7 +22,6 @@ export default function SoundSection() {
     engineRef.current = SoundEngine;
   }, []);
 
-  // Load saved projects on mount
   useEffect(() => {
     (async () => {
       try {
@@ -30,7 +31,6 @@ export default function SoundSection() {
     })();
   }, []);
 
-  // Sync engine with state
   useEffect(() => {
     if (engineRef.current) {
       engineRef.current.setTracks(tracks);
@@ -38,7 +38,12 @@ export default function SoundSection() {
     }
   }, [tracks, bpm]);
 
-  // Step callback
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.setMasterVolume(masterVolume);
+    }
+  }, [masterVolume]);
+
   useEffect(() => {
     if (engineRef.current) {
       engineRef.current.onStep = (step) => setCurrentStep(step);
@@ -77,12 +82,24 @@ export default function SoundSection() {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, volume: vol } : t)));
   };
 
+  const setPan = (trackId, pan) => {
+    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, pan } : t)));
+  };
+
   const toggleMute = (trackId) => {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, muted: !t.muted } : t)));
   };
 
+  const toggleSolo = (trackId) => {
+    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, solo: !t.solo } : t)));
+  };
+
   const setRootNote = (trackId, note) => {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, rootNote: note } : t)));
+  };
+
+  const renameTrack = (trackId, name) => {
+    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, name } : t)));
   };
 
   const addTrack = (instrumentId) => {
@@ -91,12 +108,23 @@ export default function SoundSection() {
     const newId = `${inst.id}-${Date.now()}`;
     setTracks((prev) => [...prev, {
       id: newId, name: inst.name, instrument: inst.id,
-      volume: 0.7, muted: false, rootNote: 0, steps: Array(16).fill(0),
+      volume: 0.7, pan: 0, muted: false, solo: false, rootNote: 0, steps: Array(16).fill(0),
     }]);
   };
 
   const removeTrack = (trackId) => {
     setTracks((prev) => prev.filter((t) => t.id !== trackId));
+  };
+
+  const handleDragEnd = (result) => {
+    if (!result.destination) return;
+    if (result.source.index === result.destination.index) return;
+    setTracks((prev) => {
+      const reordered = Array.from(prev);
+      const [moved] = reordered.splice(result.source.index, 1);
+      reordered.splice(result.destination.index, 0, moved);
+      return reordered;
+    });
   };
 
   const handleNew = () => {
@@ -105,7 +133,7 @@ export default function SoundSection() {
     setCurrentStep(-1);
     setTracks(INSTRUMENTS.map((inst) => ({
       id: inst.id, name: inst.name, instrument: inst.id,
-      volume: 0.7, muted: false, rootNote: 0, steps: Array(16).fill(0),
+      volume: 0.7, pan: 0, muted: false, solo: false, rootNote: 0, steps: Array(16).fill(0),
     })));
     setProjectName("Untitled Beat");
     setSavedId(null);
@@ -125,7 +153,7 @@ export default function SoundSection() {
   const handleSave = async () => {
     setLoading(true);
     try {
-      const payload = { name: projectName, bpm, tracks };
+      const payload = { name: projectName, bpm, masterVolume, tracks };
       if (savedId) {
         await base44.entities.SoundProject.update(savedId, payload);
       } else {
@@ -147,6 +175,7 @@ export default function SoundSection() {
     setCurrentStep(-1);
     setTracks(proj.tracks?.length ? proj.tracks : DEFAULT_BEAT);
     setBpm(proj.bpm || 120);
+    setMasterVolume(proj.masterVolume ?? 0.75);
     setProjectName(proj.name);
     setSavedId(proj.id);
   };
@@ -160,6 +189,8 @@ export default function SoundSection() {
         bpm={bpm}
         setBpm={setBpm}
         currentStep={currentStep}
+        masterVolume={masterVolume}
+        setMasterVolume={setMasterVolume}
         onNew={handleNew}
         onSave={handleSave}
         onClear={handleClear}
@@ -176,7 +207,7 @@ export default function SoundSection() {
           <div className="mx-auto max-w-4xl">
             {/* Step numbers */}
             <div className="mb-2 flex items-center gap-2">
-              <div className="w-56 shrink-0" />
+              <div className="w-72 shrink-0" />
               <div className="flex flex-1 gap-1 px-2">
                 {Array.from({ length: 16 }).map((_, i) => (
                   <div key={i} className={`flex-1 text-center font-mono text-[9px] ${i === currentStep ? "text-primary" : "text-muted-foreground/50"}`}>
@@ -186,24 +217,48 @@ export default function SoundSection() {
               </div>
             </div>
 
-            {/* Track lanes */}
-            <div className="overflow-hidden rounded-2xl border border-border/40 bg-background/30">
-              {tracks.map((track) => (
-                <TrackRow
-                  key={track.id}
-                  track={track}
-                  currentStep={currentStep}
-                  onToggleStep={toggleStep}
-                  onVolume={setVolume}
-                  onMute={toggleMute}
-                  onRootNote={setRootNote}
-                  onRemove={removeTrack}
-                />
-              ))}
-            </div>
+            {/* Track lanes — drag to reorder */}
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="tracks">
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="overflow-hidden rounded-2xl border border-border/40 bg-background/30"
+                  >
+                    {tracks.map((track, index) => (
+                      <Draggable key={track.id} draggableId={track.id} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`w-full ${snapshot.isDragging ? "shadow-2xl ring-1 ring-primary/30 z-50" : ""}`}
+                          >
+                            <TrackRow
+                              track={track}
+                              currentStep={currentStep}
+                              dragHandleProps={provided.dragHandleProps}
+                              onToggleStep={toggleStep}
+                              onVolume={setVolume}
+                              onMute={toggleMute}
+                              onSolo={toggleSolo}
+                              onPan={setPan}
+                              onRootNote={setRootNote}
+                              onRename={renameTrack}
+                              onRemove={removeTrack}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
 
             <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-              Click cells to toggle beats · Play/Pause to start · 16-step sequencer · 13 instruments
+              Drag tracks to reorder · Click cells to toggle beats · S = Solo · M = Mute · 13 instruments
             </p>
           </div>
         </div>

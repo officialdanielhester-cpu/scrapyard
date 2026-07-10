@@ -9,6 +9,10 @@
       "type": "number",
       "default": 120
     },
+    "masterVolume": {
+      "type": "number",
+      "default": 0.75
+    },
     "tracks": {
       "type": "array",
       "default": [],
@@ -28,7 +32,15 @@
             "type": "number",
             "default": 0.7
           },
+          "pan": {
+            "type": "number",
+            "default": 0
+          },
           "muted": {
+            "type": "boolean",
+            "default": false
+          },
+          "solo": {
             "type": "boolean",
             "default": false
           },
