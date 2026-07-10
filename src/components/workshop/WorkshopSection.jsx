@@ -67,26 +67,44 @@ export default function WorkshopSection({ onImportBuild }) {
 
   const handleSave = async () => {
     setSaving(true);
+    const payload = {
+      name: buildName || "Untitled Build",
+      vehicle_type: vehicleType,
+      parts: instances,
+      thrust: stats.thrust,
+      mass: stats.mass,
+      drag: stats.drag,
+      lift: stats.lift,
+      fuel: stats.fuel,
+    };
+    const wasEditing = !!editingId;
+    const tempId = wasEditing ? editingId : `temp-${Date.now()}`;
+
+    // Optimistic: update the list immediately so the UI feels instant.
+    if (wasEditing) {
+      setBuilds((prev) => prev.map((b) => (b.id === editingId ? { ...b, ...payload } : b)));
+    } else {
+      setBuilds((prev) => [{ id: tempId, ...payload }, ...prev]);
+      setEditingId(tempId);
+    }
+
     try {
-      const payload = {
-        name: buildName || "Untitled Build",
-        vehicle_type: vehicleType,
-        parts: instances,
-        thrust: stats.thrust,
-        mass: stats.mass,
-        drag: stats.drag,
-        lift: stats.lift,
-        fuel: stats.fuel,
-      };
-      if (editingId) {
+      if (wasEditing) {
         await base44.entities.VehicleBuild.update(editingId, payload);
       } else {
         const created = await base44.entities.VehicleBuild.create(payload);
+        setBuilds((prev) => prev.map((b) => (b.id === tempId ? created : b)));
         setEditingId(created.id);
       }
       load();
     } catch (e) {
-      // ignore
+      // Rollback on failure
+      if (wasEditing) {
+        load();
+      } else {
+        setBuilds((prev) => prev.filter((b) => b.id !== tempId));
+        setEditingId(null);
+      }
     } finally {
       setSaving(false);
     }

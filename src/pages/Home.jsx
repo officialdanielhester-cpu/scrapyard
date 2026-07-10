@@ -10,6 +10,7 @@ import DashboardSection from "@/components/dashboard/DashboardSection";
 import StudioSection from "@/components/studio/StudioSection";
 import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
+import { motion, AnimatePresence } from "framer-motion";
 
 const PATH_TO_SECTION = {
   "": "jabber",
@@ -51,6 +52,14 @@ export default function Home({ section: sectionProp }) {
 
       {/* Main canvas — offset for desktop sidebar */}
       <main className="md:ml-64 min-h-screen pb-[calc(5rem_+_env(safe-area-inset-bottom))] md:pb-0">
+        <AnimatePresence mode="wait">
+        <motion.div
+          key={active}
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -30 }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+        >
         {active === "jabber" && (
           <div className="h-screen">
             <JabberSection />
@@ -101,6 +110,8 @@ export default function Home({ section: sectionProp }) {
             <SettingsSection />
           </div>
         )}
+        </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Sticky anchor progress bar — 1px height */}

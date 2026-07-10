@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { Upload, Type, Download, Loader2, Film } from "lucide-react";
 import EditorTimeline from "@/components/gallery/EditorTimeline";
 import EditorProperties from "@/components/gallery/EditorProperties";
+import MobileBackHeader from "@/components/MobileBackHeader";
 
 const newId = () => `c-${Math.random().toString(36).slice(2, 9)}`;
 const fmt = (s) => {
@@ -306,8 +307,9 @@ export default function VideoEditor() {
 
   return (
     <div className="min-h-screen pb-10">
+      <MobileBackHeader title="Video Editor" subtitle="Import · Cut · Caption · Export" />
       <header className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-12">
-        <div>
+        <div className="hidden md:block">
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Video Editor</h1>
           <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Import · Cut · Caption · Export</p>
         </div>

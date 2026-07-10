@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
+import { motion } from "framer-motion";
 import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma, FileCode2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import PullToRefresh from "@/components/PullToRefresh";
 import { useVoice } from "@/hooks/use-voice";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
 import { callWebsiteB, formatAdminResult, adminErrorMessage } from "@/lib/websiteB";
@@ -78,6 +80,11 @@ export default function JabberSection() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, thinking, working, speaking]);
+
+  const refresh = async () => {
+    const mems = await fetchRecentMemories(15);
+    if (mems.length) setMessages(mems.map((m) => ({ role: m.role, content: m.content })));
+  };
 
   const handleSend = async (text) => {
     const content = (text ?? input).trim();
@@ -240,10 +247,16 @@ User: ${content}`;
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8 md:px-12">
+      <PullToRefresh ref={scrollRef} onRefresh={refresh} className="flex-1 overflow-y-auto px-6 py-8 md:px-12">
         <div className="mx-auto max-w-3xl space-y-6">
           {messages.map((msg, idx) => (
-            <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
               {msg.role === "assistant" && (
                 <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
                   <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
@@ -256,7 +269,7 @@ User: ${content}`;
               >
                 {msg.content}
               </div>
-            </div>
+            </motion.div>
           ))}
 
           {(thinking || working) && (
@@ -294,7 +307,7 @@ User: ${content}`;
             </div>
           )}
         </div>
-      </div>
+      </PullToRefresh>
 
       <div className="border-t border-border/40 px-6 py-6 md:px-12">
         <div className="mx-auto max-w-3xl">

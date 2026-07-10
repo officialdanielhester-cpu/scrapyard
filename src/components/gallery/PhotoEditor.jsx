@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Upload, Download, Loader2, Eye, Image as ImageIcon } from "lucide-react";
 import PhotoAdjustments from "@/components/gallery/PhotoAdjustments";
+import MobileBackHeader from "@/components/MobileBackHeader";
 import { DEFAULT_ADJ, processPixels, computeHistogram, rotatedSize, rotSteps, PRESETS } from "@/components/gallery/photo-adjust";
 
 // Lightroom-style photo editor: develop pipeline (real pixel ops), histogram,
@@ -135,8 +136,9 @@ export default function PhotoEditor() {
 
   return (
     <div className="min-h-screen pb-10">
+      <MobileBackHeader title="Photo Editor" subtitle="Develop · Color · Export" />
       <header className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-12">
-        <div>
+        <div className="hidden md:block">
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Photo Editor</h1>
           <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Develop · Color · Export</p>
         </div>

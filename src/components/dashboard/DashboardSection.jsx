@@ -5,6 +5,7 @@ import { VEHICLES, ENVIRONMENTS } from "@/components/environment/presets";
 import { computeProfile } from "@/components/dashboard/flight-profile";
 import FlightChart from "@/components/dashboard/FlightChart";
 import FlightList from "@/components/dashboard/FlightList";
+import PullToRefresh from "@/components/PullToRefresh";
 
 export default function DashboardSection() {
   const [experiments, setExperiments] = useState([]);
@@ -41,8 +42,8 @@ export default function DashboardSection() {
     : [];
 
   return (
-    <div className="min-h-screen pb-10">
-      <header className="px-6 py-5 md:px-12">
+    <div className="flex h-screen flex-col overflow-hidden">
+      <header className="px-6 py-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:px-12">
         <div className="flex items-center gap-2">
           <LineChart className="h-5 w-5 text-primary" strokeWidth={1.5} />
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Flight Dashboard</h1>
@@ -52,7 +53,7 @@ export default function DashboardSection() {
         </p>
       </header>
 
-      <div className="px-6 md:px-12">
+      <PullToRefresh onRefresh={load} className="flex-1 overflow-y-auto px-6 pb-10 md:px-12">
         {loading ? (
           <div className="flex h-64 items-center justify-center rounded-2xl border border-border/50">
             <Activity className="h-6 w-6 animate-pulse text-muted-foreground" />
@@ -110,7 +111,7 @@ export default function DashboardSection() {
             </div>
           </div>
         )}
-      </div>
+      </PullToRefresh>
     </div>
   );
 }

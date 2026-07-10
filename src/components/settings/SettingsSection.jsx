@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Moon, Gauge, Shield, Bell, Languages } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import MobileSelectDrawer from "@/components/MobileSelectDrawer";
 import ConnectionTab from "@/components/settings/ConnectionTab";
 import VoiceTab from "@/components/settings/VoiceTab";
 import AccountTab from "@/components/settings/AccountTab";
@@ -114,19 +115,13 @@ export default function SettingsSection() {
                         {item.type === "toggle" ? (
                           <Toggle on={!!settings[item.id]} onClick={() => toggle(item.id)} />
                         ) : (
-                          <Select
+                          <MobileSelectDrawer
                             value={settings[item.id] ?? item.default}
                             onValueChange={(v) => select(item.id, v)}
-                          >
-                            <SelectTrigger className="w-[140px] rounded-md border border-border/60 bg-background px-3 py-1.5 font-mono text-xs focus:border-primary">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {item.options.map((o) => (
-                                <SelectItem key={o} value={o}>{o}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={item.options}
+                            title={item.label}
+                            triggerClassName="w-[140px] rounded-md border border-border/60 bg-background px-3 py-1.5 font-mono text-xs focus:border-primary"
+                          />
                         )}
                       </div>
                     );
