@@ -1,506 +1,167 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
-import { Trash2, Download, Sparkles, Boxes, Copy, Layers, Scissors, Crop } from "lucide-react";
+import StudioViewport from "@/components/studio/StudioViewport";
+import StudioSidebar from "@/components/studio/StudioSidebar";
 import ImportModelsPanel from "@/components/studio/ImportModelsPanel";
 import JabberModelGen from "@/components/studio/JabberModelGen";
 import ModelPresetsPanel from "@/components/studio/ModelPresetsPanel";
-
-// Blender-inspired 3D modeling workspace.
-// Objects are multi-part groups so duplicate / merge / slice / cut stay meaningful.
-const GEO = {
-  box: () => new THREE.BoxGeometry(1.4, 1.4, 1.4),
-  sphere: () => new THREE.SphereGeometry(0.9, 32, 24),
-  cylinder: () => new THREE.CylinderGeometry(0.7, 0.7, 1.6, 32),
-  cone: () => new THREE.ConeGeometry(0.8, 1.6, 32),
-  torus: () => new THREE.TorusGeometry(0.7, 0.28, 16, 48),
-  plane: () => new THREE.PlaneGeometry(2, 2),
-  octahedron: () => new THREE.OctahedronGeometry(0.9),
-  icosahedron: () => new THREE.IcosahedronGeometry(0.9),
-  tetrahedron: () => new THREE.TetrahedronGeometry(1.0),
-  dodecahedron: () => new THREE.DodecahedronGeometry(0.9),
-};
-
-// Per-type local height (from bounding box), used to split parts evenly.
-const TYPE_HEIGHT = {};
-Object.keys(GEO).forEach((t) => {
-  const g = GEO[t]();
-  g.computeBoundingBox();
-  TYPE_HEIGHT[t] = g.boundingBox.max.y - g.boundingBox.min.y;
-  g.dispose();
-});
+import { createPrimitive, extrudeFaces, subdivide, mergeVertices, mirrorGeometry, deleteFaces } from "@/components/studio/mesh-utils";
 
 const LIGHT_GREY = "#d4d4d8";
-
 const newId = () => `o-${Math.random().toString(36).slice(2, 9)}`;
+const GEO = {
+  box: () => new THREE.BoxGeometry(1.4, 1.4, 1.4), sphere: () => new THREE.SphereGeometry(0.9, 32, 24),
+  cylinder: () => new THREE.CylinderGeometry(0.7, 0.7, 1.6, 32), cone: () => new THREE.ConeGeometry(0.8, 1.6, 32),
+  torus: () => new THREE.TorusGeometry(0.7, 0.28, 16, 48), plane: () => new THREE.PlaneGeometry(2, 2),
+  octahedron: () => new THREE.OctahedronGeometry(0.9), icosahedron: () => new THREE.IcosahedronGeometry(0.9),
+  tetrahedron: () => new THREE.TetrahedronGeometry(1.0), dodecahedron: () => new THREE.DodecahedronGeometry(0.9),
+};
 
-// Build an object from a model spec — multi-part (Jabber composition) or single
-// (imported Grid model). Every part spawns light grey; the user customizes after.
 function objectFromSpec(spec) {
   let parts;
   if (Array.isArray(spec.parts) && spec.parts.length) {
-    parts = spec.parts.map((p) => ({
-      type: GEO[p.type] ? p.type : "box",
-      ox: p.ox || 0, oy: p.oy || 0, oz: p.oz || 0,
-      sx: p.sx ?? 1, sy: p.sy ?? 1, sz: p.sz ?? 1,
-      rx: p.rx || 0, ry: p.ry || 0, rz: p.rz || 0,
-      color: LIGHT_GREY,
-    }));
+    parts = spec.parts.map((p) => ({ type: GEO[p.type] ? p.type : "box", ox: p.ox||0, oy: p.oy||0, oz: p.oz||0, sx: p.sx??1, sy: p.sy??1, sz: p.sz??1, rx: p.rx||0, ry: p.ry||0, rz: p.rz||0, color: LIGHT_GREY }));
   } else {
     const type = GEO[spec.geometry] ? spec.geometry : "box";
-    parts = [{ type, ox: 0, oy: 0, oz: 0, sx: 1, sy: 1, sz: 1, rx: 0, ry: 0, rz: 0, color: LIGHT_GREY }];
+    parts = [{ type, ox:0, oy:0, oz:0, sx:1, sy:1, sz:1, rx:0, ry:0, rz:0, color: LIGHT_GREY }];
   }
-  return {
-    id: newId(),
-    name: spec.name || "Model",
-    pos: [0, 0.8, 0],
-    scale: spec.scale || 1,
-    rot: [spec.rotX || 0, spec.rotY || 0, spec.rotZ || 0],
-    metal: 0.3,
-    rough: 0.55,
-    parts,
-  };
-}
-
-// Decompose every part into world space (folds object transform into each part).
-function worldParts(obj) {
-  const mObj = new THREE.Matrix4().compose(
-    new THREE.Vector3(obj.pos[0], obj.pos[1], obj.pos[2]),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(obj.rot[0], obj.rot[1], obj.rot[2])),
-    new THREE.Vector3(obj.scale, obj.scale, obj.scale)
-  );
-  return obj.parts.map((p) => {
-    const mPart = new THREE.Matrix4().compose(
-      new THREE.Vector3(p.ox, p.oy, p.oz),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rx, p.ry, p.rz)),
-      new THREE.Vector3(p.sx, p.sy, p.sz)
-    );
-    const mWorld = mObj.clone().multiply(mPart);
-    const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3();
-    mWorld.decompose(wp, wq, ws);
-    const e = new THREE.Euler().setFromQuaternion(wq);
-    return { type: p.type, wx: wp.x, wy: wp.y, wz: wp.z, sx: ws.x, sy: ws.y, sz: ws.z, rx: e.x, ry: e.y, rz: e.z, color: p.color };
-  });
+  return { id: newId(), name: spec.name || "Model", kind: "composite", pos: [0, 0.8, 0], scale: spec.scale||1, rot: [spec.rotX||0, spec.rotY||0, spec.rotZ||0], metal: 0.3, rough: 0.55, parts };
 }
 
 export default function BlenderStudio() {
-  const mountRef = useRef(null);
   const [objects, setObjects] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [mode, setMode] = useState("object");
+  const [brush, setBrush] = useState("draw");
+  const [brushSize, setBrushSize] = useState(0.8);
+  const [brushStrength, setBrushStrength] = useState(0.5);
+  const [paintColor, setPaintColor] = useState("#3b82f6");
+  const [theme, setTheme] = useState("dark");
+  const [snap, setSnap] = useState(false);
+  const [selectedFaces, setSelectedFaces] = useState(new Set());
   const [importOpen, setImportOpen] = useState(false);
   const [jabberOpen, setJabberOpen] = useState(false);
   const [presetOpen, setPresetOpen] = useState(false);
-  const objectsRef = useRef([]);
-  const selectedRef = useRef(null);
-  const meshGroupRef = useRef(null);
-  const pickablesRef = useRef([]);
-  const toolbarRef = useRef(null);
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const objectsRef = useRef([]); objectsRef.current = objects;
 
-  const rebuild = () => {
-    const group = meshGroupRef.current;
-    if (!group) return;
-    while (group.children.length) {
-      const c = group.children[0];
-      group.remove(c);
-      c.traverse((n) => { n.geometry?.dispose?.(); n.material?.dispose?.(); });
-    }
-    pickablesRef.current.length = 0;
-    objectsRef.current.forEach((o) => {
-      const og = new THREE.Group();
-      og.position.set(o.pos[0], o.pos[1], o.pos[2]);
-      og.scale.setScalar(o.scale);
-      og.rotation.set(o.rot[0], o.rot[1], o.rot[2]);
-      const isSel = o.id === selectedRef.current;
-      o.parts.forEach((p) => {
-        const mat = new THREE.MeshStandardMaterial({
-          color: p.color,
-          metalness: o.metal ?? 0.3,
-          roughness: o.rough ?? 0.55,
-          side: p.type === "plane" ? THREE.DoubleSide : THREE.FrontSide,
-        });
-        if (isSel) mat.emissive = new THREE.Color(p.color).multiplyScalar(0.35);
-        const mesh = new THREE.Mesh(GEO[p.type](), mat);
-        mesh.position.set(p.ox, p.oy, p.oz);
-        mesh.scale.set(p.sx, p.sy, p.sz);
-        mesh.rotation.set(p.rx, p.ry, p.rz);
-        mesh.userData.id = o.id;
-        og.add(mesh);
-        pickablesRef.current.push(mesh);
-      });
-      group.add(og);
-    });
+  const snapshot = useCallback((objs) => objs.map((o) => o.kind === "mesh" ? { ...o, geo: o.geo.clone() } : { ...o, parts: o.parts.map((p) => ({ ...p })) }), []);
+  const pushUndo = useCallback(() => {
+    setUndoStack((s) => [...s.slice(-29), snapshot(objectsRef.current)]);
+    setRedoStack([]);
+  }, [snapshot]);
+
+  const undo = useCallback(() => {
+    setUndoStack((s) => { if (!s.length) return s; const prev = s[s.length - 1]; setRedoStack((r) => [...r, snapshot(objectsRef.current)]); setObjects(prev); setSelectedId(null); setSelectedFaces(new Set()); return s.slice(0, -1); });
+  }, [snapshot]);
+  const redo = useCallback(() => {
+    setRedoStack((r) => { if (!r.length) return r; const next = r[r.length - 1]; setUndoStack((s) => [...s, snapshot(objectsRef.current)]); setObjects(next); setSelectedId(null); setSelectedFaces(new Set()); return r.slice(0, -1); });
+  }, [snapshot]);
+
+  const addMesh = (type) => {
+    pushUndo();
+    const o = { id: newId(), name: type.charAt(0).toUpperCase() + type.slice(1), kind: "mesh", meshType: type, geo: createPrimitive(type), pos: [0, 0.8, 0], rot: [0, 0, 0], scale: 1, metal: 0.3, rough: 0.55 };
+    setObjects((p) => [...p, o]); setSelectedId(o.id); setSelectedFaces(new Set());
   };
+  const addSpec = (spec) => { const o = objectFromSpec(spec); setObjects((p) => [...p, o]); setSelectedId(o.id); };
+  const addPreset = (preset) => { const o = { id: newId(), name: preset.name, kind: "composite", pos: [0, 0.8, 0], scale: 1, rot: [0, 0, 0], metal: 0.3, rough: 0.55, parts: preset.parts.map((p) => ({ ...p, color: LIGHT_GREY })) }; setObjects((p) => [...p, o]); setSelectedId(o.id); };
 
-  useEffect(() => { objectsRef.current = objects; rebuild(); }, [objects]);
-  useEffect(() => { selectedRef.current = selectedId; rebuild(); }, [selectedId]);
+  const updateObject = (id, patch) => setObjects((p) => p.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  const updateGeometry = (id, newGeo) => {
+    const old = objectsRef.current.find((o) => o.id === id); if (old?.geo) old.geo.dispose();
+    setObjects((p) => p.map((o) => (o.id === id ? { ...o, geo: newGeo } : o)));
+  };
+  const handleDuplicate = () => { if (!selectedId) return; const sel = objects.find((o) => o.id === selectedId); if (!sel) return; pushUndo(); const d = { ...sel, id: newId(), name: `${sel.name} copy`, pos: [sel.pos[0] + 1.5, sel.pos[1], sel.pos[2]], geo: sel.kind === "mesh" ? sel.geo.clone() : undefined, parts: sel.parts?.map((p) => ({ ...p })) }; setObjects((p) => [...p, d]); setSelectedId(d.id); };
+  const handleDelete = () => { if (!selectedId) return; pushUndo(); const sel = objects.find((o) => o.id === selectedId); if (sel?.geo) sel.geo.dispose(); setObjects((p) => p.filter((o) => o.id !== selectedId)); setSelectedId(null); setSelectedFaces(new Set()); };
 
+  const handleExtrude = () => { const sel = objects.find((o) => o.id === selectedId); if (!sel || sel.kind !== "mesh" || !selectedFaces.size) return; pushUndo(); updateGeometry(sel.id, extrudeFaces(sel.geo, selectedFaces, 0.3)); setSelectedFaces(new Set()); };
+  const handleSubdivide = () => { const sel = objects.find((o) => o.id === selectedId); if (!sel || sel.kind !== "mesh") return; pushUndo(); updateGeometry(sel.id, subdivide(sel.geo)); };
+  const handleMerge = () => { const sel = objects.find((o) => o.id === selectedId); if (!sel || sel.kind !== "mesh") return; pushUndo(); updateGeometry(sel.id, mergeVertices(sel.geo, 0.001)); };
+  const handleMirror = () => { const sel = objects.find((o) => o.id === selectedId); if (!sel || sel.kind !== "mesh") return; pushUndo(); updateGeometry(sel.id, mirrorGeometry(sel.geo, "x")); };
+  const handleDeleteFaces = () => { const sel = objects.find((o) => o.id === selectedId); if (!sel || sel.kind !== "mesh" || !selectedFaces.size) return; pushUndo(); updateGeometry(sel.id, deleteFaces(sel.geo, selectedFaces)); setSelectedFaces(new Set()); };
+
+  // Keyboard shortcuts
   useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-    const width = mount.clientWidth || 800;
-    const height = mount.clientHeight || 560;
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#0b1020");
-    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 200);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.domElement.style.touchAction = "none";
-    renderer.domElement.style.cursor = "grab";
-    mount.appendChild(renderer.domElement);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 1.1);
-    key.position.set(8, 12, 8);
-    scene.add(key);
-    const rim = new THREE.PointLight(0x3b82f6, 0.6, 60);
-    rim.position.set(-8, 6, -6);
-    scene.add(rim);
-
-    scene.add(new THREE.GridHelper(20, 20, 0x2a3550, 0x1a2238));
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(20, 20),
-      new THREE.MeshStandardMaterial({ color: 0x0e1426, roughness: 0.95 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.01;
-    scene.add(ground);
-
-    const group = new THREE.Group();
-    meshGroupRef.current = group;
-    pickablesRef.current = [];
-    scene.add(group);
-    rebuild();
-
-    let radius = 12, theta = 0.8, phi = 1.1;
-    const target = new THREE.Vector3(0, 1, 0);
-    const updateCam = () => {
-      camera.position.set(
-        target.x + radius * Math.sin(phi) * Math.sin(theta),
-        target.y + radius * Math.cos(phi),
-        target.z + radius * Math.sin(phi) * Math.cos(theta)
-      );
-      camera.lookAt(target);
+    const onKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); return; }
+      if (e.key === "1") setMode("object");
+      if (e.key === "2") setMode("edit");
+      if (e.key === "3") setMode("sculpt");
+      if (e.key === "4") setMode("paint");
+      if (e.key === "e" && mode === "edit") handleExtrude();
+      if ((e.key === "Delete" || e.key === "Backspace") && mode === "object") handleDelete();
     };
-    updateCam();
-
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    const movePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    let dragging = false, moveId = null, moveY = 0, lastX = 0, lastY = 0, dragDist = 0;
-    const pickAt = (clientX, clientY) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      return raycaster.intersectObjects(pickablesRef.current, false)[0];
-    };
-    const onDown = (e) => {
-      dragDist = 0; lastX = e.clientX; lastY = e.clientY;
-      renderer.domElement.setPointerCapture(e.pointerId);
-      const hit = pickAt(e.clientX, e.clientY);
-      if (hit?.object?.userData?.id) {
-        const id = hit.object.userData.id;
-        const obj = objectsRef.current.find((x) => x.id === id);
-        moveId = id;
-        moveY = obj ? obj.pos[1] : 0;
-        movePlane.constant = -moveY;
-        setSelectedId(id);
-      } else {
-        dragging = true;
-      }
-      renderer.domElement.style.cursor = "grabbing";
-    };
-    const onMove = (e) => {
-      const dx = e.clientX - lastX, dy = e.clientY - lastY;
-      lastX = e.clientX; lastY = e.clientY;
-      dragDist += Math.abs(dx) + Math.abs(dy);
-      if (moveId) {
-        const rect = renderer.domElement.getBoundingClientRect();
-        pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-        raycaster.setFromCamera(pointer, camera);
-        const hit = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(movePlane, hit)) {
-          setObjects((prev) => prev.map((o) => (o.id === moveId ? { ...o, pos: [hit.x, moveY, hit.z] } : o)));
-        }
-      } else if (dragging) {
-        theta -= dx * 0.006;
-        phi = Math.max(0.15, Math.min(Math.PI - 0.15, phi - dy * 0.006));
-        updateCam();
-      }
-    };
-    const onUp = (e) => {
-      try { renderer.domElement.releasePointerCapture(e.pointerId); } catch {}
-      renderer.domElement.style.cursor = "grab";
-      if (moveId) { moveId = null; return; }
-      if (!dragging) return;
-      dragging = false;
-      if (dragDist < 6) setSelectedId(null);
-    };
-    const onWheel = (e) => {
-      e.preventDefault();
-      radius = Math.max(4, Math.min(40, radius * (e.deltaY > 0 ? 1.1 : 0.9)));
-      updateCam();
-    };
-    renderer.domElement.addEventListener("pointerdown", onDown);
-    renderer.domElement.addEventListener("pointermove", onMove);
-    renderer.domElement.addEventListener("pointerup", onUp);
-    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
-
-    let raf;
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
-      const tb = toolbarRef.current;
-      if (tb) {
-        const o = objectsRef.current.find((x) => x.id === selectedRef.current);
-        const w = renderer.domElement.clientWidth;
-        const h = renderer.domElement.clientHeight;
-        if (o && w && h) {
-          const v = new THREE.Vector3(o.pos[0], o.pos[1] + 1.6, o.pos[2]);
-          v.project(camera);
-          tb.style.opacity = "1";
-          tb.style.pointerEvents = "auto";
-          tb.style.left = `${(v.x * 0.5 + 0.5) * w}px`;
-          tb.style.top = `${(-v.y * 0.5 + 0.5) * h}px`;
-          tb.style.transform = "translate(-50%, -100%)";
-        } else {
-          tb.style.opacity = "0";
-          tb.style.pointerEvents = "none";
-        }
-      }
-      renderer.render(scene, camera);
-    };
-    tick();
-
-    const ro = new ResizeObserver(() => {
-      const w = mount.clientWidth, h = mount.clientHeight;
-      if (!w || !h) return;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    });
-    ro.observe(mount);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      renderer.domElement.removeEventListener("pointerdown", onDown);
-      renderer.domElement.removeEventListener("pointermove", onMove);
-      renderer.domElement.removeEventListener("pointerup", onUp);
-      renderer.domElement.removeEventListener("wheel", onWheel);
-      renderer.dispose();
-      if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
-    };
-  }, []);
-
-  const addSpec = (spec) => {
-    const o = objectFromSpec(spec);
-    setObjects((p) => [...p, o]);
-    setSelectedId(o.id);
-  };
-  const addPreset = (preset) => {
-    const o = { id: newId(), name: preset.name, pos: [0, 0.8, 0], scale: 1, rot: [0, 0, 0], metal: 0.3, rough: 0.55, parts: preset.parts.map((p) => ({ ...p, color: LIGHT_GREY })) };
-    setObjects((p) => [...p, o]);
-    setSelectedId(o.id);
-  };
-
-  const sel = objects.find((o) => o.id === selectedId);
-  const updateSel = (patch) =>
-    setObjects((p) => p.map((o) => (o.id === selectedId ? { ...o, ...patch } : o)));
-  const setColor = (color) =>
-    setObjects((p) => p.map((o) => (o.id === selectedId ? { ...o, parts: o.parts.map((pt) => ({ ...pt, color })) } : o)));
-  const delSel = () => { setObjects((p) => p.filter((o) => o.id !== selectedId)); setSelectedId(null); };
-
-  const handleDuplicate = () => {
-    if (!sel) return;
-    const d = { ...sel, id: newId(), name: `${sel.name} copy`, pos: [sel.pos[0] + 1.5, sel.pos[1], sel.pos[2]], parts: sel.parts.map((p) => ({ ...p })) };
-    setObjects((p) => [...p, d]);
-    setSelectedId(d.id);
-  };
-  const handleMerge = () => {
-    if (!sel || objects.length < 2) return;
-    const other = objects.find((o) => o.id !== sel.id);
-    if (!other) return;
-    const origin = sel.pos;
-    const parts = [...worldParts(sel), ...worldParts(other)].map((w) => ({
-      type: w.type, ox: w.wx - origin[0], oy: w.wy - origin[1], oz: w.wz - origin[2],
-      sx: w.sx, sy: w.sy, sz: w.sz, rx: w.rx, ry: w.ry, rz: w.rz, color: w.color,
-    }));
-    const merged = { id: newId(), name: `${sel.name}+`, pos: [...origin], scale: 1, rot: [0, 0, 0], parts };
-    setObjects((p) => p.filter((o) => o.id !== sel.id && o.id !== other.id).concat(merged));
-    setSelectedId(merged.id);
-  };
-  const handleSlice = () => {
-    if (!sel) return;
-    const topParts = [], botParts = [];
-    sel.parts.forEach((p) => {
-      const half = ((TYPE_HEIGHT[p.type] || 1) * p.sy) / 2;
-      topParts.push({ ...p, sy: p.sy * 0.5, oy: p.oy + half / 2 });
-      botParts.push({ ...p, sy: p.sy * 0.5, oy: p.oy - half / 2 });
-    });
-    const top = { ...sel, id: newId(), name: `${sel.name} top`, parts: topParts };
-    const bot = { ...sel, id: newId(), name: `${sel.name} bot`, parts: botParts };
-    setObjects((p) => p.filter((o) => o.id !== sel.id).concat(top, bot));
-    setSelectedId(top.id);
-  };
-  const handleCut = () => {
-    if (!sel) return;
-    const parts = sel.parts.map((p) => {
-      const half = ((TYPE_HEIGHT[p.type] || 1) * p.sy) / 2;
-      return { ...p, sy: p.sy * 0.5, oy: p.oy - half / 2 };
-    });
-    const cut = { ...sel, id: newId(), name: `${sel.name} cut`, parts };
-    setObjects((p) => p.filter((o) => o.id !== sel.id).concat(cut));
-    setSelectedId(cut.id);
-  };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, selectedId, selectedFaces, undo, redo]);
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
       <div className="flex-1">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Create:</span>
-          <button
-            onClick={() => setJabberOpen(true)}
-            className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} /> Generate Model
-          </button>
-          <button
-            onClick={() => setImportOpen(true)}
-            className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs transition-colors hover:border-primary hover:text-primary"
-          >
-            <Download className="h-3.5 w-3.5" strokeWidth={1.5} /> Import
-          </button>
-          <button
-            onClick={() => setPresetOpen(true)}
-            className="flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs transition-colors hover:border-primary hover:text-primary"
-          >
-            <Boxes className="h-3.5 w-3.5" strokeWidth={1.5} /> Models
-          </button>
-        </div>
-        <div ref={mountRef} className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-border/50 md:h-[560px]">
-          {sel && (
-            <div ref={toolbarRef} className="absolute left-0 top-0 z-20 flex items-center gap-1 rounded-full border border-border/60 bg-background/90 px-1.5 py-1 opacity-0 shadow-lg backdrop-blur pointer-events-none">
-              <button onClick={handleDuplicate} title="Duplicate" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground"><Copy className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
-              <button onClick={handleMerge} disabled={objects.length < 2} title="Merge" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-40"><Layers className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
-              <button onClick={handleSlice} title="Slice" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground"><Scissors className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
-              <button onClick={handleCut} title="Cut" className="flex h-7 w-7 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-primary hover:text-primary-foreground"><Crop className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
-              <button onClick={delSel} title="Delete" className="flex h-7 w-7 items-center justify-center rounded-full text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"><Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
-            </div>
-          )}
+        <div className="relative">
+          <StudioViewport
+            objects={objects}
+            selectedId={selectedId}
+            mode={mode}
+            brush={brush}
+            brushSize={brushSize}
+            brushStrength={brushStrength}
+            paintColor={paintColor}
+            theme={theme}
+            snap={snap}
+            selectedFaces={selectedFaces}
+            overlays={{ grid: true }}
+            geoFactory={(type) => GEO[type]()}
+            onSelectObject={setSelectedId}
+            onSelectFaces={setSelectedFaces}
+            onUpdateGeometry={updateGeometry}
+            onUpdateObject={updateObject}
+            onSculptStart={pushUndo}
+          />
         </div>
         <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-          Drag empty space to orbit · drag an object to move · scroll to zoom
+          1-4 modes · E extrude · Ctrl+Z undo · drag empty to orbit · drag object to move · scroll to zoom
         </p>
       </div>
 
-      <div className="w-full space-y-4 lg:w-72">
-        <div className="rounded-2xl border border-border/50 p-4">
-          <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Outliner</h3>
-          {objects.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Empty scene — generate a model to begin.</p>
-          ) : (
-            <ul className="space-y-1">
-              {objects.map((o) => (
-                <li key={o.id}>
-                  <button
-                    onClick={() => setSelectedId(o.id)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
-                      selectedId === o.id ? "bg-primary/15 text-primary" : "hover:bg-foreground/5"
-                    }`}
-                  >
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: o.parts[0]?.color }} />
-                    <span className="flex-1 truncate">{o.name}</span>
-                    {o.parts.length > 1 && <span className="font-mono text-[9px] text-muted-foreground">{o.parts.length}p</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {sel && (
-          <div className="space-y-3 rounded-2xl border border-border/50 p-4">
-            <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Properties</h3>
-            <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Color</label>
-              <input
-                type="color"
-                value={sel.parts[0]?.color || "#d4d4d8"}
-                onChange={(e) => setColor(e.target.value)}
-                className="h-8 w-full cursor-pointer rounded border border-border/60 bg-transparent"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Metalness {Math.round((sel.metal ?? 0.3) * 100)}%</label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={sel.metal ?? 0.3}
-                onChange={(e) => updateSel({ metal: Number(e.target.value) })}
-                className="w-full accent-primary"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Roughness {Math.round((sel.rough ?? 0.55) * 100)}%</label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={sel.rough ?? 0.55}
-                onChange={(e) => updateSel({ rough: Number(e.target.value) })}
-                className="w-full accent-primary"
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {["x", "y", "z"].map((ax, i) => (
-                <label key={ax} className="block">
-                  <span className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Pos {ax}</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={sel.pos[i].toFixed(2)}
-                    onChange={(e) => { const p = [...sel.pos]; p[i] = Number(e.target.value) || 0; updateSel({ pos: p }); }}
-                    className="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs"
-                  />
-                </label>
-              ))}
-            </div>
-            <div>
-              <label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Scale {sel.scale.toFixed(2)}×</label>
-              <input
-                type="range"
-                min="0.2"
-                max="4"
-                step="0.1"
-                value={sel.scale}
-                onChange={(e) => updateSel({ scale: Number(e.target.value) })}
-                className="w-full accent-primary"
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {["x", "y", "z"].map((ax, i) => (
-                <label key={ax} className="block">
-                  <span className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Rot {ax}°</span>
-                  <input
-                    type="number"
-                    step="5"
-                    value={Math.round((sel.rot[i] * 180) / Math.PI)}
-                    onChange={(e) => { const r = [...sel.rot]; r[i] = ((Number(e.target.value) || 0) * Math.PI) / 180; updateSel({ rot: r }); }}
-                    className="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs"
-                  />
-                </label>
-              ))}
-            </div>
-
-
-          </div>
-        )}
-      </div>
+      <StudioSidebar
+        objects={objects}
+        selectedId={selectedId}
+        mode={mode}
+        brush={brush}
+        brushSize={brushSize}
+        brushStrength={brushStrength}
+        paintColor={paintColor}
+        theme={theme}
+        snap={snap}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
+        onModeChange={setMode}
+        onBrushChange={setBrush}
+        onBrushSize={setBrushSize}
+        onBrushStrength={setBrushStrength}
+        onPaintColor={setPaintColor}
+        onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
+        onToggleSnap={() => setSnap(s => !s)}
+        onUndo={undo}
+        onRedo={redo}
+        onSelectObject={setSelectedId}
+        onUpdateObject={updateObject}
+        onDelete={handleDelete}
+        onDuplicate={handleDuplicate}
+        onAddMesh={addMesh}
+        onExtrude={handleExtrude}
+        onSubdivide={handleSubdivide}
+        onMerge={handleMerge}
+        onMirror={handleMirror}
+        onDeleteFaces={handleDeleteFaces}
+        onImport={() => setImportOpen(true)}
+        onGenerate={() => setJabberOpen(true)}
+        onPresets={() => setPresetOpen(true)}
+      />
 
       <ImportModelsPanel open={importOpen} onClose={() => setImportOpen(false)} onImport={addSpec} />
       <JabberModelGen open={jabberOpen} onClose={() => setJabberOpen(false)} onAdd={addSpec} />
