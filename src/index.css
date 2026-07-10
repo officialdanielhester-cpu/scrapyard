@@ -86,5 +86,24 @@
 
   body {
     @apply bg-background text-foreground font-body;
+    overscroll-behavior: none;
   }
+}
+
+/* iOS WebView: prevent text selection on interactive chrome (buttons, nav, canvas controls, steering icons) — textual content stays selectable */
+button,
+nav,
+[role="navigation"],
+canvas,
+.no-select,
+.steering {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* No rubber-band bounce over Three.js interactives */
+canvas {
+  overscroll-behavior: none;
+  touch-action: none;
 }

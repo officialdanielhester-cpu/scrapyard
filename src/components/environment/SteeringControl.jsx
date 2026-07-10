@@ -7,7 +7,7 @@ export default function SteeringControl({ pitchDeg, onSteer, onSteerEnd }) {
   const btn =
     "flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground backdrop-blur transition-colors hover:border-primary hover:text-primary select-none touch-none";
   return (
-    <div className="flex flex-col items-center gap-1 rounded-2xl border border-border/60 bg-background/70 px-2 py-1.5 backdrop-blur">
+    <div className="steering flex flex-col items-center gap-1 rounded-2xl border border-border/60 bg-background/70 px-2 py-1.5 backdrop-blur">
       <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Steer</span>
       <div className="flex items-center gap-1.5">
         <button

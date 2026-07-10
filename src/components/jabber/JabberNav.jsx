@@ -126,7 +126,7 @@ export default function JabberNav({ active, onSelect }) {
       </aside>
 
       {/* Mobile bottom bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-background/90 backdrop-blur-xl">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
         <div className="flex items-center justify-around px-4 py-2">
           {TOP_ITEMS.map((item) => {
             const Icon = item.icon;

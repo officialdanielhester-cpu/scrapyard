@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { User, Mail, Shield, Link2, Unlink, LogOut, Sparkles, Boxes, FlaskConical, Hammer, ListTodo, Loader2, ChevronDown } from "lucide-react";
+import { User, Mail, Shield, Link2, Unlink, LogOut, Sparkles, Boxes, FlaskConical, Hammer, ListTodo, Loader2, ChevronDown, Trash2, AlertTriangle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const DATA_CARDS = [
   { key: "memories", label: "Memories", icon: Sparkles, entity: "Memory", summary: (i) => `${i.role}: ${i.content}` },
@@ -20,6 +29,10 @@ export default function AccountTab() {
   const [msg, setMsg] = useState(null);
   const [data, setData] = useState({});
   const [openKey, setOpenKey] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState(null);
   const { settings, update } = useJabberSettings();
 
   const load = async () => {
@@ -90,6 +103,20 @@ export default function AccountTab() {
       setMsg({ type: "error", text: e.message || "Couldn't unlink." });
     } finally {
       setLinking(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (confirmText.trim().toUpperCase() !== "DELETE") return;
+    setDeleting(true);
+    setDeleteMsg(null);
+    try {
+      const res = await base44.functions.invoke("deleteAccount", {});
+      if (!res?.data?.success) throw new Error(res?.data?.error || "Deletion failed.");
+      await base44.auth.logout();
+    } catch (e) {
+      setDeleteMsg({ type: "error", text: e.message || "Couldn't delete account." });
+      setDeleting(false);
     }
   };
 
@@ -220,6 +247,58 @@ export default function AccountTab() {
           )}
         </div>
       </div>
+
+      <div>
+        <h4 className="mb-3 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Danger Zone</h4>
+        <div className="rounded-2xl border border-destructive/40 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" strokeWidth={1.5} />
+              <div>
+                <p className="text-sm font-medium">Delete your account</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Permanently removes your account and all saved data — memories, models, experiments, builds, tasks, and code. This cannot be undone.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setDeleteOpen(true); setConfirmText(""); setDeleteMsg(null); }}
+              className="flex shrink-0 items-center gap-2 rounded-md border border-destructive/60 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete account
+            </button>
+          </div>
+          {deleteMsg && deleteMsg.type === "error" && (
+            <p className="mt-3 text-xs text-destructive">{deleteMsg.text}</p>
+          )}
+        </div>
+      </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) setDeleting(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes your account and all associated data. This action is irreversible. Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <input
+            autoFocus
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="Type DELETE"
+            className="w-full rounded-md border border-border/60 bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting || confirmText.trim().toUpperCase() !== "DELETE"}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete permanently"}
+            </button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <button
         onClick={() => base44.auth.logout()}

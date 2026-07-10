@@ -17,7 +17,7 @@ export default function Home() {
       <JabberNav active={active} onSelect={setActive} />
 
       {/* Main canvas — offset for desktop sidebar */}
-      <main className="md:ml-64 min-h-screen pb-20 md:pb-0">
+      <main className="md:ml-64 min-h-screen pb-[calc(5rem_+_env(safe-area-inset-bottom))] md:pb-0">
         {active === "jabber" && (
           <div className="h-screen">
             <JabberSection />
