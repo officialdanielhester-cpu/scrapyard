@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Boxes, Box, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown, Palette } from "lucide-react";
-import { useTheme } from "@/hooks/use-theme";
+import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette } from "lucide-react";
 import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
@@ -20,8 +19,6 @@ const ENV_IDS = ENV_CHILDREN.map((c) => c.id);
 const BOTTOM_ITEMS = [{ id: "settings", label: "Settings", icon: Sun }];
 
 export default function JabberNav({ active, onSelect }) {
-  const { theme, toggle } = useTheme();
-  const ThemeIcon = theme === "dark" ? Sun : Moon;
   const [open, setOpen] = useState(ENV_IDS.includes(active));
   const [canvasOpen, setCanvasOpen] = useState(CANVAS_IDS.includes(active));
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -165,18 +162,9 @@ export default function JabberNav({ active, onSelect }) {
           </nav>
         </div>
 
-        <div>
-          <button
-            onClick={toggle}
-            className="mb-4 flex items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
-          >
-            <ThemeIcon className="h-4 w-4" strokeWidth={1.5} />
-            <span className="font-body">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
-          </button>
-          <div className="font-mono text-[10px] leading-relaxed text-muted-foreground/70">
-            <p>v0.1.0 — prototype</p>
-            <p>Built on Base44</p>
-          </div>
+        <div className="font-mono text-[10px] leading-relaxed text-muted-foreground/70">
+          <p>v0.1.0 — prototype</p>
+          <p>Built on Base44</p>
         </div>
       </aside>
 
@@ -287,13 +275,6 @@ export default function JabberNav({ active, onSelect }) {
               </button>
             );
           })}
-          <button
-            onClick={toggle}
-            className="flex min-h-[44px] flex-1 flex-col items-center gap-1 py-1 text-muted-foreground"
-          >
-            <ThemeIcon className="h-5 w-5" strokeWidth={1.5} />
-            <span className="font-mono text-[9px] uppercase tracking-wider">{theme === "dark" ? "Light" : "Dark"}</span>
-          </button>
         </div>
       </nav>
     </>
