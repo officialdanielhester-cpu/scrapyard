@@ -8,6 +8,7 @@ import WorkshopSection from "@/components/workshop/WorkshopSection";
 import DashboardSection from "@/components/dashboard/DashboardSection";
 import StudioSection from "@/components/studio/StudioSection";
 import VideoEditor from "@/components/gallery/VideoEditor";
+import PhotoEditor from "@/components/gallery/PhotoEditor";
 
 export default function Home() {
   const [active, setActive] = useState("jabber");
@@ -54,6 +55,11 @@ export default function Home() {
             <VideoEditor />
           </div>
         )}
+        {active === "photo-editor" && (
+          <div className="min-h-screen">
+            <PhotoEditor />
+          </div>
+        )}
         {active === "dashboard" && (
           <div className="min-h-screen">
             <DashboardSection />
@@ -80,6 +86,8 @@ export default function Home() {
                 ? "42%"
                 : active === "video-editor"
                 ? "50%"
+                : active === "photo-editor"
+                ? "53%"
                 : active === "env"
                 ? "57%"
                 : active === "workshop"
