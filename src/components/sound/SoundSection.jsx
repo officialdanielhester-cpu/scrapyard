@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Square, Save, FilePlus, Trash2, Dice5, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import SoundEngine, { INSTRUMENTS, DEFAULT_BEAT } from "@/components/sound/SoundEngine";
 import TrackRow from "@/components/sound/TrackRow";
+import SoundToolbar from "@/components/sound/SoundToolbar";
 
 export default function SoundSection() {
   const [tracks, setTracks] = useState(DEFAULT_BEAT);
@@ -77,6 +78,20 @@ export default function SoundSection() {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, rootNote: note } : t)));
   };
 
+  const addTrack = (instrumentId) => {
+    const inst = INSTRUMENTS.find((i) => i.id === instrumentId);
+    if (!inst) return;
+    const newId = `${inst.id}-${Date.now()}`;
+    setTracks((prev) => [...prev, {
+      id: newId, name: inst.name, instrument: inst.id,
+      volume: 0.7, muted: false, rootNote: 0, steps: Array(16).fill(0),
+    }]);
+  };
+
+  const removeTrack = (trackId) => {
+    setTracks((prev) => prev.filter((t) => t.id !== trackId));
+  };
+
   const handleNew = () => {
     if (engineRef.current) engineRef.current.stop();
     setIsPlaying(false);
@@ -131,50 +146,25 @@ export default function SoundSection() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/40 px-6 py-5 md:px-12">
-        <div>
-          <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Sound</h1>
-          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Beat Maker Studio</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-            className="w-40 rounded-lg border border-border/60 bg-background px-3 py-2 font-body text-sm focus:border-primary focus:outline-none"
-            placeholder="Project name"
-          />
-          <div className="flex items-center gap-2 rounded-lg border border-border/60 px-3 py-2">
-            <span className="font-mono text-[10px] uppercase text-muted-foreground">BPM</span>
-            <input
-              type="number"
-              min="60"
-              max="200"
-              value={bpm}
-              onChange={(e) => setBpm(Math.max(60, Math.min(200, Number(e.target.value) || 120)))}
-              className="w-12 bg-transparent font-mono text-sm text-foreground focus:outline-none"
-            />
-          </div>
-          <button
-            onClick={handlePlay}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${isPlaying ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground hover:opacity-90"}`}
-          >
-            {isPlaying ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            {isPlaying ? "Stop" : "Play"}
-          </button>
-          <button onClick={handleRandomize} className="flex items-center gap-2 rounded-lg border border-border/60 px-3 py-2 font-mono text-xs uppercase text-foreground/80 transition-colors hover:border-primary hover:text-primary">
-            <Dice5 className="h-4 w-4" /> Random
-          </button>
-          <button onClick={handleClear} className="flex items-center gap-2 rounded-lg border border-border/60 px-3 py-2 font-mono text-xs uppercase text-foreground/80 transition-colors hover:border-destructive hover:text-destructive">
-            <Trash2 className="h-4 w-4" /> Clear
-          </button>
-          <button onClick={handleNew} className="flex items-center gap-2 rounded-lg border border-border/60 px-3 py-2 font-mono text-xs uppercase text-foreground/80 transition-colors hover:border-primary hover:text-primary">
-            <FilePlus className="h-4 w-4" /> New
-          </button>
-          <button onClick={handleSave} disabled={loading} className="flex items-center gap-2 rounded-lg border border-border/60 px-3 py-2 font-mono text-xs uppercase text-foreground/80 transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
-            <Save className="h-4 w-4" /> {loading ? "Saving…" : "Save"}
-          </button>
-        </div>
+      <header className="border-b border-border/40 px-6 py-3 md:px-12">
+        <h1 className="font-heading text-lg font-extrabold tracking-tight">
+          Sound <span className="font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-muted-foreground">Beat Maker Studio</span>
+        </h1>
       </header>
+      <SoundToolbar
+        isPlaying={isPlaying}
+        onPlay={handlePlay}
+        bpm={bpm}
+        setBpm={setBpm}
+        onNew={handleNew}
+        onSave={handleSave}
+        onClear={handleClear}
+        onRandom={handleRandomize}
+        onAddTrack={addTrack}
+        projectName={projectName}
+        setProjectName={setProjectName}
+        loading={loading}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sequencer */}
@@ -205,6 +195,7 @@ export default function SoundSection() {
                   onVolume={setVolume}
                   onMute={toggleMute}
                   onRootNote={setRootNote}
+                  onRemove={removeTrack}
                 />
               ))}
             </div>

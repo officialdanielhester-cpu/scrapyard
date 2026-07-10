@@ -92,10 +92,16 @@ class SoundEngine {
       case "kick": this._kick(time, volume); break;
       case "snare": this._snare(time, volume); break;
       case "hihat": this._hihat(time, volume); break;
+      case "openhat": this._openhat(time, volume); break;
       case "clap": this._clap(time, volume); break;
+      case "cowbell": this._cowbell(time, volume); break;
+      case "tom": this._tom(time, volume, noteFreq(rootNote, 3)); break;
       case "bass": this._bass(time, volume, noteFreq(rootNote, 2)); break;
+      case "piano": this._piano(time, volume, noteFreq(rootNote, 4)); break;
       case "lead": this._lead(time, volume, noteFreq(rootNote, 4)); break;
+      case "pluck": this._pluck(time, volume, noteFreq(rootNote, 4)); break;
       case "pad": this._pad(time, volume, noteFreq(rootNote, 3)); break;
+      case "arp": this._arp(time, volume, noteFreq(rootNote, 4)); break;
     }
   }
 
@@ -140,6 +146,17 @@ class SoundEngine {
     noise.start(time); noise.stop(time + 0.05);
   }
 
+  _openhat(time, vol) {
+    const noise = this._noise(0.35);
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "highpass"; filter.frequency.value = 6000;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.25, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.35);
+    noise.connect(filter); filter.connect(gain); gain.connect(this.master);
+    noise.start(time); noise.stop(time + 0.35);
+  }
+
   _clap(time, vol) {
     [0, 0.01, 0.02, 0.03].forEach((offset) => {
       const noise = this._noise(0.1);
@@ -151,6 +168,33 @@ class SoundEngine {
       noise.connect(filter); filter.connect(gain); gain.connect(this.master);
       noise.start(time + offset); noise.stop(time + offset + 0.1);
     });
+  }
+
+  _cowbell(time, vol) {
+    const osc1 = this.ctx.createOscillator();
+    osc1.type = "square"; osc1.frequency.value = 560;
+    const osc2 = this.ctx.createOscillator();
+    osc2.type = "square"; osc2.frequency.value = 845;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.25, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass"; filter.frequency.value = 800;
+    osc1.connect(filter); osc2.connect(filter); filter.connect(gain); gain.connect(this.master);
+    osc1.start(time); osc1.stop(time + 0.15);
+    osc2.start(time); osc2.stop(time + 0.15);
+  }
+
+  _tom(time, vol, freq) {
+    const osc = this.ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, time);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.4, time + 0.3);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.7, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+    osc.connect(gain); gain.connect(this.master);
+    osc.start(time); osc.stop(time + 0.3);
   }
 
   _bass(time, vol, freq) {
@@ -165,6 +209,23 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
     osc.connect(filter); filter.connect(gain); gain.connect(this.master);
     osc.start(time); osc.stop(time + 0.3);
+  }
+
+  _piano(time, vol, freq) {
+    const carrier = this.ctx.createOscillator();
+    carrier.type = "sine"; carrier.frequency.value = freq;
+    const modulator = this.ctx.createOscillator();
+    modulator.type = "sine"; modulator.frequency.value = freq * 2;
+    const modGain = this.ctx.createGain();
+    modGain.gain.setValueAtTime(freq * 3, time);
+    modGain.gain.exponentialRampToValueAtTime(0.1, time + 0.4);
+    modulator.connect(modGain); modGain.connect(carrier.frequency);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+    carrier.connect(gain); gain.connect(this.master);
+    carrier.start(time); carrier.stop(time + 0.4);
+    modulator.start(time); modulator.stop(time + 0.4);
   }
 
   _lead(time, vol, freq) {
@@ -182,6 +243,19 @@ class SoundEngine {
     osc2.start(time); osc2.stop(time + 0.25);
   }
 
+  _pluck(time, vol, freq) {
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth"; osc.frequency.value = freq;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass"; filter.frequency.setValueAtTime(4000, time);
+    filter.frequency.exponentialRampToValueAtTime(200, time + 0.2);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+    osc.connect(filter); filter.connect(gain); gain.connect(this.master);
+    osc.start(time); osc.stop(time + 0.2);
+  }
+
   _pad(time, vol, freq) {
     [1, 1.003, 0.997, 2].forEach((mult) => {
       const osc = this.ctx.createOscillator();
@@ -194,6 +268,20 @@ class SoundEngine {
       filter.type = "lowpass"; filter.frequency.value = 2000;
       osc.connect(filter); filter.connect(gain); gain.connect(this.master);
       osc.start(time); osc.stop(time + 0.5);
+    });
+  }
+
+  _arp(time, vol, freq) {
+    [0, 4, 7, 12].forEach((semi, i) => {
+      const f = freq * Math.pow(2, semi / 12);
+      const osc = this.ctx.createOscillator();
+      osc.type = "square"; osc.frequency.value = f;
+      const gain = this.ctx.createGain();
+      const t = time + i * 0.04;
+      gain.gain.setValueAtTime(vol * 0.2, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      osc.connect(gain); gain.connect(this.master);
+      osc.start(t); osc.stop(t + 0.08);
     });
   }
 
@@ -212,10 +300,16 @@ export const INSTRUMENTS = [
   { id: "kick", name: "Kick", color: "#ef4444", melodic: false },
   { id: "snare", name: "Snare", color: "#f97316", melodic: false },
   { id: "hihat", name: "Hi-Hat", color: "#eab308", melodic: false },
+  { id: "openhat", name: "Open Hat", color: "#d97706", melodic: false },
   { id: "clap", name: "Clap", color: "#84cc16", melodic: false },
+  { id: "cowbell", name: "Cowbell", color: "#22c55e", melodic: false },
+  { id: "tom", name: "Tom", color: "#14b8a6", melodic: true },
   { id: "bass", name: "Bass", color: "#06b6d4", melodic: true },
-  { id: "lead", name: "Lead", color: "#3b82f6", melodic: true },
-  { id: "pad", name: "Pad", color: "#8b5cf6", melodic: true },
+  { id: "piano", name: "Piano", color: "#3b82f6", melodic: true },
+  { id: "lead", name: "Lead", color: "#6366f1", melodic: true },
+  { id: "pluck", name: "Pluck", color: "#8b5cf6", melodic: true },
+  { id: "pad", name: "Pad", color: "#a855f7", melodic: true },
+  { id: "arp", name: "Arp", color: "#d946ef", melodic: true },
 ];
 
 export const NOTE_NAMES = SCALE_NAMES;

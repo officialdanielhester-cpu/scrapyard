@@ -1,16 +1,21 @@
 import React from "react";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, Trash2 } from "lucide-react";
 import { INSTRUMENTS, NOTE_NAMES } from "@/components/sound/SoundEngine";
 
-export default function TrackRow({ track, currentStep, onToggleStep, onVolume, onMute, onRootNote }) {
+export default function TrackRow({ track, currentStep, onToggleStep, onVolume, onMute, onRootNote, onRemove }) {
   const inst = INSTRUMENTS.find((i) => i.id === track.instrument) || INSTRUMENTS[0];
 
   return (
     <div className="flex items-center gap-2 border-b border-border/30 py-1.5">
       {/* Track label */}
-      <div className="flex w-28 shrink-0 items-center gap-2">
+      <div className="flex w-28 shrink-0 items-center gap-1.5">
         <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: inst.color }} />
         <span className="truncate font-mono text-[11px] text-foreground/80">{track.name}</span>
+        {onRemove && (
+          <button onClick={() => onRemove(track.id)} className="shrink-0 text-muted-foreground/40 transition-colors hover:text-destructive">
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
       </div>
 
       {/* Mute + volume */}
