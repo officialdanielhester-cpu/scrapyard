@@ -81,6 +81,27 @@ export async function refreshSettings() {
   return cache;
 }
 
+export async function loadConnection() {
+  try {
+    const me = await base44.auth.me();
+    if (!me) return;
+    const rc = me.recall_connection;
+    if (rc && typeof rc === "object") {
+      const next = { ...cache };
+      if (rc.connected !== undefined) next.connected = !!rc.connected;
+      if (rc.permissions && typeof rc.permissions === "object") next.permissions = { ...DEFAULT_JABBER_SETTINGS.permissions, ...rc.permissions };
+      cache = next;
+      writeLS(cache);
+      emit();
+    } else if (me.linked_website_b?.email) {
+      // Legacy: a linked Recall email implies connected even before recall_connection existed.
+      cache = { ...cache, connected: true };
+      writeLS(cache);
+      emit();
+    }
+  } catch { /* not logged in yet — keep local cache */ }
+}
+
 export async function persistSettings(next) {
   cache = next;
   writeLS(cache);
@@ -88,6 +109,10 @@ export async function persistSettings(next) {
   try {
     await base44.functions.invoke("callAiGateway", { payload: { action: "set_settings", settings: toB(next) } });
   } catch { /* gateway not ready — already saved locally */ }
+  // Persist connection state to the user account so it survives sign-out / sign-in.
+  try {
+    await base44.auth.updateMe({ recall_connection: { connected: !!next.connected, permissions: next.permissions } });
+  } catch { /* ignore — local cache already updated */ }
 }
 
 export function useJabberSettings() {
@@ -97,7 +122,7 @@ export function useJabberSettings() {
   });
   useEffect(() => {
     listeners.add(setSettings);
-    if (!loaded) { loaded = true; refreshSettings(); }
+    if (!loaded) { loaded = true; refreshSettings(); loadConnection(); }
     return () => listeners.delete(setSettings);
   }, []);
   const update = useCallback((partial) => {

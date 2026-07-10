@@ -26,7 +26,7 @@ export async function callWebsiteB(action, params = {}) {
     case "list_tasks":
       return gateway("list_tasks");
     case "create_task":
-      return gateway("create_task", { title: params.title });
+      return gateway("create_task", { title: params.title || "Quick task" });
     case "update_task": {
       if (params.id) return gateway("update_task", { id: params.id, status: params.status });
       if (!params.title) return { ok: false, error: "I need a task title to update." };
@@ -60,7 +60,7 @@ export function formatAdminResult(action, params = {}, data) {
       return `You've got ${tasks.length} item${tasks.length === 1 ? "" : "s"} on Recall${titles ? `: ${titles}` : ""}${more}.`;
     }
     case "create_task":
-      return `Done — "${params.title || "it"}" is on Recall.`;
+      return params.title ? `Done — "${params.title}" is on Recall.` : `Done — quick task added to Recall.`;
     case "update_task": {
       const status = params.status ? ` — now ${String(params.status).replace("_", " ")}` : "";
       return `Updated "${params.title || "it"}" on Recall${status}.`;
