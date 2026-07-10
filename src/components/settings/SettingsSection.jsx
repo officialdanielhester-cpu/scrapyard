@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Moon, Gauge, Shield, Bell, Languages } from "lucide-react";
+import { Moon, Sun, Gauge, Shield, Bell, Languages } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import MobileSelectDrawer from "@/components/MobileSelectDrawer";
 import ConnectionTab from "@/components/settings/ConnectionTab";
 import VoiceTab from "@/components/settings/VoiceTab";
 import AccountTab from "@/components/settings/AccountTab";
 import { useJabberSettings, DEFAULT_JABBER_SETTINGS } from "@/hooks/use-jabber-settings";
+import { useTheme } from "@/hooks/use-theme";
 
 const TABS = [
   { id: "ambience", label: "Ambience" },
@@ -19,7 +20,7 @@ const SETTING_GROUPS = [
   {
     title: "Ambience",
     items: [
-      { id: "theme", label: "Calm Mode", desc: "Soften motion and color", icon: Moon, type: "toggle", default: false },
+      { id: "lightMode", label: "Light Mode", desc: "Switch between light and dark themes", icon: Sun, type: "toggle", default: false },
       { id: "speed", label: "Response Tempo", desc: "Balanced by default", icon: Gauge, type: "select", options: ["Patient", "Balanced", "Rapid"], default: "Balanced" },
     ],
   },
@@ -55,8 +56,15 @@ function Toggle({ on, onClick }) {
 export default function SettingsSection() {
   const [tab, setTab] = useState("ambience");
   const { settings, update } = useJabberSettings();
+  const { theme, toggle: toggleTheme } = useTheme();
 
-  const toggle = (id) => update({ [id]: !settings[id] });
+  const toggle = (id) => {
+    if (id === "lightMode") {
+      toggleTheme();
+      return;
+    }
+    update({ [id]: !settings[id] });
+  };
   const select = (id, val) => update({ [id]: val });
 
   const activeGroup = SETTING_GROUPS.find((g) => g.title.toLowerCase() === tab);
@@ -113,7 +121,7 @@ export default function SettingsSection() {
                           </div>
                         </div>
                         {item.type === "toggle" ? (
-                          <Toggle on={!!settings[item.id]} onClick={() => toggle(item.id)} />
+                          <Toggle on={item.id === "lightMode" ? theme === "light" : !!settings[item.id]} onClick={() => toggle(item.id)} />
                         ) : (
                           <MobileSelectDrawer
                             value={settings[item.id] ?? item.default}
@@ -137,7 +145,6 @@ export default function SettingsSection() {
                   <button
                     onClick={() =>
                       update({
-                        theme: DEFAULT_JABBER_SETTINGS.theme,
                         speed: DEFAULT_JABBER_SETTINGS.speed,
                         private: DEFAULT_JABBER_SETTINGS.private,
                         notify: DEFAULT_JABBER_SETTINGS.notify,
