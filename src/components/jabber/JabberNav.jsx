@@ -19,28 +19,31 @@ const ENV_IDS = ENV_CHILDREN.map((c) => c.id);
 const BOTTOM_ITEMS = [{ id: "settings", label: "Settings", icon: Sun }];
 
 export default function JabberNav({ active, onSelect }) {
-  const [open, setOpen] = useState(ENV_IDS.includes(active));
-  const [canvasOpen, setCanvasOpen] = useState(CANVAS_IDS.includes(active));
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [mobileCanvasOpen, setMobileCanvasOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState(() => {
+    if (CANVAS_IDS.includes(active)) return "canvas";
+    if (ENV_IDS.includes(active)) return "env";
+    return null;
+  });
+  const [mobileOpenGroup, setMobileOpenGroup] = useState(null);
   const mobileRef = useRef(null);
 
   useEffect(() => {
-    if (ENV_IDS.includes(active)) setOpen(true);
-    if (CANVAS_IDS.includes(active)) setCanvasOpen(true);
+    if (CANVAS_IDS.includes(active)) setOpenGroup("canvas");
+    else if (ENV_IDS.includes(active)) setOpenGroup("env");
   }, [active]);
 
   // Close mobile dropdown on outside tap.
   useEffect(() => {
-    if (!mobileOpen) return;
-    const onDoc = (e) => { if (mobileRef.current && !mobileRef.current.contains(e.target)) setMobileOpen(false); };
+    if (!mobileOpenGroup) return;
+    const onDoc = (e) => { if (mobileRef.current && !mobileRef.current.contains(e.target)) setMobileOpenGroup(null); };
     document.addEventListener("pointerdown", onDoc);
     return () => document.removeEventListener("pointerdown", onDoc);
-  }, [mobileOpen]);
+  }, [mobileOpenGroup]);
 
   const groupActive = ENV_IDS.includes(active);
   const canvasGroupActive = CANVAS_IDS.includes(active);
-  const selectMobile = (id) => { onSelect(id); setMobileOpen(false); setMobileCanvasOpen(false); };
+  const toggleGroup = (g) => setOpenGroup((cur) => (cur === g ? null : g));
+  const selectMobile = (id) => { onSelect(id); setMobileOpenGroup(null); };
 
   const renderTop = (item) => {
     const Icon = item.icon;
@@ -81,7 +84,7 @@ export default function JabberNav({ active, onSelect }) {
             {/* Canvas dropdown group */}
             <div>
               <button
-                onClick={() => setCanvasOpen((o) => !o)}
+                onClick={() => toggleGroup("canvas")}
                 className={`flex w-full items-center gap-3 rounded-md px-4 py-3 text-left transition-all duration-300 ${
                   canvasGroupActive ? "text-primary" : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
                 }`}
@@ -89,11 +92,11 @@ export default function JabberNav({ active, onSelect }) {
                 <Palette className="h-4 w-4" strokeWidth={1.5} />
                 <span className="font-body text-sm">Canvas</span>
                 <ChevronDown
-                  className={`ml-auto h-4 w-4 transition-transform duration-300 ${canvasOpen ? "rotate-180" : ""}`}
+                  className={`ml-auto h-4 w-4 transition-transform duration-300 ${openGroup === "canvas" ? "rotate-180" : ""}`}
                   strokeWidth={1.5}
                 />
               </button>
-              {canvasOpen && (
+              {openGroup === "canvas" && (
                 <div className="mt-1 ml-3 flex flex-col gap-1 border-l border-border/40 pl-3">
                   {CANVAS_CHILDREN.map((child) => {
                     const Icon = child.icon;
@@ -120,7 +123,7 @@ export default function JabberNav({ active, onSelect }) {
             {/* Environment dropdown group */}
             <div>
               <button
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => toggleGroup("env")}
                 className={`flex w-full items-center gap-3 rounded-md px-4 py-3 text-left transition-all duration-300 ${
                   groupActive ? "text-primary" : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
                 }`}
@@ -128,11 +131,11 @@ export default function JabberNav({ active, onSelect }) {
                 <FlaskConical className="h-4 w-4" strokeWidth={1.5} />
                 <span className="font-body text-sm">Environment</span>
                 <ChevronDown
-                  className={`ml-auto h-4 w-4 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+                  className={`ml-auto h-4 w-4 transition-transform duration-300 ${openGroup === "env" ? "rotate-180" : ""}`}
                   strokeWidth={1.5}
                 />
               </button>
-              {open && (
+              {openGroup === "env" && (
                 <div className="mt-1 ml-3 flex flex-col gap-1 border-l border-border/40 pl-3">
                   {ENV_CHILDREN.map((child) => {
                     const Icon = child.icon;
@@ -194,7 +197,7 @@ export default function JabberNav({ active, onSelect }) {
           {/* Canvas dropdown on mobile */}
           <div className="relative flex-1">
             <button
-              onClick={() => setMobileCanvasOpen((o) => !o)}
+              onClick={() => setMobileOpenGroup((g) => (g === "canvas" ? null : "canvas"))}
               className={`flex min-h-[44px] w-full flex-col items-center gap-1 py-1 ${
                 canvasGroupActive ? "text-primary" : "text-muted-foreground"
               }`}
@@ -202,7 +205,7 @@ export default function JabberNav({ active, onSelect }) {
               <Palette className="h-5 w-5" strokeWidth={1.5} />
               <span className="font-mono text-[9px] uppercase tracking-wider">Canvas</span>
             </button>
-            {mobileCanvasOpen && (
+            {mobileOpenGroup === "canvas" && (
               <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-xl border border-border/60 bg-background/95 p-1 shadow-lg backdrop-blur-xl">
                 {CANVAS_CHILDREN.map((child) => {
                   const Icon = child.icon;
@@ -227,7 +230,7 @@ export default function JabberNav({ active, onSelect }) {
           {/* Environment dropdown on mobile */}
           <div className="relative flex-1">
             <button
-              onClick={() => setMobileOpen((o) => !o)}
+              onClick={() => setMobileOpenGroup((g) => (g === "env" ? null : "env"))}
               className={`flex min-h-[44px] w-full flex-col items-center gap-1 py-1 ${
                 groupActive ? "text-primary" : "text-muted-foreground"
               }`}
@@ -235,7 +238,7 @@ export default function JabberNav({ active, onSelect }) {
               <FlaskConical className="h-5 w-5" strokeWidth={1.5} />
               <span className="font-mono text-[9px] uppercase tracking-wider">Environment</span>
             </button>
-            {mobileOpen && (
+            {mobileOpenGroup === "env" && (
               <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-xl border border-border/60 bg-background/95 p-1 shadow-lg backdrop-blur-xl">
                 {ENV_CHILDREN.map((child) => {
                   const Icon = child.icon;
