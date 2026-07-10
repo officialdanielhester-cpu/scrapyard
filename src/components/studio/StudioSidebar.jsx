@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, MousePointer, Hand, Brush, Pen, Waves, Expand, Layers, GitMerge, FlipHorizontal, Trash2, Undo2, Redo2, Plus, Copy, Search, Eye, EyeOff, Sun, Moon, Download, Sparkles, Boxes, ChevronDown, LayoutGrid } from "lucide-react";
+import { Box, MousePointer, Hand, Brush, Pen, Waves, Expand, Layers, GitMerge, FlipHorizontal, Trash2, Undo2, Redo2, Plus, Copy, Search, Eye, EyeOff, Sun, Moon, Download, Sparkles, Boxes, ChevronDown, LayoutGrid, Lock } from "lucide-react";
 import { BRUSHES } from "@/components/studio/sculpt-brushes";
 
 const MODES = [
@@ -151,9 +151,10 @@ export default function StudioSidebar(props) {
         </div>
       )}
 
-      {/* Theme + overlays */}
+      {/* Theme + camera lock */}
       <div className="flex items-center gap-2">
         <button onClick={props.onToggleTheme} className={btn}>{theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />} {theme === "dark" ? "Light" : "Dark"}</button>
+        <button onClick={props.onToggleCameraLock} className={toolBtn(!!props.cameraLock)} title="Lock camera to prevent orbit while sculpting"><Lock className="h-3.5 w-3.5" /> Cam Lock</button>
       </div>
     </div>
   );

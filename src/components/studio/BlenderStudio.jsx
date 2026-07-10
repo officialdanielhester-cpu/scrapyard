@@ -38,6 +38,7 @@ export default function BlenderStudio() {
   const [paintColor, setPaintColor] = useState("#3b82f6");
   const [theme, setTheme] = useState("dark");
   const [snap, setSnap] = useState(false);
+  const [cameraLock, setCameraLock] = useState(false);
   const [selectedFaces, setSelectedFaces] = useState(new Set());
   const [importOpen, setImportOpen] = useState(false);
   const [jabberOpen, setJabberOpen] = useState(false);
@@ -112,6 +113,7 @@ export default function BlenderStudio() {
             paintColor={paintColor}
             theme={theme}
             snap={snap}
+            cameraLock={cameraLock}
             selectedFaces={selectedFaces}
             overlays={{ grid: true }}
             geoFactory={(type) => GEO[type]()}
@@ -137,6 +139,7 @@ export default function BlenderStudio() {
         paintColor={paintColor}
         theme={theme}
         snap={snap}
+        cameraLock={cameraLock}
         canUndo={undoStack.length > 0}
         canRedo={redoStack.length > 0}
         onModeChange={setMode}
@@ -146,6 +149,7 @@ export default function BlenderStudio() {
         onPaintColor={setPaintColor}
         onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
         onToggleSnap={() => setSnap(s => !s)}
+        onToggleCameraLock={() => setCameraLock(v => !v)}
         onUndo={undo}
         onRedo={redo}
         onSelectObject={setSelectedId}

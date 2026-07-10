@@ -120,26 +120,27 @@ export default function StudioViewport(props) {
       const { mode, selectedId, objects, brush, brushSize } = p.current;
       const sel = objects.find((o) => o.id === selectedId);
 
+      const camLock = p.current.cameraLock;
       if (mode === "object") {
         setPointer(e.clientX, e.clientY);
         const gizmoHit = raycaster.intersectObjects(Object.values(arrows), true)[0];
         if (gizmoHit) { gizmoAxis = gizmoHit.object.parent.userData.axis; gizmoStart = sel ? [...sel.pos] : [0,0,0]; renderer.domElement.style.cursor = "grabbing"; return; }
         const hit = pickMesh(e.clientX, e.clientY);
         if (hit?.object?.userData?.id) { moveId = hit.object.userData.id; moveY = sel ? sel.pos[1] : 0; movePlane.constant = -moveY; p.current.onSelectObject(moveId); }
-        else dragging = true;
+        else if (!camLock) dragging = true;
         renderer.domElement.style.cursor = "grabbing";
       } else if (mode === "edit") {
-        if (!sel || sel.kind !== "mesh") { dragging = true; return; }
+        if (!sel || sel.kind !== "mesh") { if (!camLock) dragging = true; return; }
         setPointer(e.clientX, e.clientY);
         const mesh = pickablesRef.current.find((m) => m.userData.id === selectedId);
         if (mesh) { const hit = raycaster.intersectObject(mesh, false)[0]; if (hit) { p.current.onSelectFaces(new Set([Math.floor(hit.faceIndex)])); return; } }
-        dragging = true;
+        if (!camLock) dragging = true;
       } else if (mode === "sculpt" || mode === "paint") {
-        if (!sel || sel.kind !== "mesh") { dragging = true; return; }
+        if (!sel || sel.kind !== "mesh") { if (!camLock) dragging = true; return; }
         setPointer(e.clientX, e.clientY);
         const mesh = pickablesRef.current.find((m) => m.userData.id === selectedId);
         if (mesh) { const hit = raycaster.intersectObject(mesh, false)[0]; if (hit) { p.current.onSculptStart?.(); sculpting = true; if (mode === "sculpt" && brush === "grab") startGrab(sel.geo, hit, brushSize); else applyStroke(sel.geo, hit, e); renderer.domElement.style.cursor = "crosshair"; return; } }
-        dragging = true;
+        if (camLock) { sculpting = true; renderer.domElement.style.cursor = "crosshair"; } else dragging = true;
       }
     };
 
