@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import SoundEngine, { INSTRUMENTS, DEFAULT_BEAT } from "@/components/sound/SoundEngine";
 import TrackRow from "@/components/sound/TrackRow";
-import SoundToolbar from "@/components/sound/SoundToolbar";
+import TransportBar from "@/components/sound/TransportBar";
 
 export default function SoundSection() {
   const [tracks, setTracks] = useState(DEFAULT_BEAT);
@@ -56,6 +56,13 @@ export default function SoundSection() {
       setIsPlaying(true);
     }
   }, [isPlaying]);
+
+  const handleStop = useCallback(() => {
+    if (!engineRef.current) return;
+    engineRef.current.stop();
+    setIsPlaying(false);
+    setCurrentStep(-1);
+  }, []);
 
   const toggleStep = (trackId, stepIdx) => {
     setTracks((prev) => prev.map((t) => {
@@ -146,16 +153,13 @@ export default function SoundSection() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-border/40 px-6 py-3 md:px-12">
-        <h1 className="font-heading text-lg font-extrabold tracking-tight">
-          Sound <span className="font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-muted-foreground">Beat Maker Studio</span>
-        </h1>
-      </header>
-      <SoundToolbar
+      <TransportBar
         isPlaying={isPlaying}
         onPlay={handlePlay}
+        onStop={handleStop}
         bpm={bpm}
         setBpm={setBpm}
+        currentStep={currentStep}
         onNew={handleNew}
         onSave={handleSave}
         onClear={handleClear}
@@ -172,10 +176,8 @@ export default function SoundSection() {
           <div className="mx-auto max-w-4xl">
             {/* Step numbers */}
             <div className="mb-2 flex items-center gap-2">
-              <div className="w-28 shrink-0" />
-              <div className="w-20 shrink-0" />
-              <div className="w-12 shrink-0" />
-              <div className="flex flex-1 gap-1">
+              <div className="w-56 shrink-0" />
+              <div className="flex flex-1 gap-1 px-2">
                 {Array.from({ length: 16 }).map((_, i) => (
                   <div key={i} className={`flex-1 text-center font-mono text-[9px] ${i === currentStep ? "text-primary" : "text-muted-foreground/50"}`}>
                     {i % 4 === 0 ? i + 1 : ""}
@@ -184,8 +186,8 @@ export default function SoundSection() {
               </div>
             </div>
 
-            {/* Track rows */}
-            <div className="rounded-2xl border border-border/40 bg-background/30 p-3">
+            {/* Track lanes */}
+            <div className="overflow-hidden rounded-2xl border border-border/40 bg-background/30">
               {tracks.map((track) => (
                 <TrackRow
                   key={track.id}
@@ -201,7 +203,7 @@ export default function SoundSection() {
             </div>
 
             <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-              Click cells to toggle beats · Spacebar to play/stop · 16-step sequencer
+              Click cells to toggle beats · Play/Pause to start · 16-step sequencer · 13 instruments
             </p>
           </div>
         </div>
