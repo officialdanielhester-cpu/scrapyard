@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Boxes, Box, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown } from "lucide-react";
+import { Sparkles, Boxes, Box, Sun, Moon, FlaskConical, Hammer, LineChart, ChevronDown, Palette } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
   { id: "jabber", label: "Jabber", icon: Sparkles },
+];
+const CANVAS_CHILDREN = [
   { id: "grid", label: "The Grid", icon: Boxes },
   { id: "studio", label: "Studio", icon: Box },
 ];
+const CANVAS_IDS = CANVAS_CHILDREN.map((c) => c.id);
 const ENV_CHILDREN = [
   { id: "env", label: "Playground", icon: FlaskConical },
   { id: "workshop", label: "Workshop", icon: Hammer },
@@ -20,11 +23,14 @@ export default function JabberNav({ active, onSelect }) {
   const { theme, toggle } = useTheme();
   const ThemeIcon = theme === "dark" ? Sun : Moon;
   const [open, setOpen] = useState(ENV_IDS.includes(active));
+  const [canvasOpen, setCanvasOpen] = useState(CANVAS_IDS.includes(active));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileCanvasOpen, setMobileCanvasOpen] = useState(false);
   const mobileRef = useRef(null);
 
   useEffect(() => {
     if (ENV_IDS.includes(active)) setOpen(true);
+    if (CANVAS_IDS.includes(active)) setCanvasOpen(true);
   }, [active]);
 
   // Close mobile dropdown on outside tap.
@@ -36,7 +42,8 @@ export default function JabberNav({ active, onSelect }) {
   }, [mobileOpen]);
 
   const groupActive = ENV_IDS.includes(active);
-  const selectMobile = (id) => { onSelect(id); setMobileOpen(false); };
+  const canvasGroupActive = CANVAS_IDS.includes(active);
+  const selectMobile = (id) => { onSelect(id); setMobileOpen(false); setMobileCanvasOpen(false); };
 
   const renderTop = (item) => {
     const Icon = item.icon;
@@ -73,6 +80,45 @@ export default function JabberNav({ active, onSelect }) {
 
           <nav className="mt-16 flex flex-col gap-1">
             {TOP_ITEMS.map(renderTop)}
+
+            {/* Canvas dropdown group */}
+            <div>
+              <button
+                onClick={() => setCanvasOpen((o) => !o)}
+                className={`flex w-full items-center gap-3 rounded-md px-4 py-3 text-left transition-all duration-300 ${
+                  canvasGroupActive ? "text-primary" : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+                }`}
+              >
+                <Palette className="h-4 w-4" strokeWidth={1.5} />
+                <span className="font-body text-sm">Canvas</span>
+                <ChevronDown
+                  className={`ml-auto h-4 w-4 transition-transform duration-300 ${canvasOpen ? "rotate-180" : ""}`}
+                  strokeWidth={1.5}
+                />
+              </button>
+              {canvasOpen && (
+                <div className="mt-1 ml-3 flex flex-col gap-1 border-l border-border/40 pl-3">
+                  {CANVAS_CHILDREN.map((child) => {
+                    const Icon = child.icon;
+                    const isActive = active === child.id;
+                    return (
+                      <button
+                        key={child.id}
+                        onClick={() => onSelect(child.id)}
+                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-all duration-300 ${
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        <span className="font-body text-sm">{child.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Environment dropdown group */}
             <div>
@@ -156,6 +202,39 @@ export default function JabberNav({ active, onSelect }) {
               </button>
             );
           })}
+
+          {/* Canvas dropdown on mobile */}
+          <div className="relative flex-1">
+            <button
+              onClick={() => setMobileCanvasOpen((o) => !o)}
+              className={`flex min-h-[44px] w-full flex-col items-center gap-1 py-1 ${
+                canvasGroupActive ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <Palette className="h-5 w-5" strokeWidth={1.5} />
+              <span className="font-mono text-[9px] uppercase tracking-wider">Canvas</span>
+            </button>
+            {mobileCanvasOpen && (
+              <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-xl border border-border/60 bg-background/95 p-1 shadow-lg backdrop-blur-xl">
+                {CANVAS_CHILDREN.map((child) => {
+                  const Icon = child.icon;
+                  const isActive = active === child.id;
+                  return (
+                    <button
+                      key={child.id}
+                      onClick={() => selectMobile(child.id)}
+                      className={`flex w-40 items-center gap-2 rounded-lg px-3 py-2.5 text-left ${
+                        isActive ? "bg-primary/10 text-primary" : "text-foreground/80"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" strokeWidth={1.5} />
+                      <span className="font-body text-sm">{child.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Environment dropdown on mobile */}
           <div className="relative flex-1">
