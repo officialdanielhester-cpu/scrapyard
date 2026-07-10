@@ -45,11 +45,12 @@ export default function FreeAssemblyCanvas({ instances, setInstances }) {
     drag.current = { iid: inst.iid, dx: start.x - inst.x, dy: start.y - inst.y };
     const onMove = (ev) => {
       if (!drag.current) return;
+      const d = drag.current;
       const cur = toSvg(ev.clientX, ev.clientY);
-      const nx = Math.max(20, Math.min(VBW - 20, cur.x - drag.current.dx));
-      const ny = Math.max(20, Math.min(VBH - 20, cur.y - drag.current.dy));
+      const nx = Math.max(20, Math.min(VBW - 20, cur.x - d.dx));
+      const ny = Math.max(20, Math.min(VBH - 20, cur.y - d.dy));
       setInstances((prev) =>
-        prev.map((p) => (p.iid === drag.current.iid ? { ...p, x: Math.round(nx), y: Math.round(ny) } : p))
+        prev.map((p) => (p.iid === d.iid ? { ...p, x: Math.round(nx), y: Math.round(ny) } : p))
       );
     };
     const onUp = () => {
