@@ -103,20 +103,45 @@ export default function StudioViewport(props) {
     const updateCam = () => { camera.position.set(target.x + radius * Math.sin(phi) * Math.sin(theta), target.y + radius * Math.cos(phi), target.z + radius * Math.sin(phi) * Math.cos(theta)); camera.lookAt(target); };
     updateCam();
 
+    const panBy = (dx, dy) => {
+      camera.updateMatrixWorld();
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const k = radius * 0.0016;
+      target.addScaledVector(right, -dx * k);
+      target.addScaledVector(up, dy * k);
+      updateCam();
+    };
+
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const movePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     let dragging = false, moveId = null, moveY = 0, lastX = 0, lastY = 0, dragDist = 0;
     let gizmoAxis = null, gizmoStart = null;
     let sculpting = false, grabState = null, adjacencyCache = new WeakMap();
+    const pointers = new Map();
+    let pinchDist = 0;
+    let panLast = null;
+    let isPinch = false;
 
     const setPointer = (cx, cy) => { const r = renderer.domElement.getBoundingClientRect(); pointer.x = ((cx - r.left) / r.width) * 2 - 1; pointer.y = -((cy - r.top) / r.height) * 2 + 1; raycaster.setFromCamera(pointer, camera); };
     const pickMesh = (cx, cy) => { setPointer(cx, cy); const hit = raycaster.intersectObjects(pickablesRef.current, false)[0]; return hit; };
 
     const onDown = (e) => {
       e.preventDefault();
+      try { renderer.domElement.setPointerCapture(e.pointerId); } catch {}
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        // Second finger starts pinch-zoom + pan — cancel any in-progress edit.
+        isPinch = true;
+        moveId = null; sculpting = false; grabState = null; gizmoAxis = null; dragging = false;
+        const pts = [...pointers.values()];
+        pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        panLast = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+        renderer.domElement.style.cursor = "grabbing";
+        return;
+      }
       dragDist = 0; lastX = e.clientX; lastY = e.clientY;
-      renderer.domElement.setPointerCapture(e.pointerId);
       const { mode, selectedId, objects, brush, brushSize } = p.current;
       const sel = objects.find((o) => o.id === selectedId);
 
@@ -162,6 +187,17 @@ export default function StudioViewport(props) {
     };
 
     const onMove = (e) => {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (isPinch && pointers.size >= 2) {
+        const pts = [...pointers.values()];
+        const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (pinchDist) { radius = Math.max(4, Math.min(40, radius * (pinchDist / d))); updateCam(); }
+        pinchDist = d;
+        const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+        if (panLast) panBy(mx - panLast.x, my - panLast.y);
+        panLast = { x: mx, y: my };
+        return;
+      }
       const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; dragDist += Math.abs(dx) + Math.abs(dy);
       const { mode, selectedId, objects, brush, brushSize } = p.current;
       const sel = objects.find((o) => o.id === selectedId);
@@ -194,6 +230,20 @@ export default function StudioViewport(props) {
 
     const onUp = (e) => {
       try { renderer.domElement.releasePointerCapture(e.pointerId); } catch {}
+      const wasPinch = isPinch;
+      pointers.delete(e.pointerId);
+      if (wasPinch) {
+        if (pointers.size < 2) { pinchDist = 0; panLast = null; }
+        if (pointers.size === 1) {
+          // One finger remains — let it continue orbiting without deselecting.
+          const rem = [...pointers.values()][0];
+          lastX = rem.x; lastY = rem.y; dragDist = 999; dragging = true; isPinch = false;
+        } else if (pointers.size === 0) {
+          isPinch = false;
+          renderer.domElement.style.cursor = "grab";
+        }
+        return;
+      }
       renderer.domElement.style.cursor = "grab";
       if (gizmoAxis) { gizmoAxis = null; gizmoStart = null; return; }
       if (moveId) { moveId = null; return; }
@@ -205,6 +255,7 @@ export default function StudioViewport(props) {
     renderer.domElement.addEventListener("pointerdown", onDown);
     renderer.domElement.addEventListener("pointermove", onMove);
     renderer.domElement.addEventListener("pointerup", onUp);
+    renderer.domElement.addEventListener("pointercancel", onUp);
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     let raf;
@@ -214,7 +265,7 @@ export default function StudioViewport(props) {
     const ro = new ResizeObserver(() => { const w = mount.clientWidth, h = mount.clientHeight; if (!w || !h) return; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); });
     ro.observe(mount);
 
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); renderer.domElement.removeEventListener("pointerdown", onDown); renderer.domElement.removeEventListener("pointermove", onMove); renderer.domElement.removeEventListener("pointerup", onUp); renderer.domElement.removeEventListener("wheel", onWheel); renderer.dispose(); if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement); };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); renderer.domElement.removeEventListener("pointerdown", onDown); renderer.domElement.removeEventListener("pointermove", onMove); renderer.domElement.removeEventListener("pointerup", onUp); renderer.domElement.removeEventListener("pointercancel", onUp); renderer.domElement.removeEventListener("wheel", onWheel); renderer.dispose(); if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement); };
   }, []);
 
   useEffect(() => { rebuildRef.current(); }, [props.objects, props.selectedId, props.selectedFaces, props.theme, props.mode, props.overlays]);

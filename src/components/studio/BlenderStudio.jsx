@@ -130,7 +130,7 @@ export default function BlenderStudio() {
           1-4 modes · E extrude · Ctrl+Z undo · drag empty to orbit · drag object to move · scroll to zoom
         </p>
         <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60 md:hidden">
-          touch drag empty to orbit · touch drag object to move · pinch to zoom
+          touch drag empty to orbit · touch drag object to move · pinch to zoom · two-finger pan
         </p>
       </div>
 
