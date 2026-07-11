@@ -4,6 +4,15 @@ import SoundEngine, { INSTRUMENTS } from "@/components/sound/SoundEngine";
 
 const MELODIC = INSTRUMENTS.filter((i) => i.melodic && i.id !== "sample");
 
+// Instrument families — selecting one surfaces its siblings as quick-switch chips.
+const FAMILIES = [
+  { label: "Keys", members: ["piano", "fm", "organ", "bell"] },
+  { label: "Bass", members: ["bass", "acid", "wobble"] },
+  { label: "Leads", members: ["lead", "sawlead", "square", "brass"] },
+  { label: "Pads & Strings", members: ["strings", "choir", "pad", "pluck", "arp"] },
+];
+const familyOf = (id) => FAMILIES.find((f) => f.members.includes(id));
+
 // Two octaves of white keys (semitone offset from C4) with labels.
 const WHITE = [
   { semi: 0, label: "C" }, { semi: 2, label: "D" }, { semi: 4, label: "E" }, { semi: 5, label: "F" },
@@ -88,6 +97,32 @@ export default function InstrumentKeyboard() {
           Type A–K to play the first octave
         </div>
       </div>
+
+      {/* Sibling instruments in the selected family */}
+      {familyOf(instrument) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{familyOf(instrument).label}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {familyOf(instrument).members.map((id) => {
+              const m = INSTRUMENTS.find((i) => i.id === id);
+              if (!m) return null;
+              const on = id === instrument;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setInstrument(id)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+                    on ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-foreground/70 hover:border-primary hover:text-primary"
+                  }`}
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ background: m.color }} />
+                  {m.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="relative select-none">
         <div className="flex gap-px">
