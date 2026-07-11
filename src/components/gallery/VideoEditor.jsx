@@ -387,8 +387,11 @@ export default function VideoEditor() {
         </div>
 
         {exportMsg && <p className="mt-4 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{exportMsg}</p>}
-        <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+        <p className="mt-4 hidden font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60 md:block">
           Tip: use the arrows to reorder · scissors split at the playhead · drag text to position · Export renders in real time
+        </p>
+        <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60 md:hidden">
+          Tip: use the arrows to reorder · scissors split at the playhead · touch drag text to position · Export renders in real time
         </p>
       </div>
     </div>

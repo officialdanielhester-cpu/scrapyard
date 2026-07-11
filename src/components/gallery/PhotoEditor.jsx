@@ -203,8 +203,11 @@ export default function PhotoEditor() {
           <PhotoAdjustments adj={adj} onChange={onChange} onRotate={onRotate} onFlip={onFlip} onReset={onReset} />
         </div>
 
-        <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+        <p className="mt-4 hidden font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60 md:block">
           Sliders apply in real time · drag a preset for a one-click look · Export saves a full-resolution JPEG
+        </p>
+        <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60 md:hidden">
+          Sliders apply in real time · tap a preset for a one-click look · Export saves a full-resolution JPEG
         </p>
       </div>
     </div>

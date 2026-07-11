@@ -27,11 +27,14 @@ const PATH_TO_SECTION = {
   settings: "settings",
 };
 
+const DEEP_WORK = new Set(["grid", "video-editor", "photo-editor"]);
+
 export default function Home({ section: sectionProp }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [active, setActive] = useState(sectionProp || "jabber");
   const [pendingBuild, setPendingBuild] = useState(null);
+  const [deepMounted, setDeepMounted] = useState({});
 
   // When the route changes (prop or URL), sync the active section.
   useEffect(() => {
@@ -41,6 +44,11 @@ export default function Home({ section: sectionProp }) {
       setActive(PATH_TO_SECTION[seg] || "jabber");
     }
   }, [sectionProp, location.pathname]);
+
+  // Mount deep-work sections on first visit so their state survives tab switches.
+  useEffect(() => {
+    if (DEEP_WORK.has(active)) setDeepMounted((m) => (m[active] ? m : { ...m, [active]: true }));
+  }, [active]);
 
   // Navigate to a route — called by the nav bar.
   const handleSelect = useCallback((id) => {
@@ -54,70 +62,75 @@ export default function Home({ section: sectionProp }) {
 
       {/* Main canvas — offset for desktop sidebar */}
       <main className="md:ml-64 min-h-screen pb-[calc(5rem_+_env(safe-area-inset-bottom))] md:pb-0">
-        <AnimatePresence mode="wait">
-        <motion.div
-          key={active}
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -30 }}
-          transition={{ duration: 0.25, ease: "easeInOut" }}
-        >
-        {active === "jabber" && (
-          <div className="h-screen">
-            <JabberSection />
-          </div>
-        )}
-        {active === "sound" && (
-          <div className="h-screen">
-            <SoundSection />
-          </div>
-        )}
-        {active === "grid" && (
-          <div className="min-h-screen">
+        {/* Deep-work sessions mount on first visit and stay mounted so state survives tab switches */}
+        {deepMounted.grid && (
+          <div className={active === "grid" ? "min-h-screen" : "hidden"}>
             <GridSection />
           </div>
         )}
-        {active === "env" && (
-          <div className="min-h-screen">
-            <EnvironmentSection pendingBuild={pendingBuild} onConsumed={() => setPendingBuild(null)} />
-          </div>
-        )}
-        {active === "workshop" && (
-          <div className="min-h-screen">
-            <WorkshopSection
-              onImportBuild={(payload) => {
-                setPendingBuild(payload);
-                handleSelect("env");
-              }}
-            />
-          </div>
-        )}
-        {active === "studio" && (
-          <div className="min-h-screen">
-            <StudioSection />
-          </div>
-        )}
-        {active === "video-editor" && (
-          <div className="min-h-screen">
+        {deepMounted["video-editor"] && (
+          <div className={active === "video-editor" ? "min-h-screen" : "hidden"}>
             <VideoEditor />
           </div>
         )}
-        {active === "photo-editor" && (
-          <div className="min-h-screen">
+        {deepMounted["photo-editor"] && (
+          <div className={active === "photo-editor" ? "min-h-screen" : "hidden"}>
             <PhotoEditor />
           </div>
         )}
-        {active === "dashboard" && (
-          <div className="min-h-screen">
-            <DashboardSection />
-          </div>
-        )}
-        {active === "settings" && (
-          <div className="min-h-screen">
-            <SettingsSection />
-          </div>
-        )}
-        </motion.div>
+
+        {/* Transient sections retain the slide transition */}
+        <AnimatePresence mode="wait">
+          {!DEEP_WORK.has(active) && (
+            <motion.div
+              key={active}
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -30 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+            >
+              {active === "jabber" && (
+                <div className="h-screen">
+                  <JabberSection />
+                </div>
+              )}
+              {active === "sound" && (
+                <div className="h-screen">
+                  <SoundSection />
+                </div>
+              )}
+              {active === "env" && (
+                <div className="min-h-screen">
+                  <EnvironmentSection pendingBuild={pendingBuild} onConsumed={() => setPendingBuild(null)} />
+                </div>
+              )}
+              {active === "workshop" && (
+                <div className="min-h-screen">
+                  <WorkshopSection
+                    onImportBuild={(payload) => {
+                      setPendingBuild(payload);
+                      handleSelect("env");
+                    }}
+                  />
+                </div>
+              )}
+              {active === "studio" && (
+                <div className="min-h-screen">
+                  <StudioSection />
+                </div>
+              )}
+              {active === "dashboard" && (
+                <div className="min-h-screen">
+                  <DashboardSection />
+                </div>
+              )}
+              {active === "settings" && (
+                <div className="min-h-screen">
+                  <SettingsSection />
+                </div>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
       </main>
 

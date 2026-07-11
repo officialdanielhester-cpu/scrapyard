@@ -1,4 +1,5 @@
 import React from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Rocket,
   Orbit,
@@ -42,6 +43,7 @@ function Bullet({ children }) {
 }
 
 export default function EnvironmentHelp() {
+  const isMobile = useIsMobile();
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-16">
       <div>
@@ -78,8 +80,8 @@ export default function EnvironmentHelp() {
       <Section icon={Gauge} title="The viewport (Launch Pad)">
         <Bullet><strong>Status pill (top-left)</strong> — Ready, In Flight, Paused, Landed, Goal Reached, or Recording.</Bullet>
         <Bullet><strong>Vehicle · World pill (top-right)</strong> — your current selections.</Bullet>
-        <Bullet><strong>Zoom buttons (right)</strong> — zoom the camera in and out, or scroll over the viewport.</Bullet>
-        <Bullet><strong>Steering (bottom-center, flyers only)</strong> — hold the buttons or the ↑ / ↓ arrow keys to pitch the thrust/lift vector and curve the trajectory.</Bullet>
+        <Bullet><strong>Zoom buttons (right)</strong> — zoom the camera in and out, or {isMobile ? "pinch" : "scroll"} over the viewport.</Bullet>
+        <Bullet><strong>Steering (bottom-center, flyers only)</strong> — hold the buttons{isMobile ? "" : " or the ↑ / ↓ arrow keys"} to pitch the thrust/lift vector and curve the trajectory.</Bullet>
         <Bullet><strong>Fuel gauge (bottom)</strong> — remaining burn time in seconds; thrust cuts off when it reaches zero.</Bullet>
       </Section>
 
@@ -119,10 +121,17 @@ export default function EnvironmentHelp() {
         </p>
       </Section>
 
-      <Section icon={Keyboard} title="Keyboard shortcuts">
-        <Bullet><strong>↑ / ↓</strong> — steer (pitch up / down) during flight (flyers only).</Bullet>
-        <Bullet><strong>Scroll</strong> — zoom the viewport in and out.</Bullet>
-      </Section>
+      {isMobile ? (
+        <Section icon={Keyboard} title="Touch controls">
+          <Bullet><strong>Pinch</strong> — zoom the viewport in and out.</Bullet>
+          <Bullet><strong>Steering buttons</strong> — pitch up / down during flight (flyers only).</Bullet>
+        </Section>
+      ) : (
+        <Section icon={Keyboard} title="Keyboard shortcuts">
+          <Bullet><strong>↑ / ↓</strong> — steer (pitch up / down) during flight (flyers only).</Bullet>
+          <Bullet><strong>Scroll</strong> — zoom the viewport in and out.</Bullet>
+        </Section>
+      )}
 
       <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
         <Car className="h-3 w-3" /> Tip: ground vehicles drive toward the finish-line gate at 120 m — watch the To Goal metric.
