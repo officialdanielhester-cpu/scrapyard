@@ -99,8 +99,8 @@ export default function TransportBar({
             <Plus className="h-4 w-4" /> Track
           </button>
           {addOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 grid w-48 grid-cols-2 gap-1 rounded-lg border border-border/60 bg-background p-2 shadow-lg">
-              {INSTRUMENTS.map((inst) => (
+            <div className="absolute right-0 top-full z-50 mt-1 grid max-h-80 grid-cols-2 gap-1 overflow-y-auto rounded-lg border border-border/60 bg-background p-2 shadow-lg">
+              {INSTRUMENTS.filter((i) => i.id !== "sample").map((inst) => (
                 <button
                   key={inst.id}
                   onClick={() => { onAddTrack(inst.id); setAddOpen(false); }}

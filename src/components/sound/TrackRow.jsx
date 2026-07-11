@@ -1,10 +1,10 @@
 import React from "react";
-import { Volume2, Trash2, GripVertical } from "lucide-react";
+import { Volume2, Trash2, GripVertical, Play } from "lucide-react";
 import { INSTRUMENTS, NOTE_NAMES } from "@/components/sound/SoundEngine";
 
 export default function TrackRow({
   track, currentStep, onToggleStep, onVolume, onMute, onSolo, onPan,
-  onRootNote, onRename, onRemove, dragHandleProps,
+  onRootNote, onRename, onRemove, onPreview, dragHandleProps,
 }) {
   const inst = INSTRUMENTS.find((i) => i.id === track.instrument) || INSTRUMENTS[0];
 
@@ -26,6 +26,15 @@ export default function TrackRow({
             onChange={(e) => onRename(track.id, e.target.value)}
             className="min-w-0 flex-1 bg-transparent font-body text-sm font-medium text-foreground/90 focus:border-b focus:border-primary focus:outline-none"
           />
+          {track.instrument === "sample" && onPreview && (
+            <button
+              onClick={() => onPreview(track.id)}
+              className="shrink-0 text-muted-foreground/60 transition-colors hover:text-primary"
+              title="Preview sample"
+            >
+              <Play className="h-3 w-3" strokeWidth={2} />
+            </button>
+          )}
           {onRemove && (
             <button
               onClick={() => onRemove(track.id)}

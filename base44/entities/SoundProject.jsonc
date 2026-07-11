@@ -53,6 +53,10 @@
             "items": {
               "type": "number"
             }
+          },
+          "sampleUrl": {
+            "type": "string",
+            "default": ""
           }
         }
       }

@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Download } from "lucide-react";
+import { Download, Mic, Square, Upload } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { base44 } from "@/api/base44Client";
 import SoundEngine, { INSTRUMENTS, DEFAULT_BEAT } from "@/components/sound/SoundEngine";
 import TrackRow from "@/components/sound/TrackRow";
 import TransportBar from "@/components/sound/TransportBar";
+import InstrumentKeyboard from "@/components/sound/InstrumentKeyboard";
+
+const ADD_INSTRUMENTS = INSTRUMENTS.filter((i) => i.id !== "sample");
 
 export default function SoundSection() {
   const [tracks, setTracks] = useState(DEFAULT_BEAT);
@@ -16,11 +19,14 @@ export default function SoundSection() {
   const [savedId, setSavedId] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
   const engineRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  const sampleBlobsRef = useRef({});
+  const importRef = useRef(null);
 
-  useEffect(() => {
-    engineRef.current = SoundEngine;
-  }, []);
+  useEffect(() => { engineRef.current = SoundEngine; }, []);
 
   useEffect(() => {
     (async () => {
@@ -39,27 +45,17 @@ export default function SoundSection() {
   }, [tracks, bpm]);
 
   useEffect(() => {
-    if (engineRef.current) {
-      engineRef.current.setMasterVolume(masterVolume);
-    }
+    if (engineRef.current) engineRef.current.setMasterVolume(masterVolume);
   }, [masterVolume]);
 
   useEffect(() => {
-    if (engineRef.current) {
-      engineRef.current.onStep = (step) => setCurrentStep(step);
-    }
+    if (engineRef.current) engineRef.current.onStep = (step) => setCurrentStep(step);
   }, []);
 
   const handlePlay = useCallback(() => {
     if (!engineRef.current) return;
-    if (isPlaying) {
-      engineRef.current.stop();
-      setIsPlaying(false);
-      setCurrentStep(-1);
-    } else {
-      engineRef.current.play();
-      setIsPlaying(true);
-    }
+    if (isPlaying) { engineRef.current.stop(); setIsPlaying(false); setCurrentStep(-1); }
+    else { engineRef.current.play(); setIsPlaying(true); }
   }, [isPlaying]);
 
   const handleStop = useCallback(() => {
@@ -78,29 +74,13 @@ export default function SoundSection() {
     }));
   };
 
-  const setVolume = (trackId, vol) => {
-    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, volume: vol } : t)));
-  };
-
-  const setPan = (trackId, pan) => {
-    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, pan } : t)));
-  };
-
-  const toggleMute = (trackId) => {
-    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, muted: !t.muted } : t)));
-  };
-
-  const toggleSolo = (trackId) => {
-    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, solo: !t.solo } : t)));
-  };
-
-  const setRootNote = (trackId, note) => {
-    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, rootNote: note } : t)));
-  };
-
-  const renameTrack = (trackId, name) => {
-    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, name } : t)));
-  };
+  const setVolume = (trackId, vol) => setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, volume: vol } : t)));
+  const setPan = (trackId, pan) => setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, pan } : t)));
+  const toggleMute = (trackId) => setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, muted: !t.muted } : t)));
+  const toggleSolo = (trackId) => setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, solo: !t.solo } : t)));
+  const setRootNote = (trackId, note) => setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, rootNote: note } : t)));
+  const renameTrack = (trackId, name) => setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, name } : t)));
+  const previewSample = (trackId) => engineRef.current?.playSample(trackId, 0.85);
 
   const addTrack = (instrumentId) => {
     const inst = INSTRUMENTS.find((i) => i.id === instrumentId);
@@ -114,6 +94,7 @@ export default function SoundSection() {
 
   const removeTrack = (trackId) => {
     setTracks((prev) => prev.filter((t) => t.id !== trackId));
+    delete sampleBlobsRef.current[trackId];
   };
 
   const handleDragEnd = (result) => {
@@ -131,7 +112,7 @@ export default function SoundSection() {
     if (engineRef.current) engineRef.current.stop();
     setIsPlaying(false);
     setCurrentStep(-1);
-    setTracks(INSTRUMENTS.map((inst) => ({
+    setTracks(ADD_INSTRUMENTS.map((inst) => ({
       id: inst.id, name: inst.name, instrument: inst.id,
       volume: 0.7, pan: 0, muted: false, solo: false, rootNote: 0, steps: Array(16).fill(0),
     })));
@@ -140,26 +121,82 @@ export default function SoundSection() {
   };
 
   const handleRandomize = () => {
-    setTracks((prev) => prev.map((t) => ({
-      ...t,
-      steps: t.steps.map(() => (Math.random() < 0.25 ? 1 : 0)),
-    })));
+    setTracks((prev) => prev.map((t) => ({ ...t, steps: t.steps.map(() => (Math.random() < 0.25 ? 1 : 0)) })));
   };
 
   const handleClear = () => {
     setTracks((prev) => prev.map((t) => ({ ...t, steps: Array(16).fill(0) })));
   };
 
+  // ---- Sample recording & import ----
+  const addSampleTrack = async (blob, name) => {
+    const sampleId = `sample-${Date.now()}`;
+    const url = URL.createObjectURL(blob);
+    sampleBlobsRef.current[sampleId] = blob;
+    await engineRef.current.loadSample(sampleId, url);
+    setTracks((prev) => [...prev, {
+      id: sampleId, name: (name || "Sample").slice(0, 28), instrument: "sample",
+      volume: 0.8, pan: 0, muted: false, solo: false, rootNote: 0,
+      steps: Array(16).fill(0), sampleUrl: url,
+    }]);
+  };
+
+  const startRecord = () => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const stream = engine.getRecordStream();
+    let rec;
+    try { rec = new MediaRecorder(stream, { mimeType: "audio/webm" }); }
+    catch { try { rec = new MediaRecorder(stream); } catch { return; } }
+    recordedChunksRef.current = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) recordedChunksRef.current.push(e.data); };
+    rec.onstop = () => {
+      if (recordedChunksRef.current.length) {
+        const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
+        addSampleTrack(blob, "Recording");
+      }
+    };
+    rec.start(100);
+    mediaRecorderRef.current = rec;
+    setRecording(true);
+  };
+
+  const stopRecord = () => {
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+    setRecording(false);
+  };
+
+  const onImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    addSampleTrack(file, file.name.replace(/\.[^.]+$/, ""));
+    e.target.value = "";
+  };
+
   const handleSave = async () => {
     setLoading(true);
     try {
-      const payload = { name: projectName, bpm, masterVolume, tracks };
+      const tracksToSave = [];
+      for (const t of tracks) {
+        if (t.instrument === "sample" && t.sampleUrl && t.sampleUrl.startsWith("blob:")) {
+          const blob = sampleBlobsRef.current[t.id];
+          if (blob) {
+            const { file_url } = await base44.integrations.Core.UploadFile({ file: blob });
+            tracksToSave.push({ ...t, sampleUrl: file_url });
+            continue;
+          }
+        }
+        tracksToSave.push(t);
+      }
+      const payload = { name: projectName, bpm, masterVolume, tracks: tracksToSave };
       if (savedId) {
         await base44.entities.SoundProject.update(savedId, payload);
       } else {
         const created = await base44.entities.SoundProject.create(payload);
         setSavedId(created.id);
       }
+      setTracks(tracksToSave);
       const list = await base44.entities.SoundProject.list("-updated_date", 20);
       setProjects(list);
     } catch (e) {
@@ -169,15 +206,21 @@ export default function SoundSection() {
     }
   };
 
-  const loadProject = (proj) => {
+  const loadProject = async (proj) => {
     if (engineRef.current) engineRef.current.stop();
     setIsPlaying(false);
     setCurrentStep(-1);
-    setTracks(proj.tracks?.length ? proj.tracks : DEFAULT_BEAT);
+    const newTracks = proj.tracks?.length ? proj.tracks : DEFAULT_BEAT;
+    setTracks(newTracks);
     setBpm(proj.bpm || 120);
     setMasterVolume(proj.masterVolume ?? 0.75);
     setProjectName(proj.name);
     setSavedId(proj.id);
+    for (const t of newTracks) {
+      if (t.instrument === "sample" && t.sampleUrl) {
+        await engineRef.current.loadSample(t.id, t.sampleUrl);
+      }
+    }
   };
 
   return (
@@ -202,7 +245,7 @@ export default function SoundSection() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sequencer */}
+        {/* Sequencer + live play */}
         <div className="flex-1 overflow-y-auto px-6 py-6 md:px-12">
           <div className="mx-auto max-w-4xl">
             {/* Step numbers */}
@@ -246,6 +289,7 @@ export default function SoundSection() {
                               onRootNote={setRootNote}
                               onRename={renameTrack}
                               onRemove={removeTrack}
+                              onPreview={previewSample}
                             />
                           </div>
                         )}
@@ -258,8 +302,50 @@ export default function SoundSection() {
             </DragDropContext>
 
             <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-              Drag tracks to reorder · Click cells to toggle beats · S = Solo · M = Mute · 13 instruments
+              Drag tracks to reorder · Click cells to toggle beats · S = Solo · M = Mute · {ADD_INSTRUMENTS.length} instruments
             </p>
+
+            {/* Live play + recording panel */}
+            <div className="mt-6 space-y-4">
+              <InstrumentKeyboard />
+
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/40 bg-background/40 p-4">
+                <div className="flex items-center gap-2">
+                  <Mic className="h-4 w-4 text-primary" strokeWidth={1.5} />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Samples</span>
+                </div>
+                {recording ? (
+                  <button
+                    onClick={stopRecord}
+                    className="flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 font-mono text-xs uppercase text-destructive-foreground transition-opacity hover:opacity-90"
+                  >
+                    <Square className="h-4 w-4" strokeWidth={2} /> Stop & Add
+                  </button>
+                ) : (
+                  <button
+                    onClick={startRecord}
+                    className="flex items-center gap-2 rounded-lg border border-border/60 px-4 py-2 font-mono text-xs uppercase text-foreground/80 transition-colors hover:border-primary hover:text-primary"
+                  >
+                    <Mic className="h-4 w-4" strokeWidth={1.5} /> Record
+                  </button>
+                )}
+                <button
+                  onClick={() => importRef.current?.click()}
+                  className="flex items-center gap-2 rounded-lg border border-border/60 px-4 py-2 font-mono text-xs uppercase text-foreground/80 transition-colors hover:border-primary hover:text-primary"
+                >
+                  <Upload className="h-4 w-4" strokeWidth={1.5} /> Import
+                </button>
+                <input ref={importRef} type="file" accept="audio/*" onChange={onImport} className="hidden" />
+                {recording && (
+                  <span className="flex items-center gap-2 font-mono text-[10px] uppercase text-destructive">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" /> Recording live play…
+                  </span>
+                )}
+                <p className="ml-auto hidden font-mono text-[10px] text-muted-foreground/60 md:block">
+                  Record captures anything you play · Import loads any audio file → new sample track
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

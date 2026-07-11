@@ -1,6 +1,5 @@
-// Web Audio API synthesis engine — no external audio files needed.
-// All instruments are synthesized programmatically.
-// Supports per-track pan, solo, and master volume.
+// Web Audio API synthesis engine — all instruments synthesized programmatically.
+// Supports per-track pan/solo, master volume, live key play, sample playback, and recording.
 
 const NOTE_FREQS = {
   C: 261.63, "C#": 277.18, D: 293.66, "D#": 311.13,
@@ -8,6 +7,7 @@ const NOTE_FREQS = {
   "G#": 415.3, A: 440.0, "A#": 466.16, B: 493.88,
 };
 const SCALE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const BASE_FREQ = 261.63; // C4
 
 function noteFreq(rootIndex, octave, semitoneOffset) {
   const offset = semitoneOffset || 0;
@@ -16,14 +16,19 @@ function noteFreq(rootIndex, octave, semitoneOffset) {
   return NOTE_FREQS[SCALE_NAMES[idx]] * Math.pow(2, oct - 4);
 }
 
+// Default octave per instrument family — keeps bass/low voices in register.
+const OCTAVE = { bass: 2, acid: 2, wobble: 2, tom: 3, pad: 3 };
+
 class SoundEngine {
   constructor() {
     this.ctx = null;
     this.master = null;
+    this.recordDest = null;
     this.isPlaying = false;
     this.currentStep = 0;
     this.bpm = 120;
     this.tracks = [];
+    this.samples = {}; // sampleId -> AudioBuffer
     this.onStep = null;
     this._timer = null;
   }
@@ -45,17 +50,12 @@ class SoundEngine {
 
   setTracks(tracks) { this.tracks = tracks; }
   setBpm(bpm) { this.bpm = bpm; }
-  setMasterVolume(vol) {
-    if (this.master) this.master.gain.value = vol;
-  }
+  setMasterVolume(vol) { if (this.master) this.master.gain.value = vol; }
 
-  stepDuration() {
-    return 60 / this.bpm / 4;
-  }
+  stepDuration() { return 60 / this.bpm / 4; }
 
   play() {
-    this.init();
-    this.resume();
+    this.init(); this.resume();
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.currentStep = 0;
@@ -82,30 +82,40 @@ class SoundEngine {
   }
 
   _scheduleStep(step, time) {
-    const hasSolo = this.tracks.some(function (t) { return t.solo; });
-    var delay = (time - this.ctx.currentTime) * 1000;
-    for (var i = 0; i < this.tracks.length; i++) {
-      var track = this.tracks[i];
+    const hasSolo = this.tracks.some((t) => t.solo);
+    const delay = (time - this.ctx.currentTime) * 1000;
+    for (const track of this.tracks) {
       if (track.muted) continue;
       if (hasSolo && !track.solo) continue;
-      if (track.steps[step]) {
-        this._trigger(track.instrument, time, track.volume, track.rootNote, track.pan);
-      }
+      if (track.steps[step]) this._trigger(track, time);
     }
-    var self = this;
-    setTimeout(function () { if (self.onStep) self.onStep(step); }, Math.max(0, delay));
+    const self = this;
+    setTimeout(() => { if (self.onStep) self.onStep(step); }, Math.max(0, delay));
   }
 
-  _trigger(instrument, time, volume, rootNote, pan) {
-    var dest = this.master;
+  _destForPan(pan) {
     if (pan && pan !== 0) {
-      var panner = this.ctx.createStereoPanner();
+      const panner = this.ctx.createStereoPanner();
       panner.pan.value = pan;
       panner.connect(this.master);
-      dest = panner;
+      return panner;
     }
-    var vol = volume;
-    var rn = rootNote || 0;
+    return this.master;
+  }
+
+  _trigger(track, time) {
+    const dest = this._destForPan(track.pan);
+    const vol = track.volume ?? 0.7;
+    if (track.instrument === "sample") {
+      const buffer = this.samples[track.id];
+      if (buffer) this._sample(time, vol, dest, buffer);
+      return;
+    }
+    const freq = noteFreq(track.rootNote || 0, OCTAVE[track.instrument] ?? 4, 0);
+    this._triggerVoice(track.instrument, time, vol, freq, dest);
+  }
+
+  _triggerVoice(instrument, time, vol, freq, dest) {
     switch (instrument) {
       case "kick": this._kick(time, vol, dest); break;
       case "snare": this._snare(time, vol, dest); break;
@@ -113,19 +123,81 @@ class SoundEngine {
       case "openhat": this._openhat(time, vol, dest); break;
       case "clap": this._clap(time, vol, dest); break;
       case "cowbell": this._cowbell(time, vol, dest); break;
-      case "tom": this._tom(time, vol, dest, noteFreq(rn, 3)); break;
-      case "bass": this._bass(time, vol, dest, noteFreq(rn, 2)); break;
-      case "piano": this._piano(time, vol, dest, noteFreq(rn, 4)); break;
-      case "lead": this._lead(time, vol, dest, noteFreq(rn, 4)); break;
-      case "pluck": this._pluck(time, vol, dest, noteFreq(rn, 4)); break;
-      case "pad": this._pad(time, vol, dest, noteFreq(rn, 3)); break;
-      case "arp": this._arp(time, vol, dest, noteFreq(rn, 4)); break;
+      case "tom": this._tom(time, vol, dest, freq); break;
+      case "bass": this._bass(time, vol, dest, freq); break;
+      case "acid": this._acid(time, vol, dest, freq); break;
+      case "wobble": this._wobble(time, vol, dest, freq); break;
+      case "piano": this._piano(time, vol, dest, freq); break;
+      case "fm": this._fm(time, vol, dest, freq); break;
+      case "organ": this._organ(time, vol, dest, freq); break;
+      case "bell": this._bell(time, vol, dest, freq); break;
+      case "lead": this._lead(time, vol, dest, freq); break;
+      case "sawlead": this._sawlead(time, vol, dest, freq); break;
+      case "square": this._square(time, vol, dest, freq); break;
+      case "brass": this._brass(time, vol, dest, freq); break;
+      case "strings": this._strings(time, vol, dest, freq); break;
+      case "choir": this._choir(time, vol, dest, freq); break;
+      case "pluck": this._pluck(time, vol, dest, freq); break;
+      case "pad": this._pad(time, vol, dest, freq); break;
+      case "arp": this._arp(time, vol, dest, freq); break;
+      default: break;
     }
   }
 
+  // Live play — semitone offset from C4 (use negative for lower octaves).
+  playKey(instrument, semitone, vol, pan) {
+    this.init(); this.resume();
+    const dest = this._destForPan(pan);
+    const freq = BASE_FREQ * Math.pow(2, semitone / 12);
+    this._triggerVoice(instrument, this.ctx.currentTime, vol ?? 0.7, freq, dest);
+  }
+
+  // One-shot sample preview.
+  playSample(sampleId, vol) {
+    this.init(); this.resume();
+    const buffer = this.samples[sampleId];
+    if (!buffer) return;
+    this._sample(this.ctx.currentTime, vol ?? 0.8, this.master, buffer);
+  }
+
+  async loadSample(sampleId, url) {
+    this.init();
+    try {
+      const res = await fetch(url);
+      const arr = await res.arrayBuffer();
+      const buffer = await this.ctx.decodeAudioData(arr);
+      this.samples[sampleId] = buffer;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // MediaStream tap of the master bus for recording.
+  getRecordStream() {
+    this.init();
+    if (!this.recordDest) {
+      this.recordDest = this.ctx.createMediaStreamDestination();
+      this.master.connect(this.recordDest);
+    }
+    return this.recordDest.stream;
+  }
+
+  // ---- Sample playback ----
+  _sample(time, vol, dest, buffer) {
+    if (!buffer) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = this.ctx.createGain();
+    gain.gain.value = vol;
+    src.connect(gain); gain.connect(dest);
+    src.start(time);
+  }
+
+  // ---- Drums / percussion ----
   _kick(time, vol, dest) {
-    var osc = this.ctx.createOscillator();
-    var gain = this.ctx.createGain();
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
     osc.frequency.setValueAtTime(150, time);
     osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
     gain.gain.setValueAtTime(vol * 0.9, time);
@@ -135,18 +207,17 @@ class SoundEngine {
   }
 
   _snare(time, vol, dest) {
-    var noise = this._noise(0.2);
-    var filter = this.ctx.createBiquadFilter();
+    const noise = this._noise(0.2);
+    const filter = this.ctx.createBiquadFilter();
     filter.type = "highpass"; filter.frequency.value = 1000;
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.5, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
     noise.connect(filter); filter.connect(gain); gain.connect(dest);
     noise.start(time); noise.stop(time + 0.2);
-
-    var osc = this.ctx.createOscillator();
+    const osc = this.ctx.createOscillator();
     osc.type = "triangle"; osc.frequency.value = 180;
-    var g2 = this.ctx.createGain();
+    const g2 = this.ctx.createGain();
     g2.gain.setValueAtTime(vol * 0.3, time);
     g2.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
     osc.connect(g2); g2.connect(dest);
@@ -154,10 +225,10 @@ class SoundEngine {
   }
 
   _hihat(time, vol, dest) {
-    var noise = this._noise(0.05);
-    var filter = this.ctx.createBiquadFilter();
+    const noise = this._noise(0.05);
+    const filter = this.ctx.createBiquadFilter();
     filter.type = "highpass"; filter.frequency.value = 7000;
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.3, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
     noise.connect(filter); filter.connect(gain); gain.connect(dest);
@@ -165,10 +236,10 @@ class SoundEngine {
   }
 
   _openhat(time, vol, dest) {
-    var noise = this._noise(0.35);
-    var filter = this.ctx.createBiquadFilter();
+    const noise = this._noise(0.35);
+    const filter = this.ctx.createBiquadFilter();
     filter.type = "highpass"; filter.frequency.value = 6000;
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.25, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.35);
     noise.connect(filter); filter.connect(gain); gain.connect(dest);
@@ -176,12 +247,12 @@ class SoundEngine {
   }
 
   _clap(time, vol, dest) {
-    var self = this;
-    [0, 0.01, 0.02, 0.03].forEach(function (offset) {
-      var noise = self._noise(0.1);
-      var filter = self.ctx.createBiquadFilter();
+    const self = this;
+    [0, 0.01, 0.02, 0.03].forEach((offset) => {
+      const noise = self._noise(0.1);
+      const filter = self.ctx.createBiquadFilter();
       filter.type = "bandpass"; filter.frequency.value = 1500; filter.Q.value = 1;
-      var gain = self.ctx.createGain();
+      const gain = self.ctx.createGain();
       gain.gain.setValueAtTime(vol * 0.4, time + offset);
       gain.gain.exponentialRampToValueAtTime(0.001, time + offset + 0.1);
       noise.connect(filter); filter.connect(gain); gain.connect(dest);
@@ -190,14 +261,14 @@ class SoundEngine {
   }
 
   _cowbell(time, vol, dest) {
-    var osc1 = this.ctx.createOscillator();
+    const osc1 = this.ctx.createOscillator();
     osc1.type = "square"; osc1.frequency.value = 560;
-    var osc2 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
     osc2.type = "square"; osc2.frequency.value = 845;
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.25, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-    var filter = this.ctx.createBiquadFilter();
+    const filter = this.ctx.createBiquadFilter();
     filter.type = "bandpass"; filter.frequency.value = 800;
     osc1.connect(filter); osc2.connect(filter); filter.connect(gain); gain.connect(dest);
     osc1.start(time); osc1.stop(time + 0.15);
@@ -205,41 +276,74 @@ class SoundEngine {
   }
 
   _tom(time, vol, dest, freq) {
-    var osc = this.ctx.createOscillator();
+    const osc = this.ctx.createOscillator();
     osc.type = "sine";
     osc.frequency.setValueAtTime(freq, time);
     osc.frequency.exponentialRampToValueAtTime(freq * 0.4, time + 0.3);
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.7, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
     osc.connect(gain); gain.connect(dest);
     osc.start(time); osc.stop(time + 0.3);
   }
 
+  // ---- Bass ----
   _bass(time, vol, dest, freq) {
-    var osc = this.ctx.createOscillator();
+    const osc = this.ctx.createOscillator();
     osc.type = "sawtooth"; osc.frequency.value = freq;
-    var filter = this.ctx.createBiquadFilter();
+    const filter = this.ctx.createBiquadFilter();
     filter.type = "lowpass"; filter.frequency.setValueAtTime(800, time);
     filter.frequency.exponentialRampToValueAtTime(100, time + 0.3);
     filter.Q.value = 5;
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.5, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
     osc.connect(filter); filter.connect(gain); gain.connect(dest);
     osc.start(time); osc.stop(time + 0.3);
   }
 
+  _acid(time, vol, dest, freq) {
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth"; osc.frequency.value = freq;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass"; filter.Q.value = 12;
+    filter.frequency.setValueAtTime(200, time);
+    filter.frequency.exponentialRampToValueAtTime(3000, time + 0.05);
+    filter.frequency.exponentialRampToValueAtTime(200, time + 0.25);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+    osc.connect(filter); filter.connect(gain); gain.connect(dest);
+    osc.start(time); osc.stop(time + 0.25);
+  }
+
+  _wobble(time, vol, dest, freq) {
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth"; osc.frequency.value = freq;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass"; filter.frequency.value = 400; filter.Q.value = 8;
+    const lfo = this.ctx.createOscillator(); lfo.type = "sine"; lfo.frequency.value = 8;
+    const lfoGain = this.ctx.createGain(); lfoGain.gain.value = 600;
+    lfo.connect(lfoGain); lfoGain.connect(filter.frequency);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+    osc.connect(filter); filter.connect(gain); gain.connect(dest);
+    osc.start(time); osc.stop(time + 0.3);
+    lfo.start(time); lfo.stop(time + 0.3);
+  }
+
+  // ---- Keys ----
   _piano(time, vol, dest, freq) {
-    var carrier = this.ctx.createOscillator();
+    const carrier = this.ctx.createOscillator();
     carrier.type = "sine"; carrier.frequency.value = freq;
-    var modulator = this.ctx.createOscillator();
+    const modulator = this.ctx.createOscillator();
     modulator.type = "sine"; modulator.frequency.value = freq * 2;
-    var modGain = this.ctx.createGain();
+    const modGain = this.ctx.createGain();
     modGain.gain.setValueAtTime(freq * 3, time);
     modGain.gain.exponentialRampToValueAtTime(0.1, time + 0.4);
     modulator.connect(modGain); modGain.connect(carrier.frequency);
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.4, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
     carrier.connect(gain); gain.connect(dest);
@@ -247,28 +351,155 @@ class SoundEngine {
     modulator.start(time); modulator.stop(time + 0.4);
   }
 
+  _fm(time, vol, dest, freq) {
+    const carrier = this.ctx.createOscillator();
+    carrier.type = "sine"; carrier.frequency.value = freq;
+    const mod = this.ctx.createOscillator();
+    mod.type = "sine"; mod.frequency.value = freq * 14;
+    const modGain = this.ctx.createGain();
+    modGain.gain.setValueAtTime(freq * 4, time);
+    modGain.gain.exponentialRampToValueAtTime(0.1, time + 0.5);
+    mod.connect(modGain); modGain.connect(carrier.frequency);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(vol * 0.35, time + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
+    carrier.connect(gain); gain.connect(dest);
+    carrier.start(time); carrier.stop(time + 0.6);
+    mod.start(time); mod.stop(time + 0.6);
+  }
+
+  _organ(time, vol, dest, freq) {
+    [1, 2, 3, 4, 6].forEach((m) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = "sine"; osc.frequency.value = freq * m;
+      const gain = this.ctx.createGain();
+      const amp = vol * (m === 1 ? 0.25 : m === 2 ? 0.18 : m === 3 ? 0.1 : 0.06);
+      gain.gain.setValueAtTime(amp, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+      osc.connect(gain); gain.connect(dest);
+      osc.start(time); osc.stop(time + 0.5);
+    });
+  }
+
+  _bell(time, vol, dest, freq) {
+    const carrier = this.ctx.createOscillator();
+    carrier.type = "sine"; carrier.frequency.value = freq * 2;
+    const mod = this.ctx.createOscillator();
+    mod.type = "sine"; mod.frequency.value = freq * 3;
+    const modGain = this.ctx.createGain();
+    modGain.gain.setValueAtTime(freq * 8, time);
+    modGain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
+    mod.connect(modGain); modGain.connect(carrier.frequency);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
+    carrier.connect(gain); gain.connect(dest);
+    carrier.start(time); carrier.stop(time + 0.8);
+    mod.start(time); mod.stop(time + 0.8);
+  }
+
+  // ---- Synths ----
   _lead(time, vol, dest, freq) {
-    var osc = this.ctx.createOscillator();
+    const osc = this.ctx.createOscillator();
     osc.type = "square"; osc.frequency.value = freq;
-    var osc2 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
     osc2.type = "sawtooth"; osc2.frequency.value = freq * 1.005;
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.25, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
-    var filter = this.ctx.createBiquadFilter();
+    const filter = this.ctx.createBiquadFilter();
     filter.type = "lowpass"; filter.frequency.value = 3000;
     osc.connect(filter); osc2.connect(filter); filter.connect(gain); gain.connect(dest);
     osc.start(time); osc.stop(time + 0.25);
     osc2.start(time); osc2.stop(time + 0.25);
   }
 
-  _pluck(time, vol, dest, freq) {
-    var osc = this.ctx.createOscillator();
+  _sawlead(time, vol, dest, freq) {
+    const osc1 = this.ctx.createOscillator();
+    osc1.type = "sawtooth"; osc1.frequency.value = freq;
+    const osc2 = this.ctx.createOscillator();
+    osc2.type = "sawtooth"; osc2.frequency.value = freq * 1.007;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass"; filter.frequency.value = 3500; filter.Q.value = 1;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(vol * 0.3, time + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+    osc1.connect(filter); osc2.connect(filter); filter.connect(gain); gain.connect(dest);
+    osc1.start(time); osc1.stop(time + 0.4);
+    osc2.start(time); osc2.stop(time + 0.4);
+  }
+
+  _square(time, vol, dest, freq) {
+    const osc = this.ctx.createOscillator();
+    osc.type = "square"; osc.frequency.value = freq;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.25, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+    osc.connect(gain); gain.connect(dest);
+    osc.start(time); osc.stop(time + 0.2);
+  }
+
+  _brass(time, vol, dest, freq) {
+    const osc = this.ctx.createOscillator();
     osc.type = "sawtooth"; osc.frequency.value = freq;
-    var filter = this.ctx.createBiquadFilter();
+    const osc2 = this.ctx.createOscillator();
+    osc2.type = "sawtooth"; osc2.frequency.value = freq * 1.005;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(800, time);
+    filter.frequency.linearRampToValueAtTime(2500, time + 0.1);
+    filter.frequency.exponentialRampToValueAtTime(800, time + 0.4);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(vol * 0.25, time + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+    osc.connect(filter); osc2.connect(filter); filter.connect(gain); gain.connect(dest);
+    osc.start(time); osc.stop(time + 0.4);
+    osc2.start(time); osc2.stop(time + 0.4);
+  }
+
+  _strings(time, vol, dest, freq) {
+    [1, 1.003, 0.997].forEach((m) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = "sawtooth"; osc.frequency.value = freq * m;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "lowpass"; filter.frequency.value = 2200;
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(vol * 0.12, time + 0.08);
+      gain.gain.linearRampToValueAtTime(0.001, time + 0.6);
+      osc.connect(filter); filter.connect(gain); gain.connect(dest);
+      osc.start(time); osc.stop(time + 0.6);
+    });
+  }
+
+  _choir(time, vol, dest, freq) {
+    [1, 1.005, 0.995, 2.01].forEach((m) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = "sine"; osc.frequency.value = freq * m;
+      const vibrato = this.ctx.createOscillator();
+      vibrato.type = "sine"; vibrato.frequency.value = 5;
+      const vibGain = this.ctx.createGain(); vibGain.gain.value = freq * 0.01;
+      vibrato.connect(vibGain); vibGain.connect(osc.frequency);
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(vol * 0.1, time + 0.15);
+      gain.gain.linearRampToValueAtTime(0.001, time + 0.7);
+      osc.connect(gain); gain.connect(dest);
+      osc.start(time); osc.stop(time + 0.7);
+      vibrato.start(time); vibrato.stop(time + 0.7);
+    });
+  }
+
+  _pluck(time, vol, dest, freq) {
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth"; osc.frequency.value = freq;
+    const filter = this.ctx.createBiquadFilter();
     filter.type = "lowpass"; filter.frequency.setValueAtTime(4000, time);
     filter.frequency.exponentialRampToValueAtTime(200, time + 0.2);
-    var gain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol * 0.4, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
     osc.connect(filter); filter.connect(gain); gain.connect(dest);
@@ -276,15 +507,14 @@ class SoundEngine {
   }
 
   _pad(time, vol, dest, freq) {
-    var self = this;
-    [1, 1.003, 0.997, 2].forEach(function (mult) {
-      var osc = self.ctx.createOscillator();
-      osc.type = "sawtooth"; osc.frequency.value = freq * mult;
-      var gain = self.ctx.createGain();
+    [1, 1.003, 0.997, 2].forEach((m) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = "sawtooth"; osc.frequency.value = freq * m;
+      const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0, time);
       gain.gain.linearRampToValueAtTime(vol * 0.15, time + 0.05);
       gain.gain.linearRampToValueAtTime(0.001, time + 0.5);
-      var filter = self.ctx.createBiquadFilter();
+      const filter = this.ctx.createBiquadFilter();
       filter.type = "lowpass"; filter.frequency.value = 2000;
       osc.connect(filter); filter.connect(gain); gain.connect(dest);
       osc.start(time); osc.stop(time + 0.5);
@@ -292,13 +522,12 @@ class SoundEngine {
   }
 
   _arp(time, vol, dest, freq) {
-    var self = this;
-    [0, 4, 7, 12].forEach(function (semi, i) {
-      var f = freq * Math.pow(2, semi / 12);
-      var osc = self.ctx.createOscillator();
+    [0, 4, 7, 12].forEach((semi, i) => {
+      const f = freq * Math.pow(2, semi / 12);
+      const osc = this.ctx.createOscillator();
       osc.type = "square"; osc.frequency.value = f;
-      var gain = self.ctx.createGain();
-      var t = time + i * 0.04;
+      const gain = this.ctx.createGain();
+      const t = time + i * 0.04;
       gain.gain.setValueAtTime(vol * 0.2, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
       osc.connect(gain); gain.connect(dest);
@@ -307,17 +536,18 @@ class SoundEngine {
   }
 
   _noise(duration) {
-    var bufferSize = this.ctx.sampleRate * duration;
-    var buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    var data = buffer.getChannelData(0);
-    for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-    var source = this.ctx.createBufferSource();
+    const bufferSize = this.ctx.sampleRate * duration;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     return source;
   }
 }
 
-export var INSTRUMENTS = [
+export const INSTRUMENTS = [
+  // drums / percussion
   { id: "kick", name: "Kick", color: "#ef4444", melodic: false },
   { id: "snare", name: "Snare", color: "#f97316", melodic: false },
   { id: "hihat", name: "Hi-Hat", color: "#eab308", melodic: false },
@@ -325,38 +555,45 @@ export var INSTRUMENTS = [
   { id: "clap", name: "Clap", color: "#84cc16", melodic: false },
   { id: "cowbell", name: "Cowbell", color: "#22c55e", melodic: false },
   { id: "tom", name: "Tom", color: "#14b8a6", melodic: true },
+  // bass
   { id: "bass", name: "Bass", color: "#06b6d4", melodic: true },
+  { id: "acid", name: "Acid 303", color: "#0891b2", melodic: true },
+  { id: "wobble", name: "Wobble", color: "#0e7490", melodic: true },
+  // keys
   { id: "piano", name: "Piano", color: "#3b82f6", melodic: true },
+  { id: "fm", name: "FM E.Piano", color: "#6366f1", melodic: true },
+  { id: "organ", name: "Organ", color: "#8b5cf6", melodic: true },
+  { id: "bell", name: "Bell", color: "#a855f7", melodic: true },
+  // synths
   { id: "lead", name: "Lead", color: "#6366f1", melodic: true },
+  { id: "sawlead", name: "Saw Lead", color: "#7c3aed", melodic: true },
+  { id: "square", name: "Square", color: "#9333ea", melodic: true },
+  { id: "brass", name: "Brass", color: "#c026d3", melodic: true },
+  { id: "strings", name: "Strings", color: "#d946ef", melodic: true },
+  { id: "choir", name: "Choir", color: "#ec4899", melodic: true },
   { id: "pluck", name: "Pluck", color: "#8b5cf6", melodic: true },
   { id: "pad", name: "Pad", color: "#a855f7", melodic: true },
   { id: "arp", name: "Arp", color: "#d946ef", melodic: true },
+  // sample (recorded / imported — not shown in the add-track menu)
+  { id: "sample", name: "Sample", color: "#94a3b8", melodic: false },
 ];
 
-export var NOTE_NAMES = SCALE_NAMES;
+export const NOTE_NAMES = SCALE_NAMES;
 
-export var DEFAULT_TRACKS = INSTRUMENTS.map(function (inst) {
-  return {
-    id: inst.id,
-    name: inst.name,
-    instrument: inst.id,
-    volume: 0.7,
-    pan: 0,
-    muted: false,
-    solo: false,
-    rootNote: 0,
-    steps: Array(16).fill(0),
-  };
-});
+export const DEFAULT_TRACKS = INSTRUMENTS.filter((i) => i.id !== "sample").map((inst) => ({
+  id: inst.id, name: inst.name, instrument: inst.id,
+  volume: 0.7, pan: 0, muted: false, solo: false, rootNote: 0, steps: Array(16).fill(0),
+}));
 
-export var DEFAULT_BEAT = [
+export const DEFAULT_BEAT = [
   { id: "kick", name: "Kick", instrument: "kick", volume: 0.8, pan: 0, muted: false, solo: false, rootNote: 0, steps: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0] },
   { id: "snare", name: "Snare", instrument: "snare", volume: 0.7, pan: 0, muted: false, solo: false, rootNote: 0, steps: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0] },
   { id: "hihat", name: "Hi-Hat", instrument: "hihat", volume: 0.5, pan: 0, muted: false, solo: false, rootNote: 0, steps: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0] },
   { id: "clap", name: "Clap", instrument: "clap", volume: 0.6, pan: 0, muted: false, solo: false, rootNote: 0, steps: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0] },
   { id: "bass", name: "Bass", instrument: "bass", volume: 0.6, pan: 0, muted: false, solo: false, rootNote: 0, steps: [1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0] },
-  { id: "lead", name: "Lead", instrument: "lead", volume: 0.45, pan: 0, muted: false, solo: false, rootNote: 0, steps: [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0] },
-  { id: "pad", name: "Pad", instrument: "pad", volume: 0.35, pan: 0, muted: false, solo: false, rootNote: 0, steps: [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+  { id: "piano", name: "Piano", instrument: "piano", volume: 0.45, pan: 0, muted: false, solo: false, rootNote: 0, steps: [0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0] },
+  { id: "lead", name: "Lead", instrument: "lead", volume: 0.4, pan: 0, muted: false, solo: false, rootNote: 0, steps: [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0] },
+  { id: "pad", name: "Pad", instrument: "pad", volume: 0.3, pan: 0, muted: false, solo: false, rootNote: 0, steps: [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
 ];
 
 export default new SoundEngine();
