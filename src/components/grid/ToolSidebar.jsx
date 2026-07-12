@@ -2,6 +2,7 @@ import React from "react";
 import {
   Pen, Pencil, Brush, SprayCan, Highlighter, Droplet, Feather,
   Eraser, PaintBucket, Pipette, Hand, Undo2, Redo2, Trash2, Download, ZoomIn, ZoomOut,
+  Square, Circle, Slash, Type,
 } from "lucide-react";
 import { BRUSHES } from "@/components/grid/brushes";
 import ColorPicker from "@/components/grid/ColorPicker";
@@ -17,6 +18,10 @@ const TOOLS = [
   { id: "fill", label: "Fill", Icon: PaintBucket },
   { id: "eyedropper", label: "Pick", Icon: Pipette },
   { id: "move", label: "Move", Icon: Hand },
+  { id: "line", label: "Line", Icon: Slash },
+  { id: "rect", label: "Rect", Icon: Square },
+  { id: "ellipse", label: "Oval", Icon: Circle },
+  { id: "text", label: "Text", Icon: Type },
 ];
 
 function Label({ children, right }) {
@@ -139,7 +144,7 @@ export default function ToolSidebar({
         </div>
 
         <p className="font-mono text-[9px] leading-relaxed text-muted-foreground/50">
-          B brush · E eraser · G fill · I pick · H move · [ ] size · space pan · ⌘Z undo
+          B brush · E eraser · G fill · I pick · H move · L line · R rect · O oval · T text · [ ] size · space pan · pinch to zoom · ⌘Z undo
         </p>
       </div>
     </aside>

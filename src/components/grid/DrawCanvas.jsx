@@ -2,6 +2,28 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { BRUSH_BY_ID, ERASER_DEF, drawSegment, stampDab, floodFill, rgbToHex } from "@/components/grid/brushes";
 
+const SHAPES = new Set(["line", "rect", "ellipse"]);
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const midPt = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+function strokeShape(ctx, type, x0, y0, x1, y1, color, size, opacity) {
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, size);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.beginPath();
+  if (type === "line") { ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }
+  else if (type === "rect") { ctx.rect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)); }
+  else if (type === "ellipse") {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const rx = Math.max(0.5, Math.abs(x1 - x0) / 2), ry = Math.max(0.5, Math.abs(y1 - y0) / 2);
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 export default function DrawCanvas({
   artworkSize, layers, activeId, canvasMapRef, tool, brush, color, size, opacity,
   zoom, pan, setZoom, setPan, onHistoryPush, onColorPick, onChange, version, spacePan,
@@ -13,7 +35,16 @@ export default function DrawCanvas({
   const lastPt = useRef(null);
   const panning = useRef(false);
   const panStart = useRef(null);
+  const pointers = useRef(new Map());
+  const pinching = useRef(false);
+  const pinchStart = useRef(null);
+  const shapeStart = useRef(null);
   const [cursor, setCursor] = useState(null);
+  const [textEditing, setTextEditing] = useState(false);
+  const textEditingRef = useRef(false);
+  const [textPos, setTextPos] = useState({ x: 0, y: 0 });
+  const [textArt, setTextArt] = useState({ x: 0, y: 0 });
+  const [textValue, setTextValue] = useState("");
 
   const composite = useCallback(() => {
     const c = displayRef.current;
@@ -43,13 +74,9 @@ export default function DrawCanvas({
   }, [layers, pan, zoom, artworkSize, canvasMapRef]);
 
   const compositeRef = useRef(composite);
-  useEffect(() => {
-    compositeRef.current = composite;
-  }, [composite]);
+  useEffect(() => { compositeRef.current = composite; }, [composite]);
 
-  useEffect(() => {
-    composite();
-  }, [composite, version, activeId]);
+  useEffect(() => { composite(); }, [composite, version, activeId]);
 
   useEffect(() => {
     const c = displayRef.current;
@@ -112,10 +139,20 @@ export default function DrawCanvas({
   const onPointerDown = (e) => {
     const c = displayRef.current;
     const p = getPos(e);
+    pointers.current.set(e.pointerId, p);
+    // Two fingers → pinch-zoom + two-finger pan (cancels any in-progress stroke).
+    if (pointers.current.size === 2) {
+      drawing.current = false; lastPt.current = null; panning.current = false; shapeStart.current = null;
+      const pts = [...pointers.current.values()];
+      const m0 = midPt(pts[0], pts[1]);
+      pinchStart.current = { dist: dist(pts[0], pts[1]), zoom, pan, art0: { x: (m0.x - pan.x) / zoom, y: (m0.y - pan.y) / zoom } };
+      pinching.current = true;
+      try { c.setPointerCapture(e.pointerId); } catch {}
+      return;
+    }
     if (tool === "move" || spacePan) {
-      panning.current = true;
-      panStart.current = { p, pan };
-      c.setPointerCapture(e.pointerId);
+      panning.current = true; panStart.current = { p, pan };
+      try { c.setPointerCapture(e.pointerId); } catch {}
       return;
     }
     const a = toArt(p);
@@ -128,6 +165,12 @@ export default function DrawCanvas({
       onColorPick(rgbToHex(data[0], data[1], data[2]));
       return;
     }
+    if (tool === "text") {
+      if (!inBounds) return;
+      textEditingRef.current = true; setTextEditing(true);
+      setTextArt(a); setTextPos(p); setTextValue("");
+      return;
+    }
     if (!inBounds) return;
     const lc = canvasMapRef.current.get(activeId);
     if (!lc) return;
@@ -135,23 +178,38 @@ export default function DrawCanvas({
     if (tool === "fill") {
       onHistoryPush();
       floodFill(lctx, artworkSize.w, artworkSize.h, Math.floor(a.x), Math.floor(a.y), color, 0.12);
-      composite();
-      onChange();
+      composite(); onChange();
+      return;
+    }
+    if (SHAPES.has(tool)) {
+      onHistoryPush();
+      shapeStart.current = a; drawing.current = true;
+      try { c.setPointerCapture(e.pointerId); } catch {}
       return;
     }
     const def = tool === "eraser" ? ERASER_DEF : BRUSH_BY_ID[brush];
     if (!def) return;
     onHistoryPush();
-    drawing.current = true;
-    lastPt.current = a;
+    drawing.current = true; lastPt.current = a;
     stampDab(lctx, a.x, a.y, def, color, size, opacity);
     composite();
-    c.setPointerCapture(e.pointerId);
+    try { c.setPointerCapture(e.pointerId); } catch {}
   };
 
   const onPointerMove = (e) => {
     const p = getPos(e);
+    pointers.current.set(e.pointerId, p);
     setCursor(p);
+    if (pinching.current && pointers.current.size >= 2) {
+      const pts = [...pointers.current.values()];
+      const s = pinchStart.current; if (!s) return;
+      const d = dist(pts[0], pts[1]);
+      const nz = Math.max(0.05, Math.min(16, s.zoom * (d / s.dist)));
+      const m = midPt(pts[0], pts[1]);
+      setZoom(nz);
+      setPan({ x: m.x - s.art0.x * nz, y: m.y - s.art0.y * nz });
+      return;
+    }
     if (panning.current && panStart.current) {
       const dx = p.x - panStart.current.p.x;
       const dy = p.y - panStart.current.p.y;
@@ -159,33 +217,73 @@ export default function DrawCanvas({
       return;
     }
     if (!drawing.current) return;
+    const a = toArt(p);
+    if (SHAPES.has(tool) && shapeStart.current) {
+      composite();
+      const c = displayRef.current; const ctx = c.getContext("2d"); const dpr = dprRef.current;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.save(); ctx.translate(pan.x, pan.y); ctx.scale(zoom, zoom);
+      strokeShape(ctx, tool, shapeStart.current.x, shapeStart.current.y, a.x, a.y, color, size, opacity);
+      ctx.restore();
+      return;
+    }
     const lc = canvasMapRef.current.get(activeId);
     if (!lc) return;
     const lctx = lc.getContext("2d");
     const def = tool === "eraser" ? ERASER_DEF : BRUSH_BY_ID[brush];
     if (!def) return;
-    const a = toArt(p);
     drawSegment(lctx, lastPt.current, a, def, color, size, opacity);
     lastPt.current = a;
     composite();
   };
 
   const endStroke = (e) => {
+    pointers.current.delete(e.pointerId);
+    if (pinching.current) {
+      if (pointers.current.size < 2) { pinching.current = false; pinchStart.current = null; }
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      return;
+    }
     if (panning.current) {
-      panning.current = false;
-      panStart.current = null;
-      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (e) { /* noop */ }
+      panning.current = false; panStart.current = null;
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
       return;
     }
     if (drawing.current) {
-      drawing.current = false;
-      lastPt.current = null;
+      if (SHAPES.has(tool) && shapeStart.current) {
+        const p = getPos(e); const a = toArt(p);
+        const lc = canvasMapRef.current.get(activeId);
+        if (lc) strokeShape(lc.getContext("2d"), tool, shapeStart.current.x, shapeStart.current.y, a.x, a.y, color, size, opacity);
+        shapeStart.current = null;
+      }
+      drawing.current = false; lastPt.current = null;
       onChange();
-      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (e) { /* noop */ }
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
     }
   };
 
-  const showCursor = (tool === "brush" || tool === "eraser") && cursor && !spacePan;
+  const commitText = () => {
+    if (!textEditingRef.current) return;
+    textEditingRef.current = false;
+    setTextEditing(false);
+    const v = textValue;
+    setTextValue("");
+    if (!v.trim()) return;
+    const lc = canvasMapRef.current.get(activeId);
+    if (!lc) return;
+    const lctx = lc.getContext("2d");
+    onHistoryPush();
+    lctx.save();
+    lctx.globalAlpha = opacity;
+    lctx.fillStyle = color;
+    lctx.font = `${Math.max(10, size * 2)}px ui-sans-serif, system-ui, sans-serif`;
+    lctx.textBaseline = "top";
+    lctx.fillText(v, textArt.x, textArt.y);
+    lctx.restore();
+    composite(); onChange();
+  };
+
+  const showCursor = (tool === "brush" || tool === "eraser") && cursor && !spacePan && !pinching.current;
   const cursorSize = Math.max(4, size * zoom);
   const isPanCursor = tool === "move" || spacePan;
 
@@ -206,6 +304,22 @@ export default function DrawCanvas({
         <div
           className="pointer-events-none absolute rounded-full border border-white mix-blend-difference"
           style={{ left: cursor.x - cursorSize / 2, top: cursor.y - cursorSize / 2, width: cursorSize, height: cursorSize }}
+        />
+      )}
+
+      {tool === "text" && textEditing && (
+        <input
+          autoFocus
+          value={textValue}
+          onChange={(e) => setTextValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commitText(); }
+            else if (e.key === "Escape") { textEditingRef.current = false; setTextEditing(false); setTextValue(""); }
+          }}
+          onBlur={commitText}
+          placeholder="Type…"
+          className="absolute z-10 min-w-[80px] rounded border border-primary bg-background px-1.5 py-0.5 text-sm text-foreground shadow-lg focus:outline-none"
+          style={{ left: textPos.x, top: textPos.y }}
         />
       )}
 

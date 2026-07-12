@@ -247,6 +247,10 @@ export default function PaintStudio() {
       else if (k === "g") setTool("fill");
       else if (k === "i") setTool("eyedropper");
       else if (k === "h") setTool("move");
+      else if (k === "l") setTool("line");
+      else if (k === "r") setTool("rect");
+      else if (k === "o") setTool("ellipse");
+      else if (k === "t") setTool("text");
       else if (e.key === "[") setSize((s) => Math.max(1, s - 2));
       else if (e.key === "]") setSize((s) => Math.min(120, s + 2));
     };
