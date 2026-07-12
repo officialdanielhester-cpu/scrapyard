@@ -2,32 +2,11 @@ import React, { useState } from "react";
 import { X, Loader2, Sparkles } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
-const SCHEMA = {
-  type: "object",
-  properties: {
-    name: { type: "string" },
-    parts: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          type: { type: "string", enum: ["box", "sphere", "cylinder", "cone", "torus", "plane", "octahedron", "icosahedron", "tetrahedron", "dodecahedron"] },
-          ox: { type: "number" }, oy: { type: "number" }, oz: { type: "number" },
-          sx: { type: "number" }, sy: { type: "number" }, sz: { type: "number" },
-          rx: { type: "number" }, ry: { type: "number" }, rz: { type: "number" },
-        },
-        required: ["type", "ox", "oy", "oz", "sx", "sy", "sz"],
-      },
-    },
-  },
-  required: ["name", "parts"],
-};
+const EXAMPLES = ["a medieval longsword", "a pine tree", "an office chair", "a sports car", "a coffee mug", "a red dragon"];
 
-const PRIMS = "box, sphere, cylinder, cone, torus, plane, octahedron, icosahedron, tetrahedron, dodecahedron";
-const EXAMPLES = ["a medieval longsword", "a pine tree", "an office chair", "a sports car", "a coffee mug"];
-
-// Slide-over that asks Jabber to compose a detailed, recognizable multi-part 3D
-// model from a description, then drops it into the workspace as a neutral grey sculpt.
+// Slide-over that asks Jabber to generate a photorealistic, specific item via
+// AI image generation, then drops it into the workspace as a real 3D object
+// (textured card) — no primitive shapes, no grid constraint.
 export default function JabberModelGen({ open, onClose, onAdd }) {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,11 +19,12 @@ export default function JabberModelGen({ open, onClose, onAdd }) {
     setBusy(true);
     setErr(null);
     try {
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are Jabber, a 3D model composer in a Blender-style studio. Build a detailed multi-part 3D model that resembles the user's request as closely and recognizably as possible, composing primitive building blocks [${PRIMS}]. Use 5 to 30 parts with precise offsets (ox/oy/oz), scales (sx/sy/sz), and rotations (rx/ry/rz in radians) so the assembled object is proportional and clearly recognizable. Reason about the real silhouette first: e.g. a sword = long thin box blade + crossguard box + cylindrical handle + spherical pommel; a tree = brown cylinder trunk + several green spheres for foliage; a chair = seat box + four leg boxes + back box; a car = low body box + cabin box + four wheel cylinders. The origin sits at the object's base center; keep the whole model roughly within a 3x3x3 unit volume centered on the origin and resting just above y=0. Do not assign color — the model spawns neutral grey and is customized later. Give a short, specific name. Output only the JSON. User request: "${prompt}"`,
-        response_json_schema: SCHEMA,
-      });
-      onAdd({ name: res.name || "Generated", parts: Array.isArray(res.parts) ? res.parts : [] });
+      const item = prompt.trim();
+      const imgPrompt = `A photorealistic 3D product render of ${item}, isolated on a fully transparent background, centered, the complete object fully visible and in frame, soft studio lighting, ultra-detailed realistic PBR materials, sharp focus, high fidelity, no pedestal, no text, no watermark, PNG with alpha transparency.`;
+      const img = await base44.integrations.Core.GenerateImage({ prompt: imgPrompt });
+      const imageUrl = img?.url || img;
+      if (!imageUrl) throw new Error("No image came back.");
+      onAdd({ name: item.charAt(0).toUpperCase() + item.slice(1, 28), kind: "image", imageUrl });
       setPrompt("");
       onClose();
     } catch (e) {
@@ -70,7 +50,7 @@ export default function JabberModelGen({ open, onClose, onAdd }) {
 
         <div className="space-y-4 p-5">
           <p className="text-sm text-muted-foreground">
-            Describe anything and Jabber composes a detailed, recognizable 3D model from it — spawning in neutral grey so you can sculpt, color, and finish it yourself.
+            Describe anything and Jabber generates a photorealistic, specific item — a real sword, tree, chair, car, creature — and drops it into the workspace as a true 3D object you can move, rotate, and scale. No grid, no preset shapes.
           </p>
           <textarea
             value={prompt}
@@ -97,8 +77,11 @@ export default function JabberModelGen({ open, onClose, onAdd }) {
             className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {busy ? "Composing…" : "Generate & Add"}
+            {busy ? "Generating realistic model…" : "Generate & Add"}
           </button>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+            Uses AI image generation · takes ~5–10s
+          </p>
         </div>
       </div>
     </div>

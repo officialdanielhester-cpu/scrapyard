@@ -20,6 +20,9 @@ const GEO = {
 };
 
 function objectFromSpec(spec) {
+  if (spec.kind === "image" || spec.imageUrl) {
+    return { id: newId(), name: spec.name || "Model", kind: "image", imageUrl: spec.imageUrl, pos: [0, 1, 0], scale: spec.scale || 1, rot: [0, 0, 0], metal: 0.3, rough: 0.7 };
+  }
   let parts;
   if (Array.isArray(spec.parts) && spec.parts.length) {
     parts = spec.parts.map((p) => ({ type: GEO[p.type] ? p.type : "box", ox: p.ox||0, oy: p.oy||0, oz: p.oz||0, sx: p.sx??1, sy: p.sy??1, sz: p.sz??1, rx: p.rx||0, ry: p.ry||0, rz: p.rz||0, color: LIGHT_GREY }));
@@ -49,7 +52,11 @@ export default function BlenderStudio() {
   const [redoStack, setRedoStack] = useState([]);
   const objectsRef = useRef([]); objectsRef.current = objects;
 
-  const snapshot = useCallback((objs) => objs.map((o) => o.kind === "mesh" ? { ...o, geo: o.geo.clone() } : { ...o, parts: o.parts.map((p) => ({ ...p })) }), []);
+  const snapshot = useCallback((objs) => objs.map((o) => {
+    if (o.kind === "mesh") return { ...o, geo: o.geo.clone() };
+    if (o.kind === "image") return { ...o };
+    return { ...o, parts: o.parts.map((p) => ({ ...p })) };
+  }), []);
   const pushUndo = useCallback(() => {
     setUndoStack((s) => [...s.slice(-29), snapshot(objectsRef.current)]);
     setRedoStack([]);

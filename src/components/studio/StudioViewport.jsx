@@ -55,7 +55,7 @@ export default function StudioViewport(props) {
 
     const rebuild = () => {
       const { objects, selectedId, mode, theme } = p.current;
-      while (group.children.length) { const c = group.children[0]; group.remove(c); c.traverse((n) => { n.material?.dispose?.(); }); }
+      while (group.children.length) { const c = group.children[0]; group.remove(c); if (c.userData?.tex) c.userData.tex.dispose?.(); c.traverse((n) => { if (n.material?.map) n.material.map.dispose?.(); n.material?.dispose?.(); }); }
       pickablesRef.current = [];
       const bg = theme === "light" ? 0xe2e8f0 : 0x0b1020;
       scene.background = new THREE.Color(bg);
@@ -76,6 +76,16 @@ export default function StudioViewport(props) {
             const wire = new THREE.LineSegments(new THREE.WireframeGeometry(o.geo), new THREE.LineBasicMaterial({ color: 0x3b82f6, opacity: 0.4, transparent: true }));
             mesh.add(wire); highlightRef.wire = wire;
           }
+        } else if (o.kind === "image") {
+          const og = new THREE.Group(); og.position.set(...o.pos); og.scale.setScalar(o.scale); og.rotation.set(...o.rot);
+          const mat = new THREE.MeshStandardMaterial({ transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.7 });
+          if (isSel) mat.emissive = new THREE.Color(0x3b82f6).multiplyScalar(0.18);
+          const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+          mesh.userData.id = o.id;
+          og.add(mesh); pickablesRef.current.push(mesh);
+          const tex = new THREE.TextureLoader().load(o.imageUrl, (t) => { t.colorSpace = THREE.SRGBColorSpace; mat.map = t; mat.needsUpdate = true; });
+          og.userData.tex = tex;
+          group.add(og);
         } else {
           const og = new THREE.Group(); og.position.set(...o.pos); og.scale.setScalar(o.scale); og.rotation.set(...o.rot);
           o.parts.forEach((part) => {

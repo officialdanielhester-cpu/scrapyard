@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma, FileCode2 } from "lucide-react";
+import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma, FileCode2, Phone } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import PullToRefresh from "@/components/PullToRefresh";
 import { useVoice } from "@/hooks/use-voice";
@@ -9,6 +9,7 @@ import { callWebsiteB, formatAdminResult, adminErrorMessage } from "@/lib/websit
 import { fetchRecentMemories, saveMemory, lookupAetheris } from "@/lib/jabber-memory";
 import FormulaLibrary from "@/components/jabber/FormulaLibrary";
 import CodeLibrary from "@/components/jabber/CodeLibrary";
+import JabberCall from "@/components/jabber/JabberCall";
 import AttachmentBar from "@/components/jabber/AttachmentBar";
 
 const SEED_MESSAGES = [
@@ -66,6 +67,7 @@ export default function JabberSection() {
   const [error, setError] = useState(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const scrollRef = useRef(null);
 
@@ -239,6 +241,13 @@ User: ${content}`;
             <FileCode2 className="h-4 w-4" strokeWidth={1.5} />
             Code
           </button>
+          <button
+            onClick={() => setCallOpen(true)}
+            title="Call Jabber"
+            className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-all hover:opacity-90">
+            <Phone className="h-4 w-4" strokeWidth={1.5} />
+            Call
+          </button>
           
 
 
@@ -358,6 +367,8 @@ User: ${content}`;
         onInsert={(eq) => {setInput(eq);setFormulaOpen(false);}} />
       
       <CodeLibrary open={codeOpen} onClose={() => setCodeOpen(false)} />
+
+      <JabberCall open={callOpen} onClose={() => setCallOpen(false)} />
     </div>);
 
 }
