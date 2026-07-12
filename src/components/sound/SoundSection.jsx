@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import SoundEngine, { INSTRUMENTS, DEFAULT_BEAT } from "@/components/sound/SoundEngine";
 import TrackRow from "@/components/sound/TrackRow";
 import TransportBar from "@/components/sound/TransportBar";
-import InstrumentKeyboard from "@/components/sound/InstrumentKeyboard";
+import InstrumentPlayground from "@/components/sound/InstrumentPlayground";
 
 const ADD_INSTRUMENTS = INSTRUMENTS.filter((i) => i.id !== "sample");
 
@@ -307,7 +307,7 @@ export default function SoundSection() {
 
             {/* Live play + recording panel */}
             <div className="mt-6 space-y-4">
-              <InstrumentKeyboard />
+              <InstrumentPlayground />
 
               <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/40 bg-background/40 p-4">
                 <div className="flex items-center gap-2">
