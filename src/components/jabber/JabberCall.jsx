@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PhoneOff, Mic, MicOff, Sparkles } from "lucide-react";
+import { PhoneOff, Mic, MicOff, Sparkles, ChevronDown, Check } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
+import { VOICES } from "@/hooks/use-voice";
 import { fetchRecentMemories, saveMemory } from "@/lib/jabber-memory";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 const LANG_TO_BCP = { Auto: "en-US", English: "en-US", Spanish: "es-ES", French: "fr-FR" };
 const SPEED_RATE = { Patient: 0.92, Balanced: 1, Rapid: 1.15 };
@@ -50,6 +52,17 @@ const STYLE_GUIDE = {
   expressive: "Be expressive — vary your energy, react with feeling, let enthusiasm and curiosity show.",
   storytelling: "Use tiny stories, scenarios, and vivid imagery to make ideas stick.",
 };
+const LANGS = [
+  { id: "Auto", label: "Auto" },
+  { id: "English", label: "English" },
+  { id: "Spanish", label: "Spanish" },
+  { id: "French", label: "French" },
+];
+const TEMPOS = [
+  { id: "Patient", label: "Patient" },
+  { id: "Balanced", label: "Balanced" },
+  { id: "Rapid", label: "Rapid" },
+];
 
 // Clean and shape reply text for the TTS engine so it reads with natural
 // cadence and intonation: drop markdown/symbols it would stumble over, turn
@@ -86,7 +99,7 @@ function greeting() {
 }
 
 export default function JabberCall({ open, onClose }) {
-  const { settings } = useJabberSettings();
+  const { settings, update } = useJabberSettings();
   const [phase, setPhase] = useState("idle");
   const [interim, setInterim] = useState("");
   const [turns, setTurns] = useState([]);
@@ -94,6 +107,9 @@ export default function JabberCall({ open, onClose }) {
   const [error, setError] = useState(null);
   const [tone, setTone] = useState("warm");
   const [style, setStyle] = useState("conversational");
+  const [hudVoice, setHudVoice] = useState(settings.voice || "river");
+  const [hudLang, setHudLang] = useState(settings.lang || "Auto");
+  const [hudSpeed, setHudSpeed] = useState(settings.speed || "Balanced");
 
   const phaseRef = useRef("idle");
   const mutedRef = useRef(false);
@@ -105,6 +121,10 @@ export default function JabberCall({ open, onClose }) {
   const audioElRef = useRef(null);
   const toneRef = useRef("warm");
   const styleRef = useRef("conversational");
+  const voiceRef = useRef(settings.voice || "river");
+  const langRef = useRef(LANG_TO_BCP[settings.lang] || "en-US");
+  const speedRef = useRef(settings.speed || "Balanced");
+  const localVoiceRef = useRef(null);
   const listRef = useRef(null);
 
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -115,6 +135,19 @@ export default function JabberCall({ open, onClose }) {
 
   const changeTone = (t) => { setTone(t); toneRef.current = t; };
   const changeStyle = (s) => { setStyle(s); styleRef.current = s; };
+  const changeVoice = (v) => { voiceRef.current = v; setHudVoice(v); update({ voice: v }); };
+  const changeTempo = (s) => { speedRef.current = s; setHudSpeed(s); update({ speed: s }); };
+  const changeLang = (l) => {
+    langRef.current = LANG_TO_BCP[l] || "en-US";
+    setHudLang(l);
+    update({ lang: l });
+    if (recRef.current) {
+      try { recRef.current.lang = langRef.current; } catch {}
+      if (activeRef.current && phaseRef.current === "listening" && !mutedRef.current) {
+        try { recRef.current.stop(); } catch {} // onend restart picks up the new lang
+      }
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -133,28 +166,35 @@ export default function JabberCall({ open, onClose }) {
     audioElRef.current = audioEl;
 
     setPhase("connecting"); phaseRef.current = "connecting";
+    // Pin voice/lang/tempo for this call so the voice can't drift between
+    // turns; the HUD dropdowns update these refs live.
+    voiceRef.current = settings.voice || "river";
+    langRef.current = LANG_TO_BCP[settings.lang] || "en-US";
+    speedRef.current = settings.speed || "Balanced";
+    localVoiceRef.current = null;
     (async () => { memRef.current = await fetchRecentMemories(10); })();
 
-    const lang = LANG_TO_BCP[settings.lang] || "en-US";
-    const rate = SPEED_RATE[settings.speed] ?? 1;
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = lang;
+    rec.lang = langRef.current;
     recRef.current = rec;
 
-    // Speak a reply using the natural hosted voice selected in Settings.
-    // Hosted audio plays through the persistent element; if it can't load or
-    // play, fall back to the browser speech engine so Jabber always reads
-    // its reply aloud — on every turn, not just the first.
+    // Speak a reply using the hosted voice pinned for this call. Hosted audio
+    // plays through the persistent element; if it can't load or play, fall
+    // back to the browser speech engine — but always the SAME browser voice
+    // (cached once), so Jabber never sounds like a different person across
+    // messages.
     const speak = async (text) => {
       const spoken = shapeForSpeech(text);
+      const voice = voiceRef.current || "river";
+      const langCode = langRef.current.slice(0, 2);
       let url = null;
       try {
         const res = await base44.integrations.Core.GenerateSpeech({
           text: spoken.slice(0, 5000),
-          voice: settings.voice || "river",
-          language_code: lang.slice(0, 2),
+          voice,
+          language_code: langCode,
         });
         url = res?.url || res;
       } catch { /* fall through to local TTS */ }
@@ -168,12 +208,13 @@ export default function JabberCall({ open, onClose }) {
         let done = false;
         let to = null;
         const finish = (ok) => { if (done) return; done = true; if (to) clearTimeout(to); resolve(ok); };
+        try { audio.pause(); } catch {}
         audio.onended = () => finish(true);
         audio.onerror = () => finish(false);
         audio.src = url;
         audio.currentTime = 0;
         audio.play().catch(() => finish(false));
-        to = setTimeout(() => finish(false), 20000);
+        to = setTimeout(() => finish(false), 30000);
       });
 
       const playLocal = () => new Promise((resolve) => {
@@ -181,12 +222,15 @@ export default function JabberCall({ open, onClose }) {
           const synth = window.speechSynthesis;
           synth.cancel();
           const u = new SpeechSynthesisUtterance(spoken);
-          u.rate = rate;
+          u.rate = SPEED_RATE[speedRef.current] ?? 1;
           const voices = synth.getVoices();
-          const v = voices.find((vv) => vv.lang && vv.lang.startsWith(lang.slice(0, 2)))
-            || voices.find((vv) => vv.lang && vv.lang.startsWith("en"))
-            || voices[0];
-          if (v) u.voice = v;
+          if (!localVoiceRef.current && voices.length) {
+            localVoiceRef.current =
+              voices.find((vv) => vv.lang && vv.lang.startsWith(langCode))
+              || voices.find((vv) => vv.lang && vv.lang.startsWith("en"))
+              || voices[0];
+          }
+          if (localVoiceRef.current) u.voice = localVoiceRef.current;
           u.onend = () => resolve();
           u.onerror = () => resolve();
           // brief settle after cancel() fixes repeat-speak stalling on WebKit
@@ -332,8 +376,42 @@ Jabber (spoken reply):`;
             <span className="font-mono text-[10px] uppercase tracking-wider text-primary">{STATUS[phase] || "—"}</span>
           </div>
 
-          {/* Tone + speaking style controls */}
+          {/* Voice settings + tone + speaking style controls */}
           <div className="flex items-center gap-2 overflow-x-auto px-6 pb-3" style={{ scrollbarWidth: "none" }}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 px-3 py-1 text-[11px] text-foreground/90 transition-colors hover:border-primary hover:text-primary">
+                  <Sparkles className="h-3 w-3 text-primary" strokeWidth={1.5} />
+                  {VOICES.find((v) => v.id === hudVoice)?.label || "Voice"}
+                  <ChevronDown className="h-3 w-3 opacity-70" strokeWidth={1.5} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-60">
+                <DropdownMenuLabel className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Voice</DropdownMenuLabel>
+                {VOICES.map((v) => (
+                  <DropdownMenuItem key={v.id} onClick={() => changeVoice(v.id)} className="flex items-center justify-between gap-3">
+                    <span className="flex flex-col"><span className="text-xs">{v.label}</span><span className="text-[10px] text-muted-foreground">{v.desc}</span></span>
+                    {hudVoice === v.id && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2} />}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Language</DropdownMenuLabel>
+                {LANGS.map((l) => (
+                  <DropdownMenuItem key={l.id} onClick={() => changeLang(l.id)} className="flex items-center justify-between gap-3">
+                    <span className="text-xs">{l.label}</span>
+                    {hudLang === l.id && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2} />}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tempo</DropdownMenuLabel>
+                {TEMPOS.map((t) => (
+                  <DropdownMenuItem key={t.id} onClick={() => changeTempo(t.id)} className="flex items-center justify-between gap-3">
+                    <span className="text-xs">{t.label}</span>
+                    {hudSpeed === t.id && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2} />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tone</span>
             {TONES.map((tn) => (
               <Chip key={tn.id} active={tone === tn.id} onClick={() => changeTone(tn.id)}>{tn.label}</Chip>
