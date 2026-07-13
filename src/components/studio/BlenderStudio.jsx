@@ -25,7 +25,7 @@ function objectFromSpec(spec) {
   }
   let parts;
   if (Array.isArray(spec.parts) && spec.parts.length) {
-    parts = spec.parts.map((p) => ({ type: GEO[p.type] ? p.type : "box", ox: p.ox||0, oy: p.oy||0, oz: p.oz||0, sx: p.sx??1, sy: p.sy??1, sz: p.sz??1, rx: p.rx||0, ry: p.ry||0, rz: p.rz||0, color: LIGHT_GREY }));
+    parts = spec.parts.map((p) => ({ type: GEO[p.type] ? p.type : "box", ox: p.ox||0, oy: p.oy||0, oz: p.oz||0, sx: p.sx??1, sy: p.sy??1, sz: p.sz??1, rx: p.rx||0, ry: p.ry||0, rz: p.rz||0, color: p.color || LIGHT_GREY }));
   } else {
     const type = GEO[spec.geometry] ? spec.geometry : "box";
     parts = [{ type, ox:0, oy:0, oz:0, sx:1, sy:1, sz:1, rx:0, ry:0, rz:0, color: LIGHT_GREY }];
