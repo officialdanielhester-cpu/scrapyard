@@ -99,12 +99,19 @@ export default function StudioSidebar(props) {
 
       {mode === "paint" && (
         <div className="space-y-3 rounded-2xl border border-border/50 bg-background/30 p-3">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Vertex Paint</h3>
-          {!isMesh ? <p className="text-xs text-muted-foreground">Select a mesh object to paint</p> : (
+          <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Paint</h3>
+          {!sel ? <p className="text-xs text-muted-foreground">Select an object to paint</p> : (
             <>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                {isMesh ? "Vertex-paint the mesh surface." : sel.kind === "image" ? "Tint the image model." : "Tap a part to recolor it."}
+              </p>
               <div><label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Color</label><input type="color" value={paintColor} onChange={(e) => props.onPaintColor(e.target.value)} className="h-9 w-full cursor-pointer rounded-lg border border-border/60 bg-transparent" /></div>
-              <div><label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Brush Size {brushSize.toFixed(2)}</label><input type="range" min="0.1" max="3" step="0.05" value={brushSize} onChange={(e) => props.onBrushSize(Number(e.target.value))} className="w-full accent-primary" /></div>
-              <div><label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Strength {Math.round(brushStrength * 100)}%</label><input type="range" min="0.05" max="1" step="0.05" value={brushStrength} onChange={(e) => props.onBrushStrength(Number(e.target.value))} className="w-full accent-primary" /></div>
+              {isMesh && (
+                <>
+                  <div><label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Brush Size {brushSize.toFixed(2)}</label><input type="range" min="0.1" max="3" step="0.05" value={brushSize} onChange={(e) => props.onBrushSize(Number(e.target.value))} className="w-full accent-primary" /></div>
+                  <div><label className="mb-1 block font-mono text-[10px] uppercase text-muted-foreground">Strength {Math.round(brushStrength * 100)}%</label><input type="range" min="0.05" max="1" step="0.05" value={brushStrength} onChange={(e) => props.onBrushStrength(Number(e.target.value))} className="w-full accent-primary" /></div>
+                </>
+              )}
             </>
           )}
         </div>

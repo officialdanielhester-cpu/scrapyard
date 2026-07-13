@@ -7,7 +7,7 @@ import StudioSidebar from "@/components/studio/StudioSidebar";
 import ImportModelsPanel from "@/components/studio/ImportModelsPanel";
 import JabberModelGen from "@/components/studio/JabberModelGen";
 import ModelPresetsPanel from "@/components/studio/ModelPresetsPanel";
-import { createPrimitive, extrudeFaces, subdivide, mergeVertices, mirrorGeometry, deleteFaces } from "@/components/studio/mesh-utils";
+import { createPrimitive, extrudeFaces, subdivide, mergeVertices, mirrorGeometry, deleteFaces, applyVertexColors } from "@/components/studio/mesh-utils";
 
 const LIGHT_GREY = "#d4d4d8";
 const newId = () => `o-${Math.random().toString(36).slice(2, 9)}`;
@@ -19,7 +19,32 @@ const GEO = {
   tetrahedron: () => new THREE.TetrahedronGeometry(1.0), dodecahedron: () => new THREE.DodecahedronGeometry(0.9),
 };
 
+const M_TO_UNIT = 0.5; // scene units per meter — keeps real-world proportions (a 1.7 m human ≈ 0.85 u)
+
+// Fit a multi-part composite to its real-world size: scale so the largest
+// dimension matches realSize meters, and shift so it sits centered on the ground.
+function placeComposite(parts, realSizeRaw) {
+  let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity, zMin = Infinity, zMax = -Infinity;
+  parts.forEach((p) => {
+    xMin = Math.min(xMin, p.ox - p.sx / 2); xMax = Math.max(xMax, p.ox + p.sx / 2);
+    yMin = Math.min(yMin, p.oy - p.sy / 2); yMax = Math.max(yMax, p.oy + p.sy / 2);
+    zMin = Math.min(zMin, p.oz - p.sz / 2); zMax = Math.max(zMax, p.oz + p.sz / 2);
+  });
+  const bmax = Math.max(xMax - xMin, yMax - yMin, zMax - zMin) || 1;
+  const realSize = Number(realSizeRaw) || 1.5;
+  const scale = (realSize * M_TO_UNIT) / bmax;
+  return { scale, pos: [(-(xMin + xMax) / 2) * scale, (-yMin) * scale, (-(zMin + zMax) / 2) * scale] };
+}
+
 function objectFromSpec(spec) {
+  if (spec.kind === "mesh") {
+    const type = GEO[spec.geometry] ? spec.geometry : "box";
+    const geo = createPrimitive(type);
+    applyVertexColors(geo, spec.color || LIGHT_GREY);
+    const realSize = Number(spec.realSize) || 1.5;
+    const scale = spec.scale != null ? spec.scale : realSize * M_TO_UNIT;
+    return { id: newId(), name: spec.name || "Model", kind: "mesh", meshType: type, geo, pos: [0, 0.8 * scale, 0], scale, rot: [spec.rotX || 0, spec.rotY || 0, spec.rotZ || 0], metal: spec.metal ?? 0.3, rough: spec.rough ?? 0.55 };
+  }
   if (spec.kind === "image" || spec.imageUrl) {
     return { id: newId(), name: spec.name || "Model", kind: "image", imageUrl: spec.imageUrl, pos: [0, 1, 0], scale: spec.scale || 1, rot: [0, 0, 0], metal: 0.3, rough: 0.7 };
   }
@@ -30,7 +55,8 @@ function objectFromSpec(spec) {
     const type = GEO[spec.geometry] ? spec.geometry : "box";
     parts = [{ type, ox:0, oy:0, oz:0, sx:1, sy:1, sz:1, rx:0, ry:0, rz:0, color: LIGHT_GREY }];
   }
-  return { id: newId(), name: spec.name || "Model", kind: "composite", pos: [0, 0.8, 0], scale: spec.scale||1, rot: [spec.rotX||0, spec.rotY||0, spec.rotZ||0], metal: 0.3, rough: 0.55, parts };
+  const placed = spec.realSize != null ? placeComposite(parts, spec.realSize) : { scale: spec.scale || 1, pos: [0, 0.8, 0] };
+  return { id: newId(), name: spec.name || "Model", kind: "composite", pos: placed.pos, scale: placed.scale, rot: [spec.rotX||0, spec.rotY||0, spec.rotZ||0], metal: 0.3, rough: 0.55, parts };
 }
 
 export default function BlenderStudio() {
@@ -75,7 +101,12 @@ export default function BlenderStudio() {
     setObjects((p) => [...p, o]); setSelectedId(o.id); setSelectedFaces(new Set());
   };
   const addSpec = (spec) => { const o = objectFromSpec(spec); setObjects((p) => [...p, o]); setSelectedId(o.id); };
-  const addPreset = (preset) => { const o = { id: newId(), name: preset.name, kind: "composite", pos: [0, 0.8, 0], scale: 1, rot: [0, 0, 0], metal: 0.3, rough: 0.55, parts: preset.parts.map((p) => ({ ...p, color: LIGHT_GREY })) }; setObjects((p) => [...p, o]); setSelectedId(o.id); };
+  const addPreset = (preset) => {
+    const parts = preset.parts.map((p) => ({ ...p, color: p.color || LIGHT_GREY }));
+    const placed = placeComposite(parts, preset.realSize);
+    const o = { id: newId(), name: preset.name, kind: "composite", pos: placed.pos, scale: placed.scale, rot: [0, 0, 0], metal: 0.3, rough: 0.55, parts };
+    setObjects((p) => [...p, o]); setSelectedId(o.id);
+  };
 
   const updateObject = (id, patch) => setObjects((p) => p.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   const updateGeometry = (id, newGeo) => {

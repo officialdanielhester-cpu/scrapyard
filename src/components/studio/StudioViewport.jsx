@@ -79,6 +79,7 @@ export default function StudioViewport(props) {
         } else if (o.kind === "image") {
           const og = new THREE.Group(); og.position.set(...o.pos); og.scale.setScalar(o.scale); og.rotation.set(...o.rot);
           const mat = new THREE.MeshStandardMaterial({ transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.7 });
+          if (o.tint) mat.color = new THREE.Color(o.tint);
           if (isSel) mat.emissive = new THREE.Color(0x3b82f6).multiplyScalar(0.18);
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
           mesh.userData.id = o.id;
@@ -88,12 +89,12 @@ export default function StudioViewport(props) {
           group.add(og);
         } else {
           const og = new THREE.Group(); og.position.set(...o.pos); og.scale.setScalar(o.scale); og.rotation.set(...o.rot);
-          o.parts.forEach((part) => {
+          o.parts.forEach((part, pi) => {
             const mat = new THREE.MeshStandardMaterial({ color: part.color, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.55, side: part.type === "plane" ? THREE.DoubleSide : THREE.FrontSide });
             if (isSel) mat.emissive = new THREE.Color(part.color).multiplyScalar(0.3);
             const m = new THREE.Mesh(p.current.geoFactory(part.type), mat);
             m.position.set(part.ox, part.oy, part.oz); m.scale.set(part.sx, part.sy, part.sz); m.rotation.set(part.rx, part.ry, part.rz);
-            m.userData.id = o.id; og.add(m); pickablesRef.current.push(m);
+            m.userData.id = o.id; m.userData.part = pi; og.add(m); pickablesRef.current.push(m);
           });
           group.add(og);
         }
@@ -170,11 +171,22 @@ export default function StudioViewport(props) {
         const mesh = pickablesRef.current.find((m) => m.userData.id === selectedId);
         if (mesh) { const hit = raycaster.intersectObject(mesh, false)[0]; if (hit) { p.current.onSelectFaces(new Set([Math.floor(hit.faceIndex)])); return; } }
         if (!camLock) dragging = true;
-      } else if (mode === "sculpt" || mode === "paint") {
+      } else if (mode === "sculpt") {
         if (!sel || sel.kind !== "mesh") { if (!camLock) dragging = true; return; }
         setPointer(e.clientX, e.clientY);
         const mesh = pickablesRef.current.find((m) => m.userData.id === selectedId);
-        if (mesh) { const hit = raycaster.intersectObject(mesh, false)[0]; if (hit) { p.current.onSculptStart?.(); sculpting = true; if (mode === "sculpt" && brush === "grab") startGrab(sel.geo, hit, brushSize); else applyStroke(sel.geo, hit, e); renderer.domElement.style.cursor = "crosshair"; return; } }
+        if (mesh) { const hit = raycaster.intersectObject(mesh, false)[0]; if (hit) { p.current.onSculptStart?.(); sculpting = true; if (brush === "grab") startGrab(sel.geo, hit, brushSize); else applyStroke(sel.geo, hit, e); renderer.domElement.style.cursor = "crosshair"; return; } }
+        if (camLock) { sculpting = true; renderer.domElement.style.cursor = "crosshair"; } else dragging = true;
+      } else if (mode === "paint") {
+        if (!sel) { if (!camLock) dragging = true; return; }
+        setPointer(e.clientX, e.clientY);
+        if (sel.kind === "mesh") {
+          const mesh = pickablesRef.current.find((m) => m.userData.id === selectedId);
+          if (mesh) { const hit = raycaster.intersectObject(mesh, false)[0]; if (hit) { p.current.onSculptStart?.(); sculpting = true; applyPaint(sel.geo, hit.point, brushSize, p.current.brushStrength, p.current.paintColor); renderer.domElement.style.cursor = "crosshair"; return; } }
+        } else {
+          const hit = pickMesh(e.clientX, e.clientY);
+          if (hit?.object?.userData?.id === selectedId) { p.current.onSculptStart?.(); sculpting = true; paintHit(hit, sel); renderer.domElement.style.cursor = "crosshair"; return; }
+        }
         if (camLock) { sculpting = true; renderer.domElement.style.cursor = "crosshair"; } else dragging = true;
       }
     };
@@ -194,6 +206,19 @@ export default function StudioViewport(props) {
       let adj = adjacencyCache.get(geo); if (!adj && brush === "smooth") { adj = buildAdjacency(geo); adjacencyCache.set(geo, adj); }
       const worldNormal = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
       applyBrush(geo, hit.point, worldNormal, brush, brushSize, brushStrength, 1, adj);
+    };
+
+    // Paint a non-mesh model: recolor the tapped composite part, or tint an image.
+    const paintHit = (hit, sel) => {
+      const color = p.current.paintColor;
+      if (sel.kind === "composite") {
+        const pi = hit.object?.userData?.part;
+        if (pi == null) return;
+        const parts = sel.parts.map((pp, i) => (i === pi ? { ...pp, color } : pp));
+        p.current.onUpdateObject(sel.id, { parts });
+      } else if (sel.kind === "image") {
+        p.current.onUpdateObject(sel.id, { tint: color });
+      }
     };
 
     const onMove = (e) => {
@@ -225,8 +250,14 @@ export default function StudioViewport(props) {
         if (raycaster.ray.intersectPlane(movePlane, hit)) { let x = hit.x, z = hit.z; if (p.current.snap) { x = Math.round(x * 4) / 4; z = Math.round(z * 4) / 4; } p.current.onUpdateObject(sel.id, { pos: [x, moveY, z] }); }
         return;
       }
-      if (sculpting && sel && sel.kind === "mesh") {
+      if (sculpting && sel) {
         setPointer(e.clientX, e.clientY);
+        if (p.current.mode === "paint" && sel.kind !== "mesh") {
+          const hit = pickMesh(e.clientX, e.clientY);
+          if (hit?.object?.userData?.id === selectedId) paintHit(hit, sel);
+          return;
+        }
+        if (sel.kind !== "mesh") return;
         const mesh = pickablesRef.current.find((m) => m.userData.id === selectedId);
         if (!mesh) return;
         if (brush === "grab" && grabState) {

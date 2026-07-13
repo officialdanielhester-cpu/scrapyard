@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { X, Boxes, Sword, Car } from "lucide-react";
+import { X, Boxes, Sword, Car, PawPrint, Armchair } from "lucide-react";
 import { PRESETS } from "@/components/studio/model-presets";
 
 const CATS = [
   { id: "Weapons", icon: Sword },
   { id: "Vehicles", icon: Car },
+  { id: "Animals", icon: PawPrint },
+  { id: "Objects", icon: Armchair },
 ];
 
 // Slide-over listing composite model presets; clicking one drops it into the workspace.
@@ -58,7 +60,7 @@ export default function ModelPresetsPanel({ open, onClose, onAdd }) {
                 </span>
                 <span className="flex-1">
                   <span className="block text-sm font-medium">{preset.name}</span>
-                  <span className="block font-mono text-[10px] uppercase text-muted-foreground">{preset.parts.length} parts</span>
+                  <span className="block font-mono text-[10px] uppercase text-muted-foreground">{preset.parts.length} parts · ~{preset.realSize}m</span>
                 </span>
               </button>
             ))}
