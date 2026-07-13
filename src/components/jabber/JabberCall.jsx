@@ -23,6 +23,33 @@ You have memory of past conversations (shown below); reference it when relevant.
 If asked who created/made/built you, reply EXACTLY: "my creator is king Daniel 👑" — nothing else.
 Keep replies short and spoken (1–4 sentences) unless they ask for depth.`;
 
+const TONES = [
+  { id: "warm", label: "Warm" },
+  { id: "playful", label: "Playful" },
+  { id: "calm", label: "Calm" },
+  { id: "encouraging", label: "Uplifting" },
+  { id: "analytical", label: "Analytical" },
+];
+const STYLES = [
+  { id: "concise", label: "Concise" },
+  { id: "conversational", label: "Conversational" },
+  { id: "expressive", label: "Expressive" },
+  { id: "storytelling", label: "Storytelling" },
+];
+const TONE_GUIDE = {
+  warm: "Sound genuinely warm and personable, like a friend who really cares.",
+  playful: "Be playful and light — a little humor and energy, never stiff.",
+  calm: "Stay calm, steady, and reassuring, even when they're stuck.",
+  encouraging: "Be uplifting — affirm their effort, celebrate small wins, make them feel they're getting it.",
+  analytical: "Be clear and analytical — reason step by step, name the moving parts.",
+};
+const STYLE_GUIDE = {
+  concise: "Keep it tight — short sentences, no filler.",
+  conversational: "Speak the way people actually talk — natural, casual phrasing, easy verbal flow, the occasional 'hmm' or 'you know' when it fits.",
+  expressive: "Be expressive — vary your energy, react with feeling, let enthusiasm and curiosity show.",
+  storytelling: "Use tiny stories, scenarios, and vivid imagery to make ideas stick.",
+};
+
 const STATUS = {
   connecting: "Calling Jabber…",
   listening: "Listening…",
@@ -44,6 +71,8 @@ export default function JabberCall({ open, onClose }) {
   const [turns, setTurns] = useState([]);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState(null);
+  const [tone, setTone] = useState("warm");
+  const [style, setStyle] = useState("conversational");
 
   const phaseRef = useRef("idle");
   const mutedRef = useRef(false);
@@ -52,7 +81,9 @@ export default function JabberCall({ open, onClose }) {
   const transcriptRef = useRef([]);
   const activeRef = useRef(false);
   const recRef = useRef(null);
-  const audioRef = useRef(null);
+  const audioElRef = useRef(null);
+  const toneRef = useRef("warm");
+  const styleRef = useRef("conversational");
   const listRef = useRef(null);
 
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -60,6 +91,9 @@ export default function JabberCall({ open, onClose }) {
 
   useEffect(() => { persistRef.current = !settings.private; }, [settings.private]);
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [turns, interim]);
+
+  const changeTone = (t) => { setTone(t); toneRef.current = t; };
+  const changeStyle = (s) => { setStyle(s); styleRef.current = s; };
 
   useEffect(() => {
     if (!open) return;
@@ -69,6 +103,13 @@ export default function JabberCall({ open, onClose }) {
       setError("Voice call needs speech recognition — try Chrome or Safari with a mic.");
       return;
     }
+
+    // One persistent audio element, unlocked by the first play near the call
+    // gesture, so every later reply can play too (fresh elements get blocked
+    // on mobile after the first one).
+    const audioEl = new Audio();
+    audioEl.preload = "auto";
+    audioElRef.current = audioEl;
 
     setPhase("connecting"); phaseRef.current = "connecting";
     (async () => { memRef.current = await fetchRecentMemories(10); })();
@@ -82,8 +123,9 @@ export default function JabberCall({ open, onClose }) {
     recRef.current = rec;
 
     // Speak a reply using the natural hosted voice selected in Settings.
-    // If the hosted audio can't load or play, fall back to the browser's
-    // speech engine so Jabber always reads its reply aloud.
+    // Hosted audio plays through the persistent element; if it can't load or
+    // play, fall back to the browser speech engine so Jabber always reads
+    // its reply aloud — on every turn, not just the first.
     const speak = async (text) => {
       let url = null;
       try {
@@ -99,14 +141,17 @@ export default function JabberCall({ open, onClose }) {
 
       const playHosted = () => new Promise((resolve) => {
         if (!url) return resolve(false);
-        const audio = new Audio(url);
-        audioRef.current = audio;
+        const audio = audioElRef.current;
+        if (!audio) return resolve(false);
         let done = false;
-        const finish = (ok) => { if (done) return; done = true; audioRef.current = null; resolve(ok); };
+        let to = null;
+        const finish = (ok) => { if (done) return; done = true; if (to) clearTimeout(to); resolve(ok); };
         audio.onended = () => finish(true);
         audio.onerror = () => finish(false);
+        audio.src = url;
+        audio.currentTime = 0;
         audio.play().catch(() => finish(false));
-        setTimeout(() => finish(false), 20000);
+        to = setTimeout(() => finish(false), 20000);
       });
 
       const playLocal = () => new Promise((resolve) => {
@@ -122,7 +167,8 @@ export default function JabberCall({ open, onClose }) {
           if (v) u.voice = v;
           u.onend = () => resolve();
           u.onerror = () => resolve();
-          synth.speak(u);
+          // brief settle after cancel() fixes repeat-speak stalling on WebKit
+          setTimeout(() => { try { synth.speak(u); } catch { resolve(); } }, 60);
         } catch { resolve(); }
       });
 
@@ -146,6 +192,9 @@ export default function JabberCall({ open, onClose }) {
           : "(no past conversations)";
         const convo = transcriptRef.current.map((t) => `${t.role === "user" ? "User" : "Jabber"}: ${t.text}`).join("\n");
         const prompt = `${TUTOR_PROMPT}
+
+Tone: ${TONE_GUIDE[toneRef.current]}
+Speaking style: ${STYLE_GUIDE[styleRef.current]}
 
 Recent memory (oldest first):
 ${memoryContext}
@@ -214,7 +263,7 @@ Jabber (spoken reply):`;
       activeRef.current = false;
       try { rec.abort(); } catch {}
       try { window.speechSynthesis.cancel(); } catch {}
-      if (audioRef.current) { try { audioRef.current.pause(); } catch {} audioRef.current = null; }
+      if (audioElRef.current) { try { audioElRef.current.pause(); } catch {} }
     };
   }, [open]);
 
@@ -222,7 +271,7 @@ Jabber (spoken reply):`;
     activeRef.current = false;
     try { recRef.current?.abort(); } catch {}
     try { window.speechSynthesis.cancel(); } catch {}
-    if (audioRef.current) { try { audioRef.current.pause(); } catch {} audioRef.current = null; }
+    if (audioElRef.current) { try { audioElRef.current.pause(); } catch {} }
     phaseRef.current = "idle"; setPhase("idle");
     onClose();
   };
@@ -238,6 +287,17 @@ Jabber (spoken reply):`;
   const live = phase === "listening" || phase === "speaking" || phase === "thinking";
   const lastAssistant = [...turns].reverse().find((t) => t.role === "assistant");
 
+  const Chip = ({ active, onClick, children }) => (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-full px-3 py-1 text-[11px] transition-colors ${
+        active ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+
   return (
     <AnimatePresence>
       {open && (
@@ -245,9 +305,21 @@ Jabber (spoken reply):`;
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-background via-background to-secondary"
         >
-          <div className="flex items-center justify-between px-6 pb-4 pt-[env(safe-area-inset-top)]">
+          <div className="flex items-center justify-between px-6 pb-3 pt-[env(safe-area-inset-top)]">
             <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Jabber · Tutor Call</span>
             <span className="font-mono text-[10px] uppercase tracking-wider text-primary">{STATUS[phase] || "—"}</span>
+          </div>
+
+          {/* Tone + speaking style controls */}
+          <div className="flex items-center gap-2 overflow-x-auto px-6 pb-3" style={{ scrollbarWidth: "none" }}>
+            <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tone</span>
+            {TONES.map((tn) => (
+              <Chip key={tn.id} active={tone === tn.id} onClick={() => changeTone(tn.id)}>{tn.label}</Chip>
+            ))}
+            <span className="shrink-0 pl-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Style</span>
+            {STYLES.map((st) => (
+              <Chip key={st.id} active={style === st.id} onClick={() => changeStyle(st.id)}>{st.label}</Chip>
+            ))}
           </div>
 
           <div className="flex flex-1 flex-col items-center justify-center px-6">
@@ -285,7 +357,7 @@ Jabber (spoken reply):`;
               <p className="mt-3 max-w-md text-center text-sm text-foreground/80">{lastAssistant.text}</p>
             )}
 
-            <div ref={listRef} className="mt-8 max-h-[30vh] w-full max-w-md space-y-2 overflow-y-auto">
+            <div ref={listRef} className="mt-8 max-h-[26vh] w-full max-w-md space-y-2 overflow-y-auto">
               {turns.slice(-5).map((t, i) => (
                 <motion.div
                   key={i}
