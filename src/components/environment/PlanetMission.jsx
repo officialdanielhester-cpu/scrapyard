@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Rocket, RotateCcw, Ruler, Clock, Gauge, Compass } from "lucide-react";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Rocket, RotateCcw, Ruler, Clock, Gauge, Crosshair, Orbit as OrbitIcon, Flag } from "lucide-react";
 import MobileSelectDrawer from "@/components/MobileSelectDrawer";
 import { PLANETS, planetById, effOrbit, distanceAU, AU_TO_KM } from "@/components/environment/planets";
 import { VEHICLES } from "@/components/environment/presets";
 
-// Interplanetary transfer rework: a real Hohmann transfer ellipse with a
-// departure phase-angle launch window, transfer time, and Δv budget, animated
-// along the elliptical arc. Build capability still gates the verdict.
+// Interplanetary transfer — Hohmann ellipse with a departure phase-angle launch
+// window, transfer time, Δv budget split into departure + arrival burns, the
+// synodic (next-window) period, and an animated rendezvous diagram.
 const MU = 4 * Math.PI * Math.PI; // AU^3 / yr^2 (Sun)
 const AU_PER_YR_TO_KMS = 4.74;
+
+const PRESETS = [
+  { label: "Earth → Mars", o: "earth", d: "mars" },
+  { label: "Earth → Venus", o: "earth", d: "venus" },
+  { label: "Mars → Jupiter", o: "mars", d: "jupiter" },
+  { label: "Earth → Mercury", o: "earth", d: "mercury" },
+];
 
 export default function PlanetMission({ params, vehicleType }) {
   const [originId, setOriginId] = useState("earth");
@@ -36,6 +42,7 @@ export default function PlanetMission({ params, vehicleType }) {
     const b = a * Math.sqrt(1 - e * e);
     const Ttransfer = Math.pow(a, 1.5) / 2; // years (half period)
     const Tdest = Math.pow(r2, 1.5); // years
+    const Torigin = Math.pow(r1, 1.5); // years
     const destTravel = 360 * (Ttransfer / Tdest); // deg dest moves during transfer
     const arrivalAngle = originIsInner ? 180 : 0; // aphelion (outer) or perihelion (inner)
     const requiredPhase = ((arrivalAngle - destTravel) % 360 + 360) % 360;
@@ -43,9 +50,12 @@ export default function PlanetMission({ params, vehicleType }) {
     const vOuterCirc = Math.sqrt(MU / outerR);
     const vInnerEll = Math.sqrt(MU * (2 / innerR - 1 / a));
     const vOuterEll = Math.sqrt(MU * (2 / outerR - 1 / a));
-    const dvKms = (Math.abs(vInnerEll - vInnerCirc) + Math.abs(vOuterCirc - vOuterEll)) * AU_PER_YR_TO_KMS;
+    const dvDepart = Math.abs(vInnerEll - vInnerCirc) * AU_PER_YR_TO_KMS;
+    const dvArrive = Math.abs(vOuterCirc - vOuterEll) * AU_PER_YR_TO_KMS;
+    const dvKms = dvDepart + dvArrive;
     const distAU = distanceAU(origin, dest);
-    return { a, e, b, Ttransfer, destTravel, requiredPhase, dvKms, distAU, distKm: distAU * AU_TO_KM };
+    const synodicYr = Math.abs(1 / Torigin - 1 / Tdest) > 1e-6 ? 1 / Math.abs(1 / Torigin - 1 / Tdest) : Infinity;
+    return { a, e, b, Ttransfer, destTravel, requiredPhase, dvKms, dvDepart, dvArrive, distAU, distKm: distAU * AU_TO_KM, synodicYr };
   }, [innerR, outerR, originIsInner, origin, dest]);
 
   const capability = useMemo(() => {
@@ -68,7 +78,7 @@ export default function PlanetMission({ params, vehicleType }) {
     cancelAnimationFrame(rafRef.current);
     setFlying(true); setProgress(0); setOutcome(null);
     startRef.current = performance.now();
-    const duration = 5000;
+    const duration = 5200;
     const tick = (now) => {
       const t = Math.min(1, (now - startRef.current) / duration);
       setProgress(t);
@@ -81,11 +91,12 @@ export default function PlanetMission({ params, vehicleType }) {
     rafRef.current = requestAnimationFrame(tick);
   };
   const reset = () => { cancelAnimationFrame(rafRef.current); setFlying(false); setProgress(0); setOutcome(null); };
+  const applyPreset = (p) => { setOriginId(p.o); setDestId(p.d); reset(); };
 
   // diagram geometry
-  const W = 560, H = 320, sunX = W / 2, sunY = H / 2 + 20;
+  const W = 680, H = 400, sunX = W / 2, sunY = H / 2 + 24;
   const maxR = Math.max(outerR, 0.4);
-  const scale = (Math.min(W, H) / 2 - 50) / maxR;
+  const scale = (Math.min(W, H) / 2 - 56) / maxR;
   const cx = sunX - (orbit ? (orbit.a - innerR) * scale : 0);
   const rx = orbit ? orbit.a * scale : 0;
   const ry = orbit ? orbit.b * scale : 0;
@@ -100,6 +111,8 @@ export default function PlanetMission({ params, vehicleType }) {
   const destPos = { x: sunX + r2 * scale * Math.cos(destRad), y: sunY - r2 * scale * Math.sin(destRad) };
   const originPos = originIsInner ? { x: sunX + innerR * scale, y: sunY } : { x: sunX - outerR * scale, y: sunY };
   const arrivalPos = originIsInner ? { x: cx - rx, y: sunY } : { x: cx + rx, y: sunY };
+  const winRad = orbit ? (orbit.requiredPhase * Math.PI) / 180 : 0;
+  const winPos = orbit ? { x: sunX + r2 * scale * Math.cos(winRad), y: sunY - r2 * scale * Math.sin(winRad) } : { x: sunX, y: sunY };
   const sc = spacecraftPos(progress);
 
   const vehicleLabel = VEHICLES[vehicleType]?.label || vehicleType;
@@ -121,7 +134,7 @@ export default function PlanetMission({ params, vehicleType }) {
   const Stat = ({ icon: Icon, label, value, tone }) => (
     <div className="rounded-xl border border-border/50 bg-background/60 p-3">
       <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" strokeWidth={1.5} /><span className="font-mono text-[9px] uppercase tracking-wider">{label}</span></div>
-      <p className={`mt-1 font-mono text-lg font-semibold ${tone || "text-foreground"}`}>{value}</p>
+      <p className={`mt-1 font-mono text-base font-semibold ${tone || "text-foreground"}`}>{value}</p>
     </div>
   );
 
@@ -132,11 +145,25 @@ export default function PlanetMission({ params, vehicleType }) {
         <PlanetPicker label="Destination" value={destId} onChange={setDestId} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="flex flex-wrap gap-2">
+        {PRESETS.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => applyPreset(p)}
+            className={`rounded-full border px-3 py-1.5 text-[11px] transition-colors ${originId === p.o && destId === p.d ? "border-primary bg-primary/10 text-primary" : "border-border/60 text-muted-foreground hover:border-primary hover:text-primary"}`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat icon={Ruler} label="Distance" value={orbit ? fmtKm(orbit.distKm) : "—"} />
         <Stat icon={Clock} label="Transfer Time" value={orbit ? fmtTime(orbit.Ttransfer) : "—"} />
-        <Stat icon={Gauge} label="Δv (Hohmann)" value={orbit ? `${orbit.dvKms.toFixed(1)} km/s` : "—"} />
-        <Stat icon={Compass} label="Phase Window" value={orbit ? `${Math.round(orbit.requiredPhase)}°` : "—"} />
+        <Stat icon={Gauge} label="Total Δv" value={orbit ? `${orbit.dvKms.toFixed(1)} km/s` : "—"} tone="text-primary" />
+        <Stat icon={Rocket} label="Departure Burn" value={orbit ? `${orbit.dvDepart.toFixed(1)} km/s` : "—"} />
+        <Stat icon={Flag} label="Arrival Burn" value={orbit ? `${orbit.dvArrive.toFixed(1)} km/s` : "—"} />
+        <Stat icon={OrbitIcon} label="Next Window" value={orbit ? fmtTime(orbit.synodicYr) : "—"} />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-b from-background to-muted/30">
@@ -146,17 +173,25 @@ export default function PlanetMission({ params, vehicleType }) {
         </div>
         <div className="relative">
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ background: "radial-gradient(ellipse at 50% 70%, #0a1430 0%, #05060d 70%)" }}>
-            {Array.from({ length: 50 }).map((_, i) => <circle key={i} cx={(i * 53) % W} cy={(i * 37) % (H - 30)} r={i % 5 === 0 ? 1 : 0.5} fill="#fff" opacity={0.5} />)}
-            <circle cx={sunX} cy={sunY} r={16} fill="#fbbf24" opacity={0.3} />
-            <circle cx={sunX} cy={sunY} r={9} fill="#fde68a" opacity={0.8} />
+            {Array.from({ length: 70 }).map((_, i) => <circle key={i} cx={(i * 53) % W} cy={(i * 37) % (H - 30)} r={i % 5 === 0 ? 1 : 0.5} fill="#fff" opacity={0.5} />)}
+            <defs>
+              <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#fde68a" />
+                <stop offset="60%" stopColor="#fbbf24" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#fbbf24" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            <circle cx={sunX} cy={sunY} r={26} fill="url(#sunGlow)" />
+            <circle cx={sunX} cy={sunY} r={9} fill="#fde68a" />
             <circle cx={sunX} cy={sunY} r={r1 * scale} fill="none" stroke="hsl(var(--border))" strokeOpacity={0.4} strokeWidth={1} strokeDasharray="3 4" />
             <circle cx={sunX} cy={sunY} r={r2 * scale} fill="none" stroke="hsl(var(--border))" strokeOpacity={0.4} strokeWidth={1} strokeDasharray="3 4" />
             {orbit && (
-              <path d={`M ${cx + rx} ${sunY} A ${rx} ${ry} 0 0 0 ${cx - rx} ${sunY}`} fill="none" stroke="hsl(var(--primary))" strokeOpacity={0.5} strokeWidth={1.5} strokeDasharray="4 4" />
+              <path d={`M ${cx + rx} ${sunY} A ${rx} ${ry} 0 0 0 ${cx - rx} ${sunY}`} fill="none" stroke="hsl(var(--primary))" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="5 5" />
             )}
             {orbit && <>
-              <circle cx={originPos.x} cy={originPos.y} r={4} fill="none" stroke="#f97316" strokeWidth={1.5} />
-              <circle cx={arrivalPos.x} cy={arrivalPos.y} r={4} fill="none" stroke="#f97316" strokeWidth={1.5} />
+              <circle cx={originPos.x} cy={originPos.y} r={5} fill="none" stroke="#f97316" strokeWidth={1.5} />
+              <circle cx={arrivalPos.x} cy={arrivalPos.y} r={5} fill="none" stroke="#10b981" strokeWidth={1.5} strokeDasharray="2 2" />
+              <circle cx={winPos.x} cy={winPos.y} r={6} fill="none" stroke={aligned ? "#10b981" : "#f59e0b"} strokeWidth={1.5} />
             </>}
             <circle cx={originPos.x} cy={originPos.y} r={Math.max(5, origin.radius / 3)} fill={origin.color} />
             <text x={originPos.x} y={originPos.y + Math.max(5, origin.radius / 3) + 12} fill="hsl(var(--muted-foreground))" fontSize={9} textAnchor="middle" className="font-mono">{origin.label}</text>
@@ -165,7 +200,7 @@ export default function PlanetMission({ params, vehicleType }) {
             {(progress > 0 || flying) && (
               <g transform={`translate(${sc.x} ${sc.y})`}>
                 <path d="M 0 -6 L 4 5 L 0 2 L -4 5 Z" fill={willRendezvous ? "hsl(var(--primary))" : "#f59e0b"} />
-                {flying && <path d="M 0 5 L 1.5 9 L 0 8 L -1.5 9 Z" fill="#f97316" opacity={0.85} />}
+                {flying && <path d="M 0 5 L 1.5 10 L 0 8 L -1.5 10 Z" fill="#f97316" opacity={0.85} />}
               </g>
             )}
             {outcome === "success" && <text x={destPos.x} y={destPos.y - Math.max(5, dest.radius / 3) - 10} fill="#10b981" fontSize={11} textAnchor="middle" className="font-mono">RENDEZVOUS</text>}
@@ -179,7 +214,17 @@ export default function PlanetMission({ params, vehicleType }) {
                 <span>Departure Phase Angle</span>
                 <span className={aligned ? "text-emerald-500" : "text-amber-500"}>{phaseAngle}° {aligned ? "· ALIGNED" : "· OFF WINDOW"}</span>
               </div>
-              <input type="range" min={0} max={359} value={phaseAngle} onChange={(e) => setPhaseAngle(Number(e.target.value))} className="w-full accent-primary" disabled={flying} />
+              <div className="flex items-center gap-2">
+                <input type="range" min={0} max={359} value={phaseAngle} onChange={(e) => setPhaseAngle(Number(e.target.value))} className="w-full accent-primary" disabled={flying} />
+                <button
+                  onClick={() => orbit && setPhaseAngle(Math.round(orbit.requiredPhase))}
+                  disabled={flying || !orbit}
+                  title="Snap to launch window"
+                  className="flex shrink-0 items-center gap-1 rounded-full border border-border/60 px-2.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
+                >
+                  <Crosshair className="h-3 w-3" strokeWidth={1.5} /> Align
+                </button>
+              </div>
             </div>
             <div>
               <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted-foreground">

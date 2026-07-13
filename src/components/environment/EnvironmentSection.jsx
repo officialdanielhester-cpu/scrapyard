@@ -35,8 +35,8 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
     return null;
   });
   const [steerSize, setSteerSize] = useState(() => {
-    try { const s = localStorage.getItem("aetheris.steerSize"); if (s) return Number(s); } catch {}
-    return 1;
+    try { const s = localStorage.getItem("aetheris.steerSize2"); if (s) return Number(s); } catch {}
+    return 0.8;
   });
   const [view, setView] = useState("pad");
   const [buildInstances, setBuildInstances] = useState(null);
@@ -128,7 +128,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
   }, []);
 
   useEffect(() => { if (steerPos) try { localStorage.setItem("aetheris.steerPos", JSON.stringify(steerPos)); } catch {} }, [steerPos]);
-  useEffect(() => { try { localStorage.setItem("aetheris.steerSize", String(steerSize)); } catch {} }, [steerSize]);
+  useEffect(() => { try { localStorage.setItem("aetheris.steerSize2", String(steerSize)); } catch {} }, [steerSize]);
 
   const selectVehicle = (type) => {
     setVehicleType(type);
@@ -336,7 +336,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
         {view === "pad" ? (
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="flex flex-col gap-3">
-            <div ref={canvasBoxRef} className="relative h-[440px] overflow-hidden rounded-2xl border border-border/50 md:h-[540px]">
+            <div ref={canvasBoxRef} className="relative h-[560px] overflow-hidden rounded-2xl border border-border/50 md:h-[700px]">
               {view3D ? (
                 <SimulationCanvas
                   vehicleType={vehicleType}
@@ -417,7 +417,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
                   onSizeChange={setSteerSize}
                   pos={steerPos}
                   onPosChange={setSteerPos}
-                  onReset={() => { setSteerSize(1); setSteerPos({ left: boxBounds.w / 2, top: boxBounds.h - 160 }); }}
+                  onReset={() => { setSteerSize(0.8); setSteerPos({ left: boxBounds.w / 2, top: boxBounds.h - 160 }); }}
                   bounds={boxBounds}
                 />
               )}
