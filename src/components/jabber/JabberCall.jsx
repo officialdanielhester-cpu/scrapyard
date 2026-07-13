@@ -10,6 +10,7 @@ const SPEED_RATE = { Patient: 0.92, Balanced: 1, Rapid: 1.15 };
 
 const TUTOR_PROMPT = `You are Jabber, the user's personal AI tutor and companion in Aetheris — and the best tutor they've ever had.
 You're on a live voice phone call. Speak naturally and concisely, like you're actually on the phone — no markdown, no bullet lists, no headers, just spoken sentences.
+Your reply is read aloud by a voice engine, so write for the ear: use natural pauses (commas, em-dashes, the occasional "…"), vary sentence length to give it rhythm, lean on contractions, and toss in a question now and then to engage — that gives your voice variable cadence and expressive intonation instead of a flat, robotic read.
 
 Tutoring approach:
 - Be Socratic: guide with questions, don't just lecture. Lead them to insights.
@@ -49,6 +50,26 @@ const STYLE_GUIDE = {
   expressive: "Be expressive — vary your energy, react with feeling, let enthusiasm and curiosity show.",
   storytelling: "Use tiny stories, scenarios, and vivid imagery to make ideas stick.",
 };
+
+// Clean and shape reply text for the TTS engine so it reads with natural
+// cadence and intonation: drop markdown/symbols it would stumble over, turn
+// symbols into spoken words, and guarantee trailing punctuation for clean
+// rising/falling intonation at the end of each reply.
+function shapeForSpeech(text) {
+  let s = String(text || "").trim();
+  s = s.replace(/[*_#`>]+/g, "");
+  s = s.replace(/^\s*[-*]\s+/gm, "");
+  s = s.replace(/\s[•·]\s/g, ", ");
+  s = s.replace(/&/g, " and ");
+  s = s.replace(/%/g, " percent");
+  s = s.replace(/\s->\s/g, " leads to ");
+  s = s.replace(/\s=>\s/g, " means ");
+  s = s.replace(/\s=\s/g, " equals ");
+  s = s.replace(/\.\.\./g, "…");
+  s = s.replace(/\s{2,}/g, " ").trim();
+  if (s && !/[.!?…]$/.test(s)) s += ".";
+  return s;
+}
 
 const STATUS = {
   connecting: "Calling Jabber…",
@@ -127,10 +148,11 @@ export default function JabberCall({ open, onClose }) {
     // play, fall back to the browser speech engine so Jabber always reads
     // its reply aloud — on every turn, not just the first.
     const speak = async (text) => {
+      const spoken = shapeForSpeech(text);
       let url = null;
       try {
         const res = await base44.integrations.Core.GenerateSpeech({
-          text: String(text).slice(0, 5000),
+          text: spoken.slice(0, 5000),
           voice: settings.voice || "river",
           language_code: lang.slice(0, 2),
         });
@@ -158,7 +180,7 @@ export default function JabberCall({ open, onClose }) {
         try {
           const synth = window.speechSynthesis;
           synth.cancel();
-          const u = new SpeechSynthesisUtterance(text);
+          const u = new SpeechSynthesisUtterance(spoken);
           u.rate = rate;
           const voices = synth.getVoices();
           const v = voices.find((vv) => vv.lang && vv.lang.startsWith(lang.slice(0, 2)))
