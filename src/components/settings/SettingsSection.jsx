@@ -1,73 +1,20 @@
 import React, { useState } from "react";
-import { Moon, Sun, Gauge, Shield, Bell, Languages } from "lucide-react";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import MobileSelectDrawer from "@/components/MobileSelectDrawer";
+import { Sun, Sparkles, Volume2, Link2, User } from "lucide-react";
 import ConnectionTab from "@/components/settings/ConnectionTab";
 import VoiceTab from "@/components/settings/VoiceTab";
 import AccountTab from "@/components/settings/AccountTab";
-import { useJabberSettings, DEFAULT_JABBER_SETTINGS } from "@/hooks/use-jabber-settings";
-import { useTheme } from "@/hooks/use-theme";
+import PreferencesTab from "@/components/settings/PreferencesTab";
 
-const TABS = [
-  { id: "ambience", label: "Ambience" },
-  { id: "voice", label: "Voice" },
-  { id: "trust", label: "Trust" },
-  { id: "connection", label: "Connection" },
-  { id: "account", label: "Account" },
+const SECTIONS = [
+  { id: "appearance", label: "Appearance", icon: Sun },
+  { id: "behavior", label: "Assistant", icon: Sparkles },
+  { id: "voice", label: "Voice", icon: Volume2 },
+  { id: "connection", label: "Connection", icon: Link2 },
+  { id: "account", label: "Account", icon: User },
 ];
-
-const SETTING_GROUPS = [
-  {
-    title: "Ambience",
-    items: [
-      { id: "lightMode", label: "Light Mode", desc: "Switch between light and dark themes", icon: Sun, type: "toggle", default: false },
-      { id: "speed", label: "Response Tempo", desc: "Balanced by default", icon: Gauge, type: "select", options: ["Patient", "Balanced", "Rapid"], default: "Balanced" },
-    ],
-  },
-  {
-    title: "Trust",
-    items: [
-      { id: "private", label: "Private Mode", desc: "Never persist conversations", icon: Shield, type: "toggle", default: false },
-      { id: "notify", label: "Ambient Notifications", desc: "Quiet, non-intrusive pings", icon: Bell, type: "toggle", default: true },
-      { id: "lang", label: "Language", desc: "Detection is automatic", icon: Languages, type: "select", options: ["Auto", "English", "Spanish", "French"], default: "Auto" },
-    ],
-  },
-];
-
-function Toggle({ on, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      role="switch"
-      aria-checked={on}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-300 ${
-        on ? "bg-primary" : "bg-foreground/15"
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow-sm transition-transform duration-300 ${
-          on ? "translate-x-[22px]" : "translate-x-0.5"
-        }`}
-      />
-    </button>
-  );
-}
 
 export default function SettingsSection() {
-  const [tab, setTab] = useState("ambience");
-  const { settings, update } = useJabberSettings();
-  const { theme, toggle: toggleTheme } = useTheme();
-
-  const toggle = (id) => {
-    if (id === "lightMode") {
-      toggleTheme();
-      return;
-    }
-    update({ [id]: !settings[id] });
-  };
-  const select = (id, val) => update({ [id]: val });
-
-  const activeGroup = SETTING_GROUPS.find((g) => g.title.toLowerCase() === tab);
+  const [section, setSection] = useState("appearance");
 
   return (
     <div className="h-full overflow-y-auto">
@@ -79,90 +26,63 @@ export default function SettingsSection() {
       </header>
 
       <div className="px-6 md:px-12">
-        <div className="mx-auto max-w-2xl pb-16">
-          <div className="mb-8 flex w-fit gap-1 rounded-full border border-border/50 p-1">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                  tab === t.id
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+        <div className="mx-auto max-w-3xl pb-20 md:flex md:gap-10">
+          {/* Desktop rail */}
+          <nav className="hidden w-52 shrink-0 md:block">
+            <div className="sticky top-4 space-y-1">
+              {SECTIONS.map((s) => {
+                const Icon = s.icon;
+                const on = section === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSection(s.id)}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                      on
+                        ? "bg-primary/10 font-medium text-primary"
+                        : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Mobile horizontal chip nav */}
+          <div className="mb-6 md:hidden">
+            <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+              {SECTIONS.map((s) => {
+                const Icon = s.icon;
+                const on = section === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSection(s.id)}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs transition-colors ${
+                      on
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border/60 text-muted-foreground"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {tab === "connection" ? (
-            <ConnectionTab />
-          ) : tab === "voice" ? (
-            <VoiceTab />
-          ) : tab === "account" ? (
-            <AccountTab />
-          ) : (
-            <div className="space-y-12">
-              <section>
-                <h2 className="mb-4 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                  {activeGroup.title}
-                </h2>
-                <div className="divide-y divide-border/40 rounded-2xl border border-border/50">
-                  {activeGroup.items.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.id} className="flex items-center justify-between gap-4 px-5 py-4">
-                        <div className="flex items-start gap-3">
-                          <Icon className="mt-0.5 h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
-                          <div>
-                            <p className="font-body text-sm font-medium">{item.label}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">{item.desc}</p>
-                          </div>
-                        </div>
-                        {item.type === "toggle" ? (
-                          <Toggle on={item.id === "lightMode" ? theme === "light" : !!settings[item.id]} onClick={() => toggle(item.id)} />
-                        ) : (
-                          <MobileSelectDrawer
-                            value={settings[item.id] ?? item.default}
-                            onValueChange={(v) => select(item.id, v)}
-                            options={item.options}
-                            title={item.label}
-                            triggerClassName="w-[140px] rounded-md border border-border/60 bg-background px-3 py-1.5 font-mono text-xs focus:border-primary"
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-
-              {tab === "trust" && (
-                <div className="rounded-2xl border border-border/50 p-5">
-                  <p className="font-body text-sm text-foreground/80">
-                    Reset Jabber to its original state.
-                  </p>
-                  <button
-                    onClick={() =>
-                      update({
-                        speed: DEFAULT_JABBER_SETTINGS.speed,
-                        private: DEFAULT_JABBER_SETTINGS.private,
-                        notify: DEFAULT_JABBER_SETTINGS.notify,
-                        lang: DEFAULT_JABBER_SETTINGS.lang,
-                      })
-                    }
-                    className="mt-3 rounded-md border border-destructive/40 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-destructive transition-colors hover:bg-destructive/5"
-                  >
-                    Reset to Defaults
-                  </button>
-                </div>
-              )}
-
-              <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                Synced with Recall · stored locally until connected
-              </p>
-            </div>
-          )}
+          {/* Content */}
+          <div className="min-w-0 flex-1">
+            {section === "appearance" && <PreferencesTab group="appearance" />}
+            {section === "behavior" && <PreferencesTab group="behavior" />}
+            {section === "voice" && <VoiceTab />}
+            {section === "connection" && <ConnectionTab />}
+            {section === "account" && <AccountTab />}
+          </div>
         </div>
       </div>
     </div>
