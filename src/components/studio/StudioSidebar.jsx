@@ -121,7 +121,7 @@ export default function StudioSidebar(props) {
             {objects.filter((o) => o.name.toLowerCase().includes(search.toLowerCase())).map((o) => (
               <li key={o.id}>
                 <button onClick={() => props.onSelectObject(o.id)} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${selectedId === o.id ? "bg-primary/15 text-primary" : "hover:bg-foreground/5"}`}>
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: o.kind === "mesh" ? "#d4d4d8" : o.parts[0]?.color }} />
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: o.kind === "mesh" ? "#d4d4d8" : o.kind === "image" ? "#3b82f6" : o.parts?.[0]?.color }} />
                   <span className="flex-1 truncate">{o.name}</span>
                   {o.kind === "mesh" && <span className="font-mono text-[9px] text-muted-foreground">mesh</span>}
                 </button>
