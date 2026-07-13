@@ -33,7 +33,7 @@ export default function FreeAssemblyCanvas({ instances, setInstances }) {
     const id = e.dataTransfer.getData("text/part");
     if (!id) return;
     const { x, y } = toSvg(e.clientX, e.clientY);
-    const inst = { iid: newIid(), type: id, x: Math.round(x), y: Math.round(y), scale: 1, color: "" };
+    const inst = { iid: newIid(), type: id, x: Math.round(x), y: Math.round(y), scale: 1, rot: 0, color: "" };
     setInstances((prev) => [...prev, inst]);
     setSelected(inst.iid);
   };
@@ -98,6 +98,18 @@ export default function FreeAssemblyCanvas({ instances, setInstances }) {
               className="w-20 accent-primary"
             />
           </label>
+          <label className="flex items-center gap-1.5">
+            <span className="font-mono text-[10px] uppercase text-muted-foreground">Rotate</span>
+            <input
+              type="range"
+              min="0"
+              max="360"
+              step="15"
+              value={sel.rot || 0}
+              onChange={(e) => updateSel({ rot: Number(e.target.value) })}
+              className="w-20 accent-primary"
+            />
+          </label>
           <button
             onClick={deleteSel}
             className="flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 font-mono text-[10px] uppercase text-destructive hover:bg-destructive/5"
@@ -138,7 +150,7 @@ export default function FreeAssemblyCanvas({ instances, setInstances }) {
           return (
             <g
               key={inst.iid}
-              transform={`translate(${inst.x} ${inst.y}) scale(${s}) translate(-24 -24)`}
+              transform={`translate(${inst.x} ${inst.y}) rotate(${inst.rot || 0}) scale(${s}) translate(-24 -24)`}
               onPointerDown={(e) => startMove(e, inst)}
               className="cursor-move"
             >

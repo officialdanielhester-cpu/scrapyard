@@ -220,6 +220,47 @@ export function buildInstances3D(instances) {
   return { group, rotorMeshes, pickables, totalH: 6 };
 }
 
+// World↔2D coordinate map for free-form instance placement (2D canvas → 3D X-Y plane).
+export const MAP = { K: 0.012, CX: 300, CY: 240 };
+
+// Build a 3D group from free-form placed instances, mirroring the EXACT 2D bay
+// positions (x,y → 3D X,Y on the z=0 plane) and per-part rotation. Used by the
+// Workshop 3D assembly bay so it stays in sync with the 2D editor.
+export function buildFreeInstances3D(instances) {
+  const group = new THREE.Group();
+  const rotorMeshes = [];
+  const pickables = [];
+  if (!instances || !instances.length) return { group, rotorMeshes, pickables, bbox: null };
+  const { K, CX, CY } = MAP;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  instances.forEach((inst) => {
+    const meta = PART_SHAPES[inst.type];
+    if (!meta) return;
+    const scale = inst.scale || 1;
+    const r = 0.3 * scale;
+    const h3D = Math.max(0.2, (meta.h || 40) * 0.02 * scale);
+    const isSide = meta.slot === "side";
+    const sub = isSide ? sideGroup(inst.type, r, inst.color) : partGroup(inst.type, r, h3D, inst.color);
+    const wx = (inst.x - CX) * K;
+    const wy = (CY - inst.y) * K;
+    sub.position.set(wx, wy, 0);
+    sub.rotation.z = ((inst.rot || 0) * Math.PI) / 180;
+    minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
+    minY = Math.min(minY, wy - h3D / 2); maxY = Math.max(maxY, wy + h3D / 2);
+    sub.traverse((o) => {
+      if (o.isMesh) {
+        o.userData.iid = inst.iid;
+        o.userData.partId = inst.type;
+        pickables.push(o);
+        if (inst.type === "rotor_blade" && o.geometry?.type === "BoxGeometry") rotorMeshes.push(o);
+      }
+    });
+    group.add(sub);
+  });
+  const bbox = minX === Infinity ? null : { minX, maxX, minY, maxY };
+  return { group, rotorMeshes, pickables, bbox };
+}
+
 // Count instances by type → [{type, qty}] for the stacked 3D preview.
 export function countByType(instances) {
   const map = {};

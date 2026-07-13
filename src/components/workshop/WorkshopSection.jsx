@@ -46,7 +46,7 @@ export default function WorkshopSection({ onImportBuild }) {
   const addPart = (id) =>
     setInstances((prev) => [
       ...prev,
-      { iid: newIid(), type: id, x: 300 + Math.round((Math.random() - 0.5) * 80), y: 240 + Math.round((Math.random() - 0.5) * 80), scale: 1, color: "" },
+      { iid: newIid(), type: id, x: 300 + Math.round((Math.random() - 0.5) * 80), y: 240 + Math.round((Math.random() - 0.5) * 80), scale: 1, rot: 0, color: "" },
     ]);
 
   // Remove one instance of the given type (used by 3D click-to-remove and the − button).

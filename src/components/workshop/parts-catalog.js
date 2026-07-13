@@ -126,6 +126,7 @@ export function normalizeInstances(parts) {
       x: p.x ?? 300,
       y: p.y ?? 240,
       scale: p.scale ?? 1,
+      rot: p.rot ?? 0,
       color: p.color ?? "",
     }));
   }
@@ -134,7 +135,7 @@ export function normalizeInstances(parts) {
   parts.forEach((ap) => {
     const q = Math.max(1, ap.qty || 1);
     for (let i = 0; i < q; i++) {
-      out.push({ iid: `i-${Math.random().toString(36).slice(2, 9)}`, type: ap.type, x: 300, y, scale: 1, color: "" });
+      out.push({ iid: `i-${Math.random().toString(36).slice(2, 9)}`, type: ap.type, x: 300, y, scale: 1, rot: 0, color: "" });
       y += 44;
     }
   });
