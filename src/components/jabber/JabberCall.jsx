@@ -81,8 +81,9 @@ export default function JabberCall({ open, onClose }) {
     rec.lang = lang;
     recRef.current = rec;
 
-    // Speak a reply using the natural hosted voice selected in Settings,
-    // falling back to the browser's speech engine if the network fails.
+    // Speak a reply using the natural hosted voice selected in Settings.
+    // If the hosted audio can't load or play, fall back to the browser's
+    // speech engine so Jabber always reads its reply aloud.
     const speak = async (text) => {
       let url = null;
       try {
@@ -96,32 +97,37 @@ export default function JabberCall({ open, onClose }) {
 
       phaseRef.current = "speaking"; setPhase("speaking");
 
-      if (url) {
-        await new Promise((resolve) => {
-          const audio = new Audio(url);
-          audioRef.current = audio;
-          audio.onended = () => { audioRef.current = null; resolve(); };
-          audio.onerror = () => { audioRef.current = null; resolve(); };
-          audio.play().catch(() => { audioRef.current = null; resolve(); });
-        });
-      } else {
-        await new Promise((resolve) => {
-          try {
-            const synth = window.speechSynthesis;
-            synth.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.rate = rate;
-            const voices = synth.getVoices();
-            const v = voices.find((vv) => vv.lang && vv.lang.startsWith(lang.slice(0, 2)))
-              || voices.find((vv) => vv.lang && vv.lang.startsWith("en"))
-              || voices[0];
-            if (v) u.voice = v;
-            u.onend = () => resolve();
-            u.onerror = () => resolve();
-            synth.speak(u);
-          } catch { resolve(); }
-        });
-      }
+      const playHosted = () => new Promise((resolve) => {
+        if (!url) return resolve(false);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        let done = false;
+        const finish = (ok) => { if (done) return; done = true; audioRef.current = null; resolve(ok); };
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(false);
+        audio.play().catch(() => finish(false));
+        setTimeout(() => finish(false), 20000);
+      });
+
+      const playLocal = () => new Promise((resolve) => {
+        try {
+          const synth = window.speechSynthesis;
+          synth.cancel();
+          const u = new SpeechSynthesisUtterance(text);
+          u.rate = rate;
+          const voices = synth.getVoices();
+          const v = voices.find((vv) => vv.lang && vv.lang.startsWith(lang.slice(0, 2)))
+            || voices.find((vv) => vv.lang && vv.lang.startsWith("en"))
+            || voices[0];
+          if (v) u.voice = v;
+          u.onend = () => resolve();
+          u.onerror = () => resolve();
+          synth.speak(u);
+        } catch { resolve(); }
+      });
+
+      const ok = await playHosted();
+      if (!ok) await playLocal();
     };
 
     const startRec = () => { try { rec.start(); } catch {} };
