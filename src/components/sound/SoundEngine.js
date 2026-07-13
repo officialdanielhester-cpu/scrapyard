@@ -140,6 +140,13 @@ class SoundEngine {
       case "pluck": this._pluck(time, vol, dest, freq); break;
       case "pad": this._pad(time, vol, dest, freq); break;
       case "arp": this._arp(time, vol, dest, freq); break;
+      case "ride": this._ride(time, vol, dest); break;
+      case "crash": this._crash(time, vol, dest); break;
+      case "rim": this._rim(time, vol, dest); break;
+      case "shaker": this._shaker(time, vol, dest); break;
+      case "kalimba": this._kalimba(time, vol, dest, freq); break;
+      case "music_box": this._music_box(time, vol, dest, freq); break;
+      case "sitar": this._sitar(time, vol, dest, freq); break;
       default: break;
     }
   }
@@ -535,6 +542,117 @@ class SoundEngine {
     });
   }
 
+  // ---- Cymbals & auxiliary percussion ----
+  _ride(time, vol, dest) {
+    const o1 = this.ctx.createOscillator(); o1.type = "square"; o1.frequency.value = 498;
+    const o2 = this.ctx.createOscillator(); o2.type = "square"; o2.frequency.value = 745;
+    const bp = this.ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 7600; bp.Q.value = 0.7;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.16, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+    o1.connect(bp); o2.connect(bp); bp.connect(gain); gain.connect(dest);
+    o1.start(time); o1.stop(time + 0.5);
+    o2.start(time); o2.stop(time + 0.5);
+    const noise = this._noise(0.5);
+    const nf = this.ctx.createBiquadFilter(); nf.type = "highpass"; nf.frequency.value = 8000;
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(vol * 0.1, time);
+    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+    noise.connect(nf); nf.connect(ng); ng.connect(dest);
+    noise.start(time); noise.stop(time + 0.5);
+  }
+
+  _crash(time, vol, dest) {
+    const noise = this._noise(0.9);
+    const hp = this.ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 5000;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.3, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.9);
+    noise.connect(hp); hp.connect(gain); gain.connect(dest);
+    noise.start(time); noise.stop(time + 0.9);
+    const o = this.ctx.createOscillator(); o.type = "square"; o.frequency.value = 320;
+    const obp = this.ctx.createBiquadFilter(); obp.type = "bandpass"; obp.frequency.value = 9000; obp.Q.value = 0.5;
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(vol * 0.07, time);
+    og.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+    o.connect(obp); obp.connect(og); og.connect(dest);
+    o.start(time); o.stop(time + 0.5);
+  }
+
+  _rim(time, vol, dest) {
+    const o = this.ctx.createOscillator(); o.type = "triangle"; o.frequency.value = 420;
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(vol * 0.28, time);
+    og.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    o.connect(og); og.connect(dest);
+    o.start(time); o.stop(time + 0.05);
+    const noise = this._noise(0.04);
+    const nf = this.ctx.createBiquadFilter(); nf.type = "bandpass"; nf.frequency.value = 2400; nf.Q.value = 2;
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(vol * 0.22, time);
+    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+    noise.connect(nf); nf.connect(ng); ng.connect(dest);
+    noise.start(time); noise.stop(time + 0.04);
+  }
+
+  _shaker(time, vol, dest) {
+    const noise = this._noise(0.08);
+    const hp = this.ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 6500;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(vol * 0.18, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+    noise.connect(hp); hp.connect(gain); gain.connect(dest);
+    noise.start(time); noise.stop(time + 0.08);
+  }
+
+  // ---- World / tuned instruments ----
+  _kalimba(time, vol, dest, freq) {
+    [1, 2, 3, 4].forEach((m) => {
+      const o = this.ctx.createOscillator();
+      o.type = "sine"; o.frequency.value = freq * m;
+      const g = this.ctx.createGain();
+      const amp = vol * (m === 1 ? 0.4 : m === 2 ? 0.18 : m === 3 ? 0.1 : 0.05);
+      g.gain.setValueAtTime(amp, time);
+      g.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
+      o.connect(g); g.connect(dest);
+      o.start(time); o.stop(time + 0.6);
+    });
+  }
+
+  _music_box(time, vol, dest, freq) {
+    const carrier = this.ctx.createOscillator();
+    carrier.type = "sine"; carrier.frequency.value = freq * 2;
+    const mod = this.ctx.createOscillator();
+    mod.type = "sine"; mod.frequency.value = freq * 3.5;
+    const modGain = this.ctx.createGain();
+    modGain.gain.setValueAtTime(freq * 6, time);
+    modGain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+    mod.connect(modGain); modGain.connect(carrier.frequency);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol * 0.32, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+    carrier.connect(gain); gain.connect(dest);
+    carrier.start(time); carrier.stop(time + 0.5);
+    mod.start(time); mod.stop(time + 0.5);
+  }
+
+  _sitar(time, vol, dest, freq) {
+    const o1 = this.ctx.createOscillator(); o1.type = "sawtooth"; o1.frequency.value = freq;
+    const o2 = this.ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = freq * 1.004;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.Q.value = 7;
+    bp.frequency.setValueAtTime(freq * 5, time);
+    bp.frequency.exponentialRampToValueAtTime(freq * 1.6, time + 0.35);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(vol * 0.3, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+    o1.connect(bp); o2.connect(bp); bp.connect(gain); gain.connect(dest);
+    o1.start(time); o1.stop(time + 0.5);
+    o2.start(time); o2.stop(time + 0.5);
+  }
+
   _noise(duration) {
     const bufferSize = this.ctx.sampleRate * duration;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -555,6 +673,10 @@ export const INSTRUMENTS = [
   { id: "clap", name: "Clap", color: "#84cc16", melodic: false },
   { id: "cowbell", name: "Cowbell", color: "#22c55e", melodic: false },
   { id: "tom", name: "Tom", color: "#14b8a6", melodic: true },
+  { id: "ride", name: "Ride", color: "#0d9488", melodic: false },
+  { id: "crash", name: "Crash", color: "#0891b2", melodic: false },
+  { id: "rim", name: "Rim", color: "#65a30d", melodic: false },
+  { id: "shaker", name: "Shaker", color: "#84cc16", melodic: false },
   // bass
   { id: "bass", name: "Bass", color: "#06b6d4", melodic: true },
   { id: "acid", name: "Acid 303", color: "#0891b2", melodic: true },
@@ -574,6 +696,10 @@ export const INSTRUMENTS = [
   { id: "pluck", name: "Pluck", color: "#8b5cf6", melodic: true },
   { id: "pad", name: "Pad", color: "#a855f7", melodic: true },
   { id: "arp", name: "Arp", color: "#d946ef", melodic: true },
+  // world / tuned
+  { id: "kalimba", name: "Kalimba", color: "#f59e0b", melodic: true },
+  { id: "music_box", name: "Music Box", color: "#fbbf24", melodic: true },
+  { id: "sitar", name: "Sitar", color: "#ea580c", melodic: true },
   // sample (recorded / imported — not shown in the add-track menu)
   { id: "sample", name: "Sample", color: "#94a3b8", melodic: false },
 ];

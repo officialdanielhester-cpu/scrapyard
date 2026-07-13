@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Piano, LayoutGrid, Music, Move, Volume2 } from "lucide-react";
+import { Piano, LayoutGrid, Music, Move, Volume2, Circle } from "lucide-react";
 import { INSTRUMENTS } from "@/components/sound/SoundEngine";
 import InstrumentKeyboard from "@/components/sound/InstrumentKeyboard";
 import DrumPads from "@/components/sound/DrumPads";
+import DrumSet from "@/components/sound/DrumSet";
 import Fretboard from "@/components/sound/Fretboard";
 import XYPad from "@/components/sound/XYPad";
 
@@ -11,6 +12,7 @@ const MELODIC = INSTRUMENTS.filter((i) => i.melodic && i.id !== "sample");
 const TABS = [
   { id: "keyboard", label: "Keys", icon: Piano },
   { id: "drums", label: "Drum Pads", icon: LayoutGrid },
+  { id: "kit", label: "Drum Set", icon: Circle },
   { id: "fretboard", label: "Guitar", icon: Music },
   { id: "xy", label: "XY Pad", icon: Move },
 ];
@@ -43,7 +45,7 @@ export default function InstrumentPlayground() {
           })}
         </div>
 
-        {tab !== "drums" && (
+        {tab !== "drums" && tab !== "kit" && (
           <select
             value={instrument}
             onChange={(e) => setInstrument(e.target.value)}
@@ -69,6 +71,7 @@ export default function InstrumentPlayground() {
         <InstrumentKeyboard instrument={instrument} setInstrument={setInstrument} vol={vol} />
       )}
       {tab === "drums" && <DrumPads vol={vol} />}
+      {tab === "kit" && <DrumSet vol={vol} />}
       {tab === "fretboard" && <Fretboard instrument={instrument} vol={vol} />}
       {tab === "xy" && <XYPad instrument={instrument} vol={vol} />}
     </div>

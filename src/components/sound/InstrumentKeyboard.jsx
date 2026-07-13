@@ -8,6 +8,7 @@ const FAMILIES = [
   { label: "Bass", members: ["bass", "acid", "wobble"] },
   { label: "Leads", members: ["lead", "sawlead", "square", "brass"] },
   { label: "Pads & Strings", members: ["strings", "choir", "pad", "pluck", "arp"] },
+  { label: "World", members: ["kalimba", "music_box", "sitar"] },
 ];
 const familyOf = (id) => FAMILIES.find((f) => f.members.includes(id));
 

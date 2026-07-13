@@ -3,16 +3,24 @@ import SoundEngine, { INSTRUMENTS } from "@/components/sound/SoundEngine";
 
 const colorOf = (id) => INSTRUMENTS.find((i) => i.id === id)?.color || "#64748b";
 
-// 8 velocity pads across the percussion voices (Tom Hi = tom +7 semitones).
+// 16 velocity pads — full percussion palette plus pitched toms across the grid.
 const PADS = [
-  { id: "kick", name: "Kick", key: "1" },
-  { id: "snare", name: "Snare", key: "2" },
-  { id: "clap", name: "Clap", key: "3" },
-  { id: "cowbell", name: "Cowbell", key: "4" },
-  { id: "hihat", name: "Hi-Hat", key: "q" },
+  { id: "kick",    name: "Kick",     key: "1" },
+  { id: "snare",   name: "Snare",    key: "2" },
+  { id: "clap",    name: "Clap",     key: "3" },
+  { id: "rim",     name: "Rim",      key: "4" },
+  { id: "hihat",   name: "Hi-Hat",   key: "q" },
   { id: "openhat", name: "Open Hat", key: "w" },
-  { id: "tom", name: "Tom Lo", key: "e", semi: 0 },
-  { id: "tom", name: "Tom Hi", key: "r", semi: 7 },
+  { id: "ride",    name: "Ride",     key: "e" },
+  { id: "crash",   name: "Crash",    key: "r" },
+  { id: "cowbell", name: "Cowbell",  key: "a" },
+  { id: "shaker",  name: "Shaker",   key: "s" },
+  { id: "tom",     name: "Floor",    key: "d", semi: -5 },
+  { id: "tom",     name: "Low",      key: "f", semi: 0 },
+  { id: "tom",     name: "Mid",      key: "z", semi: 4 },
+  { id: "tom",     name: "High",     key: "x", semi: 7 },
+  { id: "tom",     name: "Top",      key: "c", semi: 10 },
+  { id: "tom",     name: "Peak",     key: "v", semi: 14 },
 ];
 
 export default function DrumPads({ vol }) {
@@ -40,8 +48,8 @@ export default function DrumPads({ vol }) {
   return (
     <div className="rounded-2xl border border-border/40 bg-background/40 p-4">
       <div className="mb-3 flex items-center justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Drum Pads · 8 voices</span>
-        <span className="hidden font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50 md:block">Tap pads or press 1–4 · Q–R</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Drum Pads · 16 voices</span>
+        <span className="hidden font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50 md:block">Tap pads or press 1–4 · Q–R · A–F · Z–V</span>
       </div>
       <div className="grid grid-cols-4 gap-2">
         {PADS.map((pad) => {
