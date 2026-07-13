@@ -30,6 +30,13 @@ const STATUS = {
   speaking: "Speaking…",
 };
 
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Hey, good morning — good to hear you. What are we working on today?";
+  if (h < 18) return "Hey, good to hear you. What are we digging into this afternoon?";
+  return "Good evening — glad you called. What's on your mind tonight?";
+}
+
 export default function JabberCall({ open, onClose }) {
   const { settings } = useJabberSettings();
   const [phase, setPhase] = useState("idle");
@@ -45,11 +52,14 @@ export default function JabberCall({ open, onClose }) {
   const transcriptRef = useRef([]);
   const activeRef = useRef(false);
   const recRef = useRef(null);
+  const audioRef = useRef(null);
+  const listRef = useRef(null);
 
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
   const supported = !!SR && typeof window !== "undefined" && "speechSynthesis" in window;
 
   useEffect(() => { persistRef.current = !settings.private; }, [settings.private]);
+  useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [turns, interim]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,8 +69,6 @@ export default function JabberCall({ open, onClose }) {
       setError("Voice call needs speech recognition — try Chrome or Safari with a mic.");
       return;
     }
-    // Warm up the speech engine so playback isn't blocked after the gesture.
-    try { window.speechSynthesis.speak(new SpeechSynthesisUtterance(" ")); } catch {}
 
     setPhase("connecting"); phaseRef.current = "connecting";
     (async () => { memRef.current = await fetchRecentMemories(10); })();
@@ -73,23 +81,48 @@ export default function JabberCall({ open, onClose }) {
     rec.lang = lang;
     recRef.current = rec;
 
-    const speak = (text) => new Promise((resolve) => {
+    // Speak a reply using the natural hosted voice selected in Settings,
+    // falling back to the browser's speech engine if the network fails.
+    const speak = async (text) => {
+      let url = null;
       try {
-        const synth = window.speechSynthesis;
-        synth.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        const voices = synth.getVoices();
-        const v = voices.find((vv) => vv.lang && vv.lang.startsWith(lang.slice(0, 2)))
-          || voices.find((vv) => vv.lang && vv.lang.startsWith("en"))
-          || voices[0];
-        if (v) u.voice = v;
-        u.rate = rate;
-        u.onend = () => resolve();
-        u.onerror = () => resolve();
-        phaseRef.current = "speaking"; setPhase("speaking");
-        synth.speak(u);
-      } catch { resolve(); }
-    });
+        const res = await base44.integrations.Core.GenerateSpeech({
+          text: String(text).slice(0, 5000),
+          voice: settings.voice || "river",
+          language_code: lang.slice(0, 2),
+        });
+        url = res?.url || res;
+      } catch { /* fall through to local TTS */ }
+
+      phaseRef.current = "speaking"; setPhase("speaking");
+
+      if (url) {
+        await new Promise((resolve) => {
+          const audio = new Audio(url);
+          audioRef.current = audio;
+          audio.onended = () => { audioRef.current = null; resolve(); };
+          audio.onerror = () => { audioRef.current = null; resolve(); };
+          audio.play().catch(() => { audioRef.current = null; resolve(); });
+        });
+      } else {
+        await new Promise((resolve) => {
+          try {
+            const synth = window.speechSynthesis;
+            synth.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.rate = rate;
+            const voices = synth.getVoices();
+            const v = voices.find((vv) => vv.lang && vv.lang.startsWith(lang.slice(0, 2)))
+              || voices.find((vv) => vv.lang && vv.lang.startsWith("en"))
+              || voices[0];
+            if (v) u.voice = v;
+            u.onend = () => resolve();
+            u.onerror = () => resolve();
+            synth.speak(u);
+          } catch { resolve(); }
+        });
+      }
+    };
 
     const startRec = () => { try { rec.start(); } catch {} };
     const stopRec = () => { try { rec.stop(); } catch {} };
@@ -157,16 +190,25 @@ Jabber (spoken reply):`;
       if (activeRef.current && phaseRef.current === "listening" && !mutedRef.current) startRec();
     };
 
-    const t = setTimeout(() => {
-      phaseRef.current = "listening"; setPhase("listening");
-      startRec();
-    }, 1300);
+    // Connect → Jabber greets you first, then opens the mic.
+    const greet = greeting();
+    const t = setTimeout(async () => {
+      if (!activeRef.current) return;
+      transcriptRef.current = [...transcriptRef.current, { role: "assistant", text: greet }];
+      setTurns(transcriptRef.current);
+      await speak(greet);
+      if (activeRef.current && !mutedRef.current) {
+        phaseRef.current = "listening"; setPhase("listening");
+        startRec();
+      }
+    }, 1100);
 
     return () => {
       clearTimeout(t);
       activeRef.current = false;
       try { rec.abort(); } catch {}
       try { window.speechSynthesis.cancel(); } catch {}
+      if (audioRef.current) { try { audioRef.current.pause(); } catch {} audioRef.current = null; }
     };
   }, [open]);
 
@@ -174,6 +216,7 @@ Jabber (spoken reply):`;
     activeRef.current = false;
     try { recRef.current?.abort(); } catch {}
     try { window.speechSynthesis.cancel(); } catch {}
+    if (audioRef.current) { try { audioRef.current.pause(); } catch {} audioRef.current = null; }
     phaseRef.current = "idle"; setPhase("idle");
     onClose();
   };
@@ -184,6 +227,10 @@ Jabber (spoken reply):`;
     if (next) { try { recRef.current?.stop(); } catch {} }
     else if (phaseRef.current === "listening") { try { recRef.current?.start(); } catch {} }
   };
+
+  const pulseDur = phase === "speaking" ? 1.1 : phase === "listening" ? 2.2 : phase === "thinking" ? 1.6 : 2.8;
+  const live = phase === "listening" || phase === "speaking" || phase === "thinking";
+  const lastAssistant = [...turns].reverse().find((t) => t.role === "assistant");
 
   return (
     <AnimatePresence>
@@ -198,29 +245,50 @@ Jabber (spoken reply):`;
           </div>
 
           <div className="flex flex-1 flex-col items-center justify-center px-6">
-            <div className="relative mb-8 flex h-32 w-32 items-center justify-center">
-              {(phase === "listening" || phase === "speaking") && (
-                <>
-                  <span className="absolute h-full w-full rounded-full bg-primary/20 animate-ping" />
-                  <span className="absolute h-24 w-24 rounded-full bg-primary/10 animate-pulse" />
-                </>
-              )}
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-primary/15">
-                <Sparkles className="h-9 w-9 text-primary" strokeWidth={1.5} />
-              </div>
+            <div className="relative mb-8 flex h-40 w-40 items-center justify-center">
+              {live && [0, 1].map((i) => (
+                <motion.span
+                  key={i}
+                  className="absolute rounded-full border border-primary/30"
+                  initial={{ width: 84, height: 84, opacity: 0.55 }}
+                  animate={{ width: 168, height: 168, opacity: 0 }}
+                  transition={{ duration: pulseDur, repeat: Infinity, delay: i * (pulseDur / 2), ease: "easeOut" }}
+                />
+              ))}
+              <motion.div
+                animate={{ scale: phase === "speaking" ? [1, 1.09, 1] : 1 }}
+                transition={{ duration: pulseDur, repeat: phase === "speaking" ? Infinity : 0, ease: "easeInOut" }}
+                className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-primary/5 shadow-lg shadow-primary/10"
+              >
+                <Sparkles className="h-10 w-10 text-primary" strokeWidth={1.5} />
+              </motion.div>
             </div>
 
-            <p className="font-heading text-lg text-foreground">{STATUS[phase] || "Connected"}</p>
+            <motion.p
+              key={phase}
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              className="font-heading text-lg text-foreground"
+            >
+              {STATUS[phase] || "Connected"}
+            </motion.p>
+
             {interim && phase === "listening" && (
               <p className="mt-3 max-w-md text-center text-sm italic text-muted-foreground">“{interim}”</p>
             )}
+            {phase === "speaking" && lastAssistant && (
+              <p className="mt-3 max-w-md text-center text-sm text-foreground/80">{lastAssistant.text}</p>
+            )}
 
-            <div className="mt-8 max-h-[32vh] w-full max-w-md space-y-2 overflow-y-auto">
-              {turns.slice(-4).map((t, i) => (
-                <div key={i} className={`rounded-xl px-4 py-2 text-sm ${t.role === "user" ? "bg-primary/10 text-foreground" : "border border-border/40 bg-background text-foreground/90"}`}>
+            <div ref={listRef} className="mt-8 max-h-[30vh] w-full max-w-md space-y-2 overflow-y-auto">
+              {turns.slice(-5).map((t, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-xl px-4 py-2 text-sm ${t.role === "user" ? "bg-primary/10 text-foreground" : "border border-border/40 bg-background text-foreground/90"}`}
+                >
                   <span className="mr-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{t.role === "user" ? "You" : "Jabber"}</span>
                   {t.text}
-                </div>
+                </motion.div>
               ))}
             </div>
             {error && <p className="mt-4 max-w-md text-center text-xs text-destructive">{error}</p>}
