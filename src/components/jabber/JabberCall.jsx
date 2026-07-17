@@ -321,7 +321,16 @@ if (activeRef.current && !mutedRef.current) {
       }
     };
     rec.onend = () => {
-      if (activeRef.current && phaseRef.current === "listening" && !mutedRef.current) startRec();
+    if (
+        activeRef.current &&
+        phaseRef.current === "listening" &&
+        !mutedRef.current
+    ) {
+        setTimeout(() => {
+            startRec();
+        }, 200);
+    }
+};.current) startRec();
     };
 
     // Connect → Jabber greets you first, then opens the mic.
