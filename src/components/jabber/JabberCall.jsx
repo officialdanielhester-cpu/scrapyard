@@ -275,8 +275,21 @@ Jabber (spoken reply):`;
         const out = (typeof r === "string" ? r : r?.reply || "I'm here.").trim();
         transcriptRef.current = [...transcriptRef.current, { role: "assistant", text: out }];
         setTurns(transcriptRef.current);
-        if (persistRef.current) saveMemory("assistant", out, true);
-        await speak(out);
+        if (persistRef.current) {
+    saveMemory("assistant", out, true);
+}
+
+await speak(out);
+
+// Start listening again after Jabber finishes speaking
+if (activeRef.current && !mutedRef.current) {
+    phaseRef.current = "listening";
+    setPhase("listening");
+
+    setTimeout(() => {
+        startRec();
+    }, 200);
+}
       } catch {
         setError("Jabber dropped the call for a second — try again.");
       }
