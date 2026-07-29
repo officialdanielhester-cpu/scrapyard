@@ -126,7 +126,11 @@
     "geometry"
   ],
   "rls": {
-    "create": true,
+    "create": {
+      "user_condition": {
+        "role": "user"
+      }
+    },
     "read": {
       "created_by_id": "{{user.id}}"
     },
