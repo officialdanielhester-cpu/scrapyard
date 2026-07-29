@@ -1,0 +1,129 @@
+{
+  "name": "MusicProject",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "bpm": {
+      "type": "number",
+      "default": 120
+    },
+    "duration": {
+      "type": "number",
+      "default": 60
+    },
+    "masterVolume": {
+      "type": "number",
+      "default": 0.8
+    },
+    "loop": {
+      "type": "boolean",
+      "default": true
+    },
+    "tracks": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "default": "#a855f7"
+          },
+          "height": {
+            "type": "number",
+            "default": 56
+          },
+          "volume": {
+            "type": "number",
+            "default": 0.8
+          },
+          "pan": {
+            "type": "number",
+            "default": 0
+          },
+          "muted": {
+            "type": "boolean",
+            "default": false
+          },
+          "solo": {
+            "type": "boolean",
+            "default": false
+          },
+          "eq": {
+            "type": "string",
+            "default": "none"
+          },
+          "reverb": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "clips": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "trackId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number",
+            "default": 0
+          },
+          "duration": {
+            "type": "number",
+            "default": 1
+          },
+          "sourceStart": {
+            "type": "number",
+            "default": 0
+          },
+          "sampleUrl": {
+            "type": "string",
+            "default": ""
+          },
+          "color": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "user"
+      }
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

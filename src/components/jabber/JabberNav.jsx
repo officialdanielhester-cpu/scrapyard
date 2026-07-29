@@ -4,11 +4,11 @@ import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
 { id: "jabber", label: "Jabber", icon: Sparkles },
-{ id: "sound", label: "Sound", icon: Music }];
+{ id: "sound", label: "Studio", icon: Music }];
 
 const CANVAS_CHILDREN = [
 { id: "grid", label: "The Grid", icon: Boxes },
-{ id: "studio", label: "Studio", icon: Box }];
+{ id: "studio", label: "3D Studio", icon: Box }];
 
 const CANVAS_IDS = CANVAS_CHILDREN.map((c) => c.id);
 const ENV_CHILDREN = [

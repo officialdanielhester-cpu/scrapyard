@@ -10,7 +10,7 @@ import DashboardSection from "@/components/dashboard/DashboardSection";
 import StudioSection from "@/components/studio/StudioSection";
 import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
-import SoundSection from "@/components/sound/SoundSection";
+import MusicStudio from "@/components/music/MusicStudio";
 import { motion, AnimatePresence } from "framer-motion";
 
 const PATH_TO_SECTION = {
@@ -96,7 +96,7 @@ export default function Home({ section: sectionProp }) {
               )}
               {active === "sound" && (
                 <div className="h-screen">
-                  <SoundSection />
+                  <MusicStudio />
                 </div>
               )}
               {active === "env" && (
