@@ -6,6 +6,7 @@ import TransportBar from "@/components/music/TransportBar";
 import Mixer from "@/components/music/Mixer";
 import EffectsRack from "@/components/music/EffectsRack";
 import SampleLibrary from "@/components/music/SampleLibrary";
+import MusicTools from "@/components/music/MusicTools";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SlidersHorizontal } from "lucide-react";
 
@@ -37,6 +38,7 @@ export default function MusicStudio() {
   const [metronome, setMetronome] = useState(false);
   const [beat, setBeat] = useState(0);
   const [aiBusy, setAiBusy] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const engineRef = useRef(null);
   const recRef = useRef(null);
   const recChunksRef = useRef([]);
@@ -117,6 +119,56 @@ export default function MusicStudio() {
     mutate((p) => ({ ...p, clips: [...p.clips.filter((x) => x.id !== c.id), { ...c, duration: off }, { ...c, id: uid("c"), start: currentTime, duration: c.duration - off, sourceStart: (c.sourceStart || 0) + off }] }));
   };
   const deleteClip = () => mutate((p) => ({ ...p, clips: p.clips.filter((c) => c.id !== selectedClipId) }));
+
+  const handleNote = (midi) => {
+    const e = engineRef.current; if (!e) return;
+    e.playNoteNow(midi);
+    const meta = e.addPianoNote(midi);
+    const trackId = selectedTrackId || project.tracks[0]?.id; if (!trackId) return;
+    mutate((p) => ({ ...p, clips: [...p.clips, { id: uid("c"), trackId, name: meta.name, start: currentTime, duration: meta.duration, sourceStart: 0, sampleUrl: meta.key }] }));
+  };
+  const handleDrumPad = (sampleKey) => {
+    const e = engineRef.current; if (!e) return;
+    e.playSampleNow(sampleKey);
+    addClip(sampleKey);
+  };
+  const handleExportStems = async () => {
+    const e = engineRef.current; if (!e) return;
+    setExporting(true);
+    try {
+      const stems = await e.exportStems();
+      stems.forEach((s) => {
+        const url = URL.createObjectURL(s.blob);
+        const a = document.createElement("a"); a.href = url; a.download = `${s.name.replace(/[^a-z0-9-_ ]/gi, "")}.wav`; a.click();
+        URL.revokeObjectURL(url);
+      });
+    } catch {} finally { setExporting(false); }
+  };
+
+  const generateAIMelody = async () => {
+    const e = engineRef.current; if (!e) return;
+    setAiBusy(true);
+    try {
+      const schema = { type: "object", properties: { notes: { type: "array", items: { type: "object", properties: { midi: { type: "integer" }, time: { type: "number" } }, required: ["midi", "time"] } } }, required: ["notes"] };
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `Generate a short musical melody. Return 10-20 notes as JSON { notes: [{ midi, time }] }. midi is 48-71 (C3-B4). time is seconds 0-${project.duration}. Spread notes rhythmically.`,
+        response_json_schema: schema,
+      });
+      const notes = Array.isArray(res?.notes) ? res.notes : [];
+      snapshot();
+      setProject((p) => {
+        const trackId = selectedTrackId || p.tracks[0]?.id; if (!trackId) return p;
+        const clips = [...p.clips];
+        notes.forEach((n) => {
+          const midi = Math.max(48, Math.min(71, n.midi || 48));
+          const meta = e.addPianoNote(midi);
+          clips.push({ id: uid("c"), trackId, name: meta.name, start: Math.max(0, Math.min(p.duration, n.time || 0)), duration: meta.duration, sourceStart: 0, sampleUrl: meta.key });
+        });
+        return { ...p, clips };
+      });
+      setRedo([]);
+    } catch {} finally { setAiBusy(false); }
+  };
 
   const handleRecord = async () => {
     const e = engineRef.current; if (!e) return;
@@ -223,13 +275,13 @@ export default function MusicStudio() {
       <TransportBar playing={playing} currentTime={currentTime} duration={project.duration} loop={project.loop} bpm={project.bpm} projectName={project.name}
         canUndo={undo.length > 0} canRedo={redo.length > 0} saving={saving} metronome={metronome} beat={beat} exporting={exporting}
         onPlay={handlePlay} onStop={handleStop} onToggleLoop={handleToggleLoop} onToggleMetronome={handleToggleMetronome} onSetBpm={handleSetBpm} onSetProjectName={handleSetProjectName}
-        onExport={handleExport} onUndo={handleUndo} onRedo={handleRedo} onSave={handleSave} onOpen={() => setProjectsOpen(true)} />
+        onExport={handleExport} onExportStems={handleExportStems} onUndo={handleUndo} onRedo={handleRedo} onSave={handleSave} onOpen={() => setProjectsOpen(true)} />
       <div className="relative flex flex-1 overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Timeline project={project} pxPerSec={zoom} currentTime={currentTime} selectedClipId={selectedClipId}
             onSelectClip={setSelectedClipId} onMoveClip={moveClip} onTrimClip={trimClip} onSplitClip={splitClip} onDeleteClip={deleteClip}
             onAddTrack={addTrack} onSeek={handleSeek} onZoomIn={zoomIn} onZoomOut={zoomOut} onFit={fit} onClipInteractionStart={snapshot} />
-          <SampleLibrary onAddClip={addClip} onImportFile={importFile} recording={recording} onRecord={handleRecord} onStopRecord={stopRecord} onAIBeat={generateAIBeat} aiBusy={aiBusy} />
+          <SampleLibrary onAddClip={addClip} onImportFile={importFile} recording={recording} onRecord={handleRecord} onStopRecord={stopRecord} onAIBeat={generateAIBeat} aiBusy={aiBusy} onTools={() => setToolsOpen(true)} />
         </div>
         <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-border/40 bg-background/30 p-3 lg:block">{mixerPanel}</aside>
 
@@ -244,6 +296,8 @@ export default function MusicStudio() {
           </SheetContent>
         </Sheet>
       </div>
+
+      <MusicTools open={toolsOpen} onOpenChange={setToolsOpen} onNote={handleNote} onPad={handleDrumPad} />
 
       <Sheet open={projectsOpen} onOpenChange={setProjectsOpen}>
         <SheetContent side="right" className="w-80 overflow-y-auto">

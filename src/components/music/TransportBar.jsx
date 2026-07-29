@@ -40,6 +40,9 @@ export default function TransportBar(props) {
       <button onClick={props.onExport} disabled={exporting} className={btn} title="Export WAV">
         {exporting ? "Rendering…" : <><Download className="h-3.5 w-3.5" /> WAV</>}
       </button>
+      <button onClick={props.onExportStems} disabled={exporting} className={btn} title="Export per-track stems">
+        <Download className="h-3.5 w-3.5" /> Stems
+      </button>
       <button onClick={props.onUndo} disabled={!canUndo} className={btn}><Undo2 className="h-3.5 w-3.5" /></button>
       <button onClick={props.onRedo} disabled={!canRedo} className={btn}><Redo2 className="h-3.5 w-3.5" /></button>
       <button onClick={props.onSave} disabled={saving} className={btn}>{saving ? "Saving…" : <><Save className="h-3.5 w-3.5" /> Save</>}</button>

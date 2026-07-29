@@ -40,6 +40,20 @@ function genBuffer(ctx, type, duration) {
   return buf;
 }
 
+function genPianoBuffer(ctx, midi, duration) {
+  const len = Math.max(1, Math.floor(duration * 44100));
+  const buf = ctx.createBuffer(1, len, 44100);
+  const d = buf.getChannelData(0);
+  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+  const cycles = (freq * 2 * Math.PI) / 44100;
+  for (let i = 0; i < len; i++) {
+    const t = i / 44100;
+    const env = Math.exp(-t * 5);
+    d[i] = Math.sin(i * cycles) * env * 0.6;
+  }
+  return buf;
+}
+
 // Encode an AudioBuffer to a WAV Blob (16-bit PCM).
 export function audioBufferToWav(buffer) {
   const numCh = buffer.numberOfChannels;
@@ -369,5 +383,63 @@ export default class MusicEngine {
     });
     const rendered = await off.startRendering();
     return audioBufferToWav(rendered);
+  }
+
+  // ---- Live note/sample preview ----
+  playNoteNow(midi) {
+    if (!this.ctx) this.init();
+    try {
+      const freq = 440 * Math.pow(2, (midi - 69) / 12);
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = "sine"; o.frequency.value = freq;
+      o.connect(g); g.connect(this.masterGain);
+      const now = this.ctx.currentTime;
+      g.gain.setValueAtTime(0.25, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      o.start(now); o.stop(now + 0.4);
+    } catch {}
+  }
+
+  playSampleNow(url) {
+    if (!this.ctx) this.init();
+    this.ensureSample(url).then((buf) => {
+      if (!buf) return;
+      try {
+        const src = this.ctx.createBufferSource(); src.buffer = buf;
+        const g = this.ctx.createGain(); g.gain.value = 0.6;
+        src.connect(g); g.connect(this.masterGain);
+        src.start();
+      } catch {}
+    });
+  }
+
+  addPianoNote(midi) {
+    if (!this.ctx) this.init();
+    const key = `piano:${midi}`;
+    if (!this.bufferCache.has(key)) this.bufferCache.set(key, genPianoBuffer(this.ctx, midi, 0.6));
+    const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const note = names[((midi % 12) + 12) % 12];
+    const oct = Math.floor(midi / 12) - 1;
+    return { key, name: `${note}${oct}`, duration: 0.6 };
+  }
+
+  async exportStems() {
+    await this.loadProjectSamples();
+    const dur = this.project.duration || 60;
+    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const results = [];
+    for (const track of this.project.tracks) {
+      const off = new Off(2, Math.ceil(dur * 44100), 44100);
+      const tg = off.createGain(); tg.gain.value = track.volume ?? 0.8; tg.connect(off.destination);
+      this.project.clips.filter((c) => c.trackId === track.id).forEach((clip) => {
+        const buf = this.bufferCache.get(clip.sampleUrl); if (!buf) return;
+        const src = off.createBufferSource(); src.buffer = buf; src.connect(tg);
+        try { src.start(clip.start, clip.sourceStart || 0, clip.duration); } catch {}
+      });
+      const rendered = await off.startRendering();
+      results.push({ name: track.name, blob: audioBufferToWav(rendered) });
+    }
+    return results;
   }
 }
