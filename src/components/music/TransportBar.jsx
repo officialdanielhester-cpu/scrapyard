@@ -1,5 +1,5 @@
 import React from "react";
-import { Play, Pause, Square, Repeat, Undo2, Redo2, Save, FolderOpen } from "lucide-react";
+import { Play, Pause, Square, Repeat, Undo2, Redo2, Save, FolderOpen, Download, Circle } from "lucide-react";
 
 const fmt = (s) => {
   const m = Math.floor(s / 60);
@@ -9,7 +9,7 @@ const fmt = (s) => {
 };
 
 export default function TransportBar(props) {
-  const { playing, currentTime, duration, loop, bpm, projectName, canUndo, canRedo, saving } = props;
+  const { playing, currentTime, duration, loop, bpm, projectName, canUndo, canRedo, saving, metronome, beat, exporting } = props;
   const btn = "flex items-center justify-center gap-1.5 rounded-lg border border-border/60 px-3 py-2 text-xs transition-colors hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border/60 disabled:hover:text-foreground";
 
   return (
@@ -19,6 +19,10 @@ export default function TransportBar(props) {
       </button>
       <button onClick={props.onStop} className={btn}><Square className="h-3.5 w-3.5" /></button>
       <button onClick={props.onToggleLoop} className={loop ? "border-primary text-primary " + btn : btn}><Repeat className="h-3.5 w-3.5" /></button>
+      <button onClick={props.onToggleMetronome} className={metronome ? "border-primary text-primary " + btn : btn} title="Metronome">
+        <Circle className="h-3.5 w-3.5" />
+        {metronome && <span key={beat} className="absolute -mt-3 h-1.5 w-1.5 animate-ping rounded-full bg-primary" />}
+      </button>
 
       <div className="flex items-center gap-2 px-2">
         <span className="font-mono text-sm tabular-nums">{fmt(currentTime)}</span>
@@ -33,6 +37,9 @@ export default function TransportBar(props) {
 
       <input value={projectName} onChange={(e) => props.onSetProjectName(e.target.value)} className="min-w-[120px] flex-1 rounded-md border border-border/60 bg-background px-2 py-1 text-sm" />
 
+      <button onClick={props.onExport} disabled={exporting} className={btn} title="Export WAV">
+        {exporting ? "Rendering…" : <><Download className="h-3.5 w-3.5" /> WAV</>}
+      </button>
       <button onClick={props.onUndo} disabled={!canUndo} className={btn}><Undo2 className="h-3.5 w-3.5" /></button>
       <button onClick={props.onRedo} disabled={!canRedo} className={btn}><Redo2 className="h-3.5 w-3.5" /></button>
       <button onClick={props.onSave} disabled={saving} className={btn}>{saving ? "Saving…" : <><Save className="h-3.5 w-3.5" /> Save</>}</button>

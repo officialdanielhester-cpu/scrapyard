@@ -64,6 +64,18 @@
           "reverb": {
             "type": "boolean",
             "default": false
+          },
+          "flanger": {
+            "type": "number",
+            "default": 0
+          },
+          "distortion": {
+            "type": "number",
+            "default": 0
+          },
+          "compressor": {
+            "type": "boolean",
+            "default": false
           }
         }
       }

@@ -1,6 +1,6 @@
 // Original Web Audio engine for the Studio music editor.
 // Playback scheduling, per-track mixing, real-time meters, recording,
-// import/decode, and procedurally generated built-in samples.
+// import/decode, offline WAV export, metronome, and procedural samples.
 
 export const BUILTIN_SAMPLES = {
   drum:  { name: "Drum Hit",     duration: 0.4 },
@@ -10,6 +10,9 @@ export const BUILTIN_SAMPLES = {
   saw:   { name: "Saw Tone",     duration: 2.0 },
   noise: { name: "Noise",        duration: 2.0 },
   loop:  { name: "Loop Snippet", duration: 3.0 },
+  bass:  { name: "Bass",         duration: 1.5 },
+  piano: { name: "Piano Note",   duration: 1.2 },
+  strings: { name: "Strings",    duration: 1.8 },
 };
 
 function genBuffer(ctx, type, duration) {
@@ -20,30 +23,45 @@ function genBuffer(ctx, type, duration) {
     const t = i / 44100;
     let v = 0;
     switch (type) {
-      case "drum": {
-        const e = Math.exp(-t * 30);
-        v = (Math.random() * 2 - 1) * e * 0.9 + Math.sin(t * 220) * e * 0.3;
-        break;
-      }
-      case "pad": {
-        const e = Math.exp(-t * 14) * (0.5 + Math.sin(t * 60) * 0.5);
-        v = Math.sin(t * 180) * e * 0.5;
-        break;
-      }
+      case "drum": { const e = Math.exp(-t * 30); v = (Math.random() * 2 - 1) * e * 0.9 + Math.sin(t * 220) * e * 0.3; break; }
+      case "pad": { const e = Math.exp(-t * 14) * (0.5 + Math.sin(t * 60) * 0.5); v = Math.sin(t * 180) * e * 0.5; break; }
       case "bell": v = Math.sin(t * Math.PI * 2 * 4) * Math.exp(-t * 3.2) * 0.8; break;
       case "sine": v = Math.sin(t * Math.PI * 2 * 2.2) * 0.5; break;
       case "saw":  v = (Math.tan(t * 5) * 0.2) * 0.5; break;
       case "noise": v = (Math.random() * 2 - 1) * 0.45; break;
-      case "loop": {
-        const m = Math.sin(t * Math.PI * 2 * 1.5) * 0.5 + Math.sin(t * Math.PI * 2 * 0.7) * 0.5;
-        v = m * 0.4 * (0.6 + Math.sin(t * 2) * 0.4);
-        break;
-      }
+      case "loop": { const m = Math.sin(t * Math.PI * 2 * 1.5) * 0.5 + Math.sin(t * Math.PI * 2 * 0.7) * 0.5; v = m * 0.4 * (0.6 + Math.sin(t * 2) * 0.4); break; }
+      case "bass": { const env = Math.exp(-t * 2.5); v = (Math.sin(t * Math.PI * 2 * 1.1) * 0.6 + Math.sin(t * Math.PI * 2 * 0.3) * 0.4) * env; break; }
+      case "piano": { const env = Math.exp(-t * 4); v = Math.sin(t * Math.PI * 2 * 5.5) * env * 0.5; break; }
+      case "strings": { const env = Math.exp(-t * 1.8); v = (Math.sin(t * Math.PI * 2 * 3) * 0.4 + Math.sin(t * Math.PI * 2 * 1.4 + 0.3) * 0.3 + Math.sin(t * Math.PI * 2 * 0.8 + 0.7) * 0.2) * env; break; }
       default: v = 0;
     }
     d[i] = v;
   }
   return buf;
+}
+
+// Encode an AudioBuffer to a WAV Blob (16-bit PCM).
+export function audioBufferToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const len = buffer.length * numCh * 2 + 44;
+  const ab = new ArrayBuffer(len);
+  const view = new DataView(ab);
+  const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  writeStr(0, "RIFF"); view.setUint32(4, len - 8, true); writeStr(8, "WAVE");
+  writeStr(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numCh, true); view.setUint32(24, 44100, true);
+  view.setUint32(28, 44100 * numCh * 2, true); view.setUint16(32, numCh * 2, true); view.setUint16(34, 16, true);
+  writeStr(36, "data"); view.setUint32(40, len - 44, true);
+  const channels = []; for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+  let off = 44;
+  for (let i = 0; i < buffer.length; i++) {
+    for (let c = 0; c < numCh; c++) {
+      let s = Math.max(-1, Math.min(1, channels[c][i]));
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      off += 2;
+    }
+  }
+  return new Blob([ab], { type: "audio/wav" });
 }
 
 export default class MusicEngine {
@@ -63,6 +81,8 @@ export default class MusicEngine {
     this.trackNodes = new Map();
     this.sources = [];
     this.meterData = null;
+    this.onBeat = null;
+    this._metTimer = null;
   }
 
   init() {
@@ -86,30 +106,34 @@ export default class MusicEngine {
     if (!this.ctx) return;
     const ids = new Set(this.project.tracks.map((t) => t.id));
     for (const [id, node] of this.trackNodes) {
-      if (!ids.has(id)) { try { node.input.disconnect(); node.gain.disconnect(); } catch {} this.trackNodes.delete(id); }
+      if (!ids.has(id)) { this._disposeTrack(node); this.trackNodes.delete(id); }
     }
-    this.project.tracks.forEach((t) => this._ensureTrack(t));
+    this.project.tracks.forEach((t) => this._buildTrack(t));
     this._applySoloMute();
   }
 
-  _ensureTrack(track) {
-    let node = this.trackNodes.get(track.id);
-    if (!node) {
-      const input = this.ctx.createGain();
-      const eq = this.ctx.createBiquadFilter();
-      eq.type = "lowpass";
-      eq.frequency.value = 8000;
-      const gain = this.ctx.createGain();
-      input.connect(eq);
-      eq.connect(gain);
-      gain.connect(this.masterGain);
-      node = { input, eq, gain, reverb: null };
-      this.trackNodes.set(track.id, node);
-    }
-    node.gain.gain.value = track.volume ?? 0.8;
+  _disposeTrack(node) {
+    [node.input, node.eq, node.flanger, node.distortion, node.gain].forEach((n) => { try { n.disconnect(); } catch {} });
+    if (node.compressor) { try { node.compressor.disconnect(); } catch {} }
+    if (node.reverb) { try { node.reverb.delay.disconnect(); node.reverb.fb.disconnect(); } catch {} }
+  }
+
+  _buildTrack(track) {
+    const existing = this.trackNodes.get(track.id);
+    if (existing) this._disposeTrack(existing);
+    const input = this.ctx.createGain();
+    const eq = this.ctx.createBiquadFilter(); eq.type = "lowpass"; eq.frequency.value = 8000;
+    const flanger = this.ctx.createWaveShaper(); flanger.frequency.value = 0;
+    const distortion = this.ctx.createWaveShaper(); distortion.frequency.value = 0;
+    const gain = this.ctx.createGain(); gain.gain.value = track.volume ?? 0.8;
+    input.connect(eq); eq.connect(flanger); flanger.connect(distortion); distortion.connect(gain); gain.connect(this.masterGain);
+    const node = { input, eq, flanger, distortion, compressor: null, gain, reverb: null };
     this._setEq(node, track.eq || "none");
+    this._setFlanger(node, track.flanger || 0);
+    this._setDistortion(node, track.distortion || 0);
+    this._setCompressor(node, !!track.compressor);
     this._setReverb(node, !!track.reverb);
-    return node;
+    this.trackNodes.set(track.id, node);
   }
 
   _setEq(node, eq) {
@@ -118,6 +142,20 @@ export default class MusicEngine {
       else if (eq === "highpass") { node.eq.type = "highpass"; node.eq.frequency.value = 300; }
       else { node.eq.type = "lowpass"; node.eq.frequency.value = 8000; }
     } catch {}
+  }
+
+  _setFlanger(node, v) { try { node.flanger.frequency.value = -(v || 0) * 0.8; } catch {} }
+  _setDistortion(node, v) { try { node.distortion.frequency.value = (v || 0) * 0.8; } catch {} }
+
+  _setCompressor(node, on) {
+    try { node.distortion.disconnect(); if (node.compressor) node.compressor.disconnect(); } catch {}
+    if (on) {
+      if (!node.compressor) node.compressor = this.ctx.createDynamicsCompressor();
+      node.distortion.connect(node.compressor);
+      node.compressor.connect(node.gain);
+    } else {
+      node.distortion.connect(node.gain);
+    }
   }
 
   _setReverb(node, on) {
@@ -157,6 +195,9 @@ export default class MusicEngine {
     if (!node) return;
     if (patch.volume !== undefined || patch.muted !== undefined || patch.solo !== undefined) this._applySoloMute();
     if (patch.eq !== undefined) this._setEq(node, t.eq);
+    if (patch.flanger !== undefined) this._setFlanger(node, t.flanger);
+    if (patch.distortion !== undefined) this._setDistortion(node, t.distortion);
+    if (patch.compressor !== undefined) this._setCompressor(node, t.compressor);
     if (patch.reverb !== undefined) this._setReverb(node, t.reverb);
   }
 
@@ -242,13 +283,8 @@ export default class MusicEngine {
       let startInBuffer = clip.sourceStart || 0;
       let whenStart = 0;
       let playDur = clip.duration;
-      if (clip.start < from) {
-        const into = from - clip.start;
-        startInBuffer += into;
-        playDur = clip.duration - into;
-      } else {
-        whenStart = clip.start - from;
-      }
+      if (clip.start < from) { const into = from - clip.start; startInBuffer += into; playDur = clip.duration - into; }
+      else { whenStart = clip.start - from; }
       if (playDur <= 0) return;
       const src = this.ctx.createBufferSource();
       src.buffer = buffer;
@@ -289,5 +325,49 @@ export default class MusicEngine {
   startRecording() {
     if (!this.ctx) this.init();
     return navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+  }
+
+  // ---- Metronome ----
+  startMetronome(cb) {
+    this.onBeat = cb;
+    const interval = 60000 / (this.project.bpm || 120);
+    if (this._metTimer) clearInterval(this._metTimer);
+    this._metTimer = setInterval(() => { this._beep(); this.onBeat?.(); }, interval);
+  }
+  stopMetronome() { if (this._metTimer) clearInterval(this._metTimer); this._metTimer = null; }
+  _beep() {
+    if (!this.ctx) return;
+    try {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.frequency.value = 880; g.gain.value = 0.12;
+      o.connect(g); g.connect(this.masterGain);
+      const now = this.ctx.currentTime;
+      o.start(now); o.stop(now + 0.04);
+    } catch {}
+  }
+
+  // ---- Offline WAV export ----
+  async exportWAV() {
+    await this.loadProjectSamples();
+    const dur = this.project.duration || 60;
+    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const off = new Off(2, Math.ceil(dur * 44100), 44100);
+    const master = off.createGain(); master.gain.value = this.project.masterVolume ?? 0.8;
+    master.connect(off.destination);
+    const anySolo = this.project.tracks.some((t) => t.solo);
+    this.project.tracks.forEach((track) => {
+      const muted = track.muted || (anySolo && !track.solo);
+      const tg = off.createGain(); tg.gain.value = muted ? 0 : (track.volume ?? 0.8);
+      tg.connect(master);
+      this.project.clips.filter((c) => c.trackId === track.id).forEach((clip) => {
+        const buf = this.bufferCache.get(clip.sampleUrl); if (!buf) return;
+        const src = off.createBufferSource(); src.buffer = buf;
+        src.connect(tg);
+        try { src.start(clip.start, clip.sourceStart || 0, clip.duration); } catch {}
+      });
+    });
+    const rendered = await off.startRendering();
+    return audioBufferToWav(rendered);
   }
 }

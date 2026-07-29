@@ -1,22 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
-import MusicEngine from "@/components/music/audioEngine";
+import MusicEngine, { BUILTIN_SAMPLES } from "@/components/music/audioEngine";
 import Timeline from "@/components/music/Timeline";
 import TransportBar from "@/components/music/TransportBar";
 import Mixer from "@/components/music/Mixer";
 import EffectsRack from "@/components/music/EffectsRack";
 import SampleLibrary from "@/components/music/SampleLibrary";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { SlidersHorizontal } from "lucide-react";
 
 const COLORS = ["#a855f7", "#8b5cf6", "#6366f1", "#ec4899", "#f97316", "#10b981", "#06b6d4", "#eab308"];
 const uid = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
+const mkTrack = (i) => ({ id: uid("t"), name: `Track ${i}`, color: COLORS[(i - 1) % COLORS.length], height: 56, volume: 0.8, pan: 0, muted: false, solo: false, eq: "none", reverb: false, flanger: 0, distortion: 0, compressor: false });
 
 function emptyProject() {
-  return {
-    name: "Untitled Project", bpm: 120, duration: 60, masterVolume: 0.8, loop: true,
-    tracks: [{ id: uid("t"), name: "Track 1", color: COLORS[0], height: 56, volume: 0.8, pan: 0, muted: false, solo: false, eq: "none", reverb: false }],
-    clips: [],
-  };
+  return { name: "Untitled Project", bpm: 120, duration: 60, masterVolume: 0.8, loop: true, tracks: [mkTrack(1)], clips: [] };
 }
 
 export default function MusicStudio() {
@@ -31,9 +29,14 @@ export default function MusicStudio() {
   const [undo, setUndo] = useState([]);
   const [redo, setRedo] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [recording, setRecording] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [mixerOpen, setMixerOpen] = useState(false);
   const [projects, setProjects] = useState([]);
+  const [metronome, setMetronome] = useState(false);
+  const [beat, setBeat] = useState(0);
+  const [aiBusy, setAiBusy] = useState(false);
   const engineRef = useRef(null);
   const recRef = useRef(null);
   const recChunksRef = useRef([]);
@@ -44,11 +47,18 @@ export default function MusicStudio() {
     engineRef.current = engine;
     engine.onTime = (t) => setCurrentTime(t);
     engine.onEnd = () => setPlaying(false);
+    engine.onBeat = () => setBeat((b) => b + 1);
     (async () => { try { const list = await base44.entities.MusicProject.list("-updated_date", 30); setProjects(list); } catch {} })();
-    return () => { engine.stop(); };
+    return () => { engine.stopMetronome(); engine.stop(); };
   }, []);
 
   useEffect(() => { const e = engineRef.current; if (e) { e.setProject(project); e.setLoop(project.loop); } }, [project]);
+  useEffect(() => {
+    if (!metronome) return;
+    const e = engineRef.current; if (!e) return;
+    e.startMetronome(() => setBeat((b) => b + 1));
+    return () => e.stopMetronome();
+  }, [metronome, project.bpm]);
 
   useEffect(() => {
     let raf, count = 0;
@@ -72,12 +82,13 @@ export default function MusicStudio() {
   const handlePlay = async () => { const e = engineRef.current; if (!e) return; if (playing) { e.pause(); setPlaying(false); } else { await e.play(currentTime); setPlaying(true); } };
   const handleStop = () => { engineRef.current?.stop(); setPlaying(false); setCurrentTime(0); };
   const handleToggleLoop = () => setProject((p) => ({ ...p, loop: !p.loop }));
+  const handleToggleMetronome = () => setMetronome((m) => !m);
   const handleSeek = (t) => engineRef.current?.seek(t);
   const handleSetBpm = (bpm) => mutate((p) => ({ ...p, bpm }));
   const handleSetProjectName = (name) => setProject((p) => ({ ...p, name }));
   const handleSetMasterVolume = (v) => { setProject((p) => ({ ...p, masterVolume: v })); engineRef.current?.setMasterVolume(v); };
 
-  const addTrack = () => mutate((p) => ({ ...p, tracks: [...p.tracks, { id: uid("t"), name: `Track ${p.tracks.length + 1}`, color: COLORS[p.tracks.length % COLORS.length], height: 56, volume: 0.8, pan: 0, muted: false, solo: false, eq: "none", reverb: false }] }));
+  const addTrack = () => mutate((p) => ({ ...p, tracks: [...p.tracks, mkTrack(p.tracks.length + 1)] }));
   const deleteTrack = (id) => mutate((p) => ({ ...p, tracks: p.tracks.filter((t) => t.id !== id), clips: p.clips.filter((c) => c.trackId !== id) }));
   const setTrackProp = (id, patch) => { setProject((p) => ({ ...p, tracks: p.tracks.map((t) => (t.id === id ? { ...t, ...patch } : t)) })); engineRef.current?.setTrackProp(id, patch); };
 
@@ -86,8 +97,7 @@ export default function MusicStudio() {
     const meta = e.addBuiltin(sampleKey.replace("builtin:", ""));
     const trackId = selectedTrackId || project.tracks[0]?.id;
     if (!trackId) return;
-    const start = currentTime;
-    mutate((p) => ({ ...p, clips: [...p.clips, { id: uid("c"), trackId, name: meta.name, start, duration: meta.duration, sourceStart: 0, sampleUrl: sampleKey }] }));
+    mutate((p) => ({ ...p, clips: [...p.clips, { id: uid("c"), trackId, name: meta.name, start: currentTime, duration: meta.duration, sourceStart: 0, sampleUrl: sampleKey }] }));
   };
   const importFile = async (file) => {
     const e = engineRef.current;
@@ -128,8 +138,47 @@ export default function MusicStudio() {
   };
   const stopRecord = () => { const r = recRef.current; if (r && r.state !== "inactive") r.stop(); setRecording(false); };
 
+  const handleExport = async () => {
+    const e = engineRef.current; if (!e) return;
+    setExporting(true);
+    try {
+      const blob = await e.exportWAV();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `${(project.name || "project").replace(/[^a-z0-9-_ ]/gi, "")}.wav`; a.click();
+      URL.revokeObjectURL(url);
+    } catch {} finally { setExporting(false); }
+  };
+
+  const generateAIBeat = async () => {
+    const e = engineRef.current; if (!e) return;
+    setAiBusy(true);
+    try {
+      const samples = Object.keys(BUILTIN_SAMPLES);
+      const schema = { type: "object", properties: { beats: { type: "array", items: { type: "object", properties: { sample: { type: "string", enum: samples }, time: { type: "number" }, track: { type: "integer" } }, required: ["sample", "time", "track"] } } }, required: ["beats"] };
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a music producer. Build a rhythmic beat pattern across a ${project.duration}-second timeline using these sample types: ${samples.join(", ")}. Place 8-20 beats at sensible times, spread across 1-3 tracks (track index 0-based). Return JSON { beats: [{ sample, time, track }] }.`,
+        response_json_schema: schema,
+      });
+      const beats = Array.isArray(res?.beats) ? res.beats : [];
+      snapshot();
+      setProject((p) => {
+        const tracks = [...p.tracks];
+        const clips = [...p.clips];
+        beats.forEach((b) => {
+          if (!samples.includes(b.sample)) return;
+          const meta = e.addBuiltin(b.sample);
+          const ti = Math.max(0, Math.min(2, b.track || 0));
+          while (tracks.length <= ti) tracks.push(mkTrack(tracks.length + 1));
+          clips.push({ id: uid("c"), trackId: tracks[ti].id, name: meta.name, start: Math.max(0, Math.min(p.duration, b.time || 0)), duration: meta.duration, sourceStart: 0, sampleUrl: `builtin:${b.sample}` });
+        });
+        return { ...p, tracks, clips };
+      });
+      setRedo([]);
+    } catch {} finally { setAiBusy(false); }
+  };
+
   const handleSave = async () => {
-    const e = engineRef.current; setSaving(true);
+    setSaving(true);
     try {
       const clips = [];
       for (const c of project.clips) {
@@ -147,7 +196,7 @@ export default function MusicStudio() {
   };
   const loadProject = async (proj) => {
     engineRef.current?.stop(); setPlaying(false); setCurrentTime(0);
-    const loaded = { ...emptyProject(), ...proj, tracks: proj.tracks?.length ? proj.tracks : emptyProject().tracks, clips: proj.clips || [] };
+    const loaded = { ...emptyProject(), ...proj, tracks: proj.tracks?.length ? proj.tracks : [mkTrack(1)], clips: proj.clips || [] };
     setProject(loaded); setSavedId(proj.id);
     await engineRef.current?.loadProjectSamples(loaded.clips);
   };
@@ -158,27 +207,42 @@ export default function MusicStudio() {
   const zoomOut = () => setZoom((z) => Math.max(20, z / 1.3));
   const fit = () => setZoom(Math.max(20, Math.min(400, 800 / (project.duration || 60))));
 
+  const mixerPanel = (
+    <div className="space-y-4">
+      <Mixer project={project} selectedTrackId={selectedTrackId} masterLevel={masterLevel}
+        onSelectTrack={setSelectedTrackId} onAddTrack={addTrack} onDeleteTrack={deleteTrack}
+        onSetTrackProp={setTrackProp} onSetMasterVolume={handleSetMasterVolume} />
+      <div className="border-t border-border/40 pt-3">
+        <EffectsRack track={selectedTrack} onChange={(patch) => selectedTrack && setTrackProp(selectedTrack.id, patch)} />
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex h-screen flex-col">
       <TransportBar playing={playing} currentTime={currentTime} duration={project.duration} loop={project.loop} bpm={project.bpm} projectName={project.name}
-        canUndo={undo.length > 0} canRedo={redo.length > 0} saving={saving}
-        onPlay={handlePlay} onStop={handleStop} onToggleLoop={handleToggleLoop} onSetBpm={handleSetBpm} onSetProjectName={handleSetProjectName}
-        onUndo={handleUndo} onRedo={handleRedo} onSave={handleSave} onOpen={() => setProjectsOpen(true)} />
-      <div className="flex flex-1 overflow-hidden">
+        canUndo={undo.length > 0} canRedo={redo.length > 0} saving={saving} metronome={metronome} beat={beat} exporting={exporting}
+        onPlay={handlePlay} onStop={handleStop} onToggleLoop={handleToggleLoop} onToggleMetronome={handleToggleMetronome} onSetBpm={handleSetBpm} onSetProjectName={handleSetProjectName}
+        onExport={handleExport} onUndo={handleUndo} onRedo={handleRedo} onSave={handleSave} onOpen={() => setProjectsOpen(true)} />
+      <div className="relative flex flex-1 overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Timeline project={project} pxPerSec={zoom} currentTime={currentTime} selectedClipId={selectedClipId}
             onSelectClip={setSelectedClipId} onMoveClip={moveClip} onTrimClip={trimClip} onSplitClip={splitClip} onDeleteClip={deleteClip}
             onAddTrack={addTrack} onSeek={handleSeek} onZoomIn={zoomIn} onZoomOut={zoomOut} onFit={fit} onClipInteractionStart={snapshot} />
-          <SampleLibrary onAddClip={addClip} onImportFile={importFile} recording={recording} onRecord={handleRecord} onStopRecord={stopRecord} />
+          <SampleLibrary onAddClip={addClip} onImportFile={importFile} recording={recording} onRecord={handleRecord} onStopRecord={stopRecord} onAIBeat={generateAIBeat} aiBusy={aiBusy} />
         </div>
-        <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-border/40 bg-background/30 p-3 lg:block">
-          <Mixer project={project} selectedTrackId={selectedTrackId} masterLevel={masterLevel}
-            onSelectTrack={setSelectedTrackId} onAddTrack={addTrack} onDeleteTrack={deleteTrack}
-            onSetTrackProp={setTrackProp} onSetMasterVolume={handleSetMasterVolume} />
-          <div className="mt-4 border-t border-border/40 pt-3">
-            <EffectsRack track={selectedTrack} onChange={(patch) => selectedTrack && setTrackProp(selectedTrack.id, patch)} />
-          </div>
-        </aside>
+        <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-border/40 bg-background/30 p-3 lg:block">{mixerPanel}</aside>
+
+        {/* Mobile mixer floating button */}
+        <button onClick={() => setMixerOpen(true)} className="fixed bottom-24 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg lg:hidden">
+          <SlidersHorizontal className="h-5 w-5" strokeWidth={1.5} />
+        </button>
+        <Sheet open={mixerOpen} onOpenChange={setMixerOpen}>
+          <SheetContent side="right" className="w-80 overflow-y-auto p-0">
+            <SheetHeader className="px-4 pt-4"><SheetTitle className="font-mono text-xs uppercase tracking-wider">Mixer & Effects</SheetTitle></SheetHeader>
+            <div className="p-2">{mixerPanel}</div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       <Sheet open={projectsOpen} onOpenChange={setProjectsOpen}>
