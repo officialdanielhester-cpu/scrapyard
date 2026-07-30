@@ -159,8 +159,9 @@ export default class MusicEngine {
   }
 
   _disposeTrack(node) {
-    [node.input, node.eq, node.flanger, node.distortion, node.tremoloGain, node.gain, node.delayWet].forEach((n) => { try { n.disconnect(); } catch {} });
-    try { node.tremoloLfo.stop(); } catch {}
+    [node.input, node.eq, node.flangerDelay, node.distortion, node.tremoloGain, node.gain, node.delayWet].forEach((n) => { try { n.disconnect(); } catch {} });
+    try { node.flangerLfo.stop(); node.tremoloLfo.stop(); } catch {}
+    try { node.flangerLfo.disconnect(); node.flangerDepth.disconnect(); node.flangerFb.disconnect(); } catch {}
     try { node.tremoloLfo.disconnect(); node.tremoloDepth.disconnect(); } catch {}
     try { node.delay.disconnect(); node.delayFb.disconnect(); } catch {}
     if (node.compressor) { try { node.compressor.disconnect(); } catch {} }
@@ -172,8 +173,13 @@ export default class MusicEngine {
     if (existing) this._disposeTrack(existing);
     const input = this.ctx.createGain();
     const eq = this.ctx.createBiquadFilter(); eq.type = "lowpass"; eq.frequency.value = 8000;
-    const flanger = this.ctx.createWaveShaper(); flanger.frequency.value = 0;
-    const distortion = this.ctx.createWaveShaper(); distortion.frequency.value = 0;
+    const flangerDelay = this.ctx.createDelay(0.02); flangerDelay.delayTime.value = 0.003;
+    const flangerLfo = this.ctx.createOscillator(); flangerLfo.type = "sine"; flangerLfo.frequency.value = 0.5;
+    const flangerDepth = this.ctx.createGain(); flangerDepth.gain.value = 0;
+    const flangerFb = this.ctx.createGain(); flangerFb.gain.value = 0;
+    flangerLfo.connect(flangerDepth); flangerDepth.connect(flangerDelay.delayTime);
+    try { flangerLfo.start(); } catch {}
+    const distortion = this.ctx.createWaveShaper();
     const tremoloGain = this.ctx.createGain(); tremoloGain.gain.value = 1;
     const tremoloLfo = this.ctx.createOscillator(); tremoloLfo.type = "sine"; tremoloLfo.frequency.value = 5;
     const tremoloDepth = this.ctx.createGain(); tremoloDepth.gain.value = 0;
@@ -183,9 +189,10 @@ export default class MusicEngine {
     const delay = this.ctx.createDelay(); delay.delayTime.value = 0.3;
     const delayFb = this.ctx.createGain(); delayFb.gain.value = 0.3;
     const delayWet = this.ctx.createGain(); delayWet.gain.value = (track.delay || 0) * 0.5;
-    input.connect(eq); eq.connect(flanger); flanger.connect(distortion); distortion.connect(tremoloGain); tremoloGain.connect(gain); gain.connect(this.masterGain);
+    input.connect(eq); eq.connect(flangerDelay); flangerDelay.connect(distortion); flangerDelay.connect(flangerFb); flangerFb.connect(flangerDelay);
+    distortion.connect(tremoloGain); tremoloGain.connect(gain); gain.connect(this.masterGain);
     gain.connect(delay); delay.connect(delayFb); delayFb.connect(delay); delay.connect(delayWet); delayWet.connect(this.masterGain);
-    const node = { input, eq, flanger, distortion, compressor: null, tremoloGain, tremoloLfo, tremoloDepth, gain, delay, delayFb, delayWet, reverb: null };
+    const node = { input, eq, flangerDelay, flangerLfo, flangerDepth, flangerFb, distortion, compressor: null, tremoloGain, tremoloLfo, tremoloDepth, gain, delay, delayFb, delayWet, reverb: null };
     this._setEq(node, track.eq || "none");
     this._setFlanger(node, track.flanger || 0);
     this._setDistortion(node, track.distortion || 0);
@@ -204,8 +211,26 @@ export default class MusicEngine {
     } catch {}
   }
 
-  _setFlanger(node, v) { try { node.flanger.frequency.value = -(v || 0) * 0.8; } catch {} }
-  _setDistortion(node, v) { try { node.distortion.frequency.value = (v || 0) * 0.8; } catch {} }
+  _setFlanger(node, v) {
+    try {
+      node.flangerDepth.gain.value = (v || 0) * 0.003;
+      node.flangerFb.gain.value = (v || 0) * 0.4;
+      node.flangerLfo.frequency.value = 0.2 + (v || 0) * 1.5;
+    } catch {}
+  }
+  _setDistortion(node, v) {
+    try { node.distortion.curve = (v || 0) > 0 ? this._makeDistortionCurve(v) : null; } catch {}
+  }
+  _makeDistortionCurve(amount) {
+    const k = Math.max(0, amount) * 80;
+    const n = 1024;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2) / n - 1;
+      curve[i] = ((3 + k) * x * 20 * Math.PI / 180) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+  }
   _setTremolo(node, v) { try { node.tremoloDepth.gain.value = (v || 0) * 0.5; node.tremoloLfo.frequency.value = 4 + (v || 0) * 6; } catch {} }
   _setDelay(node, v) { try { node.delayWet.gain.value = (v || 0) * 0.5; node.delayFb.gain.value = 0.2 + (v || 0) * 0.3; } catch {} }
 
