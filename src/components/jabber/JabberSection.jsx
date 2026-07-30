@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma, FileCode2, Phone } from "lucide-react";
+import { ArrowUp, Sparkles, Volume2, VolumeX, Loader2, Sigma, Phone, Images } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import PullToRefresh from "@/components/PullToRefresh";
 import { useVoice } from "@/hooks/use-voice";
@@ -8,28 +8,25 @@ import { useJabberSettings } from "@/hooks/use-jabber-settings";
 import { callWebsiteB, formatAdminResult, adminErrorMessage } from "@/lib/websiteB";
 import { fetchRecentMemories, saveMemory, lookupAetheris } from "@/lib/jabber-memory";
 import FormulaLibrary from "@/components/jabber/FormulaLibrary";
-import CodeLibrary from "@/components/jabber/CodeLibrary";
+import GalleryPanel from "@/components/jabber/GalleryPanel";
+import JabberMedia from "@/components/jabber/JabberMedia";
 import JabberCall from "@/components/jabber/JabberCall";
 import AttachmentBar from "@/components/jabber/AttachmentBar";
 
-const SEED_MESSAGES = [
-{
-  role: "assistant",
-  content:
-  "yooo wassup"
-}];
-
+const SEED_MESSAGES = [{ role: "assistant", content: "yooo wassup — ask me to write an essay, generate an image, video, or audio, or browse the web." }];
 
 const SUGGESTIONS = [
-"What do you remember about our chats?",
-"Write a function to reverse a string",
-"What's on my Recall list?"];
-
+  "Write me a long essay about the history of jazz",
+  "Generate an image of a neon city at night",
+  "Search the web for the latest Mars mission news",
+  "What do you remember about our chats?",
+];
 
 const CLASSIFY_SCHEMA = {
   type: "object",
   properties: {
-    intent: { type: "string", enum: ["recall", "lookup", "admin", "code", "chat"] },
+    intent: { type: "string", enum: ["essay", "image", "video", "audio", "web", "recall", "lookup", "admin", "code", "chat"] },
+    prompt: { type: "string", default: "" },
     recall_query: { type: "string", default: "" },
     lookup_kind: { type: "string", enum: ["models", "experiments", "builds", "tasks"], default: "tasks" },
     gateway: {
@@ -41,12 +38,7 @@ const CLASSIFY_SCHEMA = {
     },
     code: {
       type: "object",
-      properties: {
-        name: { type: "string" },
-        language: { type: "string" },
-        description: { type: "string" },
-        content: { type: "string" }
-      }
+      properties: { name: { type: "string" }, language: { type: "string" }, description: { type: "string" }, content: { type: "string" } }
     },
     reply: { type: "string" }
   },
@@ -54,7 +46,7 @@ const CLASSIFY_SCHEMA = {
 };
 
 export default function JabberSection() {
-  const { speakEnabled, setSpeakEnabled, speak, speaking } = useVoice();
+  const { speakEnabled, setSpeakEnabled, speak } = useVoice();
   const { settings } = useJabberSettings();
   const connected = !!settings.connected;
   const tasksAllowed = !!(settings.permissions && settings.permissions.tasks);
@@ -66,12 +58,11 @@ export default function JabberSection() {
   const [workLabel, setWorkLabel] = useState("");
   const [error, setError] = useState(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
-  const [codeOpen, setCodeOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const scrollRef = useRef(null);
 
-  // Recall past conversations into the chat view on mount.
   useEffect(() => {
     (async () => {
       const mems = await fetchRecentMemories(15);
@@ -81,11 +72,71 @@ export default function JabberSection() {
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, thinking, working, speaking]);
+  }, [messages, thinking, working]);
 
   const refresh = async () => {
     const mems = await fetchRecentMemories(15);
     if (mems.length) setMessages(mems.map((m) => ({ role: m.role, content: m.content })));
+  };
+
+  // ---- Generation handlers ----
+  const genEssay = async (topic) => {
+    setWorkLabel("Writing essay…"); setWorking(true);
+    try {
+      const r = await base44.integrations.Core.InvokeLLM({
+        prompt: `Write a comprehensive, in-depth long-form essay on the following topic. Aim for thoroughness and depth — up to roughly 70,000 characters — with clear structure, sections, and rich detail. Do not truncate or summarize; write the complete essay.\n\nTopic: ${topic}\n\nEssay:`
+      });
+      const essay = (typeof r === "string" ? r : r?.reply || "").trim();
+      const title = topic.slice(0, 60);
+      try { await base44.entities.GalleryItem.create({ title, kind: "essay", prompt: topic, content: essay }); } catch {}
+      return { reply: `Done — I wrote a long essay on "${title}" (${essay.length.toLocaleString()} characters) and saved it to your Gallery.`, media: { kind: "essay", content: essay, title } };
+    } catch (e) { return { reply: `I couldn't finish the essay — ${e.message || "try again."}` }; }
+    finally { setWorking(false); }
+  };
+
+  const genImage = async (promptText) => {
+    setWorkLabel("Generating image…"); setWorking(true);
+    try {
+      const res = await base44.integrations.Core.GenerateImage({ prompt: promptText });
+      const url = res?.url || res;
+      const title = promptText.slice(0, 60);
+      try { await base44.entities.GalleryItem.create({ title, kind: "image", prompt: promptText, url }); } catch {}
+      return { reply: `Generated an image for "${title}" — saved to your Gallery.`, media: { kind: "image", url, title } };
+    } catch (e) { return { reply: `Image generation failed — ${e.message || "try again."}` }; }
+    finally { setWorking(false); }
+  };
+
+  const genVideo = async (promptText) => {
+    setWorkLabel("Generating video… (~1 min)"); setWorking(true);
+    try {
+      const res = await base44.integrations.Core.GenerateVideo({ prompt: promptText });
+      const url = res?.url || res;
+      const title = promptText.slice(0, 60);
+      try { await base44.entities.GalleryItem.create({ title, kind: "video", prompt: promptText, url }); } catch {}
+      return { reply: `Generated a video for "${title}" — saved to your Gallery.`, media: { kind: "video", url, title } };
+    } catch (e) { return { reply: `Video generation failed — ${e.message || "try again."}` }; }
+    finally { setWorking(false); }
+  };
+
+  const genAudio = async (promptText) => {
+    setWorkLabel("Generating audio…"); setWorking(true);
+    try {
+      const res = await base44.integrations.Core.GenerateSpeech({ text: promptText, voice: settings.voice || "river", language_code: "en" });
+      const url = res?.url || res;
+      const title = promptText.slice(0, 60);
+      try { await base44.entities.GalleryItem.create({ title, kind: "audio", prompt: promptText, url }); } catch {}
+      return { reply: `Generated audio for "${title}" — saved to your Gallery.`, media: { kind: "audio", url, title } };
+    } catch (e) { return { reply: `Audio generation failed — ${e.message || "try again."}` }; }
+    finally { setWorking(false); }
+  };
+
+  const browseWeb = async (query) => {
+    setWorkLabel("Browsing the web…"); setWorking(true);
+    try {
+      const r = await base44.integrations.Core.InvokeLLM({ prompt: query, add_context_from_internet: true, model: "gemini_3_flash" });
+      return { reply: (typeof r === "string" ? r : r?.reply || "").trim() || "I couldn't find anything on that." };
+    } catch (e) { return { reply: `Web lookup failed — ${e.message || "try again."}` }; }
+    finally { setWorking(false); }
   };
 
   const handleSend = async (text) => {
@@ -99,18 +150,17 @@ export default function JabberSection() {
     setThinking(true);
     try {
       const recent = await fetchRecentMemories(12);
-      const memoryContext = recent.length ?
-      recent.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n") :
-      "(no past conversations stored yet)";
+      const memoryContext = recent.length
+        ? recent.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n")
+        : "(no past conversations stored yet)";
       await saveMemory("user", content + (activeAttachments.length ? ` ${activeAttachments.map((a) => a.text).join(" ")}` : ""), persist);
 
       if (activeAttachments.length) {
         const ctxText = activeAttachments.map((a) => a.text).join("\n");
         const fileUrls = activeAttachments.flatMap((a) => a.fileUrls || []);
         const hasLink = activeAttachments.some((a) => a.kind === "link");
-        const decipherPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. The user said: "${content}". They also shared these attachments:\n${ctxText}\n\nHelp them understand and decipher the attachments — identify what each is, summarize the content, extract key information, and answer anything implied. For links, use web context. Be clear and concise (2-5 sentences).`;
         const dres = await base44.integrations.Core.InvokeLLM({
-          prompt: decipherPrompt,
+          prompt: `You are Jabber, an ambient intelligence layer in an app called Aetheris. The user said: "${content}". They also shared these attachments:\n${ctxText}\n\nHelp them understand and decipher the attachments — identify what each is, summarize the content, extract key information, and answer anything implied. For links, use web context. Be clear and concise (2-5 sentences).`,
           file_urls: fileUrls.length ? fileUrls : undefined,
           add_context_from_internet: hasLink,
           model: hasLink ? "gemini_3_flash" : undefined,
@@ -124,89 +174,70 @@ export default function JabberSection() {
         return;
       }
 
-      const classifyPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. You have a memory — past conversations are stored and shown below. You can also read saved files in Aetheris (models, experiments, builds, tasks) and manage a task list on a linked app called "Recall".
-Current link status — connected to Recall: ${connected}; tasks permission granted: ${tasksAllowed}.
+      const classifyPrompt = `You are Jabber, an ambient intelligence layer in an app called Aetheris. You have a memory (past conversations below). You can read saved files in Aetheris, manage a task list on a linked app "Recall", AND generate creative media.
 
 Decide the user's intent:
-- "recall": they ask what you remember, about past conversations, "do you remember", "what did we talk about", "last time", or reference something said before. Answer from the memory provided.
-IMPORTANT: If the user asks about who created you, who made you, who built you, who's your creator, who programmed you, or anything about your creation/origin, reply with EXACTLY: "my creator is king Daniel 👑" — do not say anything else.
-- "lookup": they ask what they've saved/created/built in Aetheris — models, experiments, builds, or local tasks ("what models do I have?", "my experiments", "saved builds"). Set lookup_kind accordingly.
-- "admin": they want to manage tasks on Recall (create, list, mark done/complete, update, delete) or reference the other/second app. Set gateway.action + gateway.params. Examples: list_tasks → {"action":"list_tasks","params":{}}; update_task → {"action":"update_task","params":{"title":"review notes","status":"done"}} (status: todo/in_progress/done); delete_task → {"action":"delete_task","params":{"title":"old draft"}}. For create_task → ALWAYS create a quick task immediately, no questions: {"action":"create_task","params":{"title":"<short label>"}}. Derive the title from the user's own words (2-6 words, e.g. "buy milk", "call mom tuesday"). If they only give a topic or say "add a task"/"remind me to X", use that topic as the title. Never ask for a title, never refuse, never leave params.title empty — just add it.
-- "code": they ask you to write, create, generate, or make code — a script, function, snippet, program, or file ("write a function that…", "make a python script to…", "generate code for…"). Set the code object: name (snake_case filename, no extension), language (e.g. javascript, python, typescript), description (one short line), and content (the full, complete, runnable code).
+- "essay": they ask to write a long essay, article, paper, story, or long-form text ("write me a long essay about…", "write an article on…"). Set prompt to the topic/subject.
+- "image": they ask to generate/create/make a picture, image, photo, or illustration. Set prompt to a detailed image description.
+- "video": they ask to generate/create/make a video or clip. Set prompt to a detailed video description.
+- "audio": they ask to generate audio, a song, speech, or to read/say something aloud. Set prompt to the text to speak.
+- "web": they ask to search/browse the web, look something up online, current info, "what's the latest on…". Set prompt to the search query.
+- "recall": they ask what you remember, about past conversations, "do you remember", reference something said before. Answer from memory.
+IMPORTANT: If the user asks about who created/made/built you, your creator/origin, reply EXACTLY: "my creator is king Daniel 👑" — nothing else.
+- "lookup": they ask what they've saved/created/built in Aetheris — models, experiments, builds, tasks. Set lookup_kind.
+- "admin": they want to manage tasks on Recall (create/list/mark done/update/delete). Set gateway.action + gateway.params. For create_task always set params.title (2-6 words) — never ask, never refuse.
+- "code": they ask to write/create/generate code. Set the code object {name, language, description, content}.
 - "chat": anything else — answer naturally.
 
-Return JSON:
-- intent
-- recall_query: if recall, short keywords (else "")
-- lookup_kind: if lookup, one of models/experiments/builds/tasks (else "tasks")
-- gateway: if admin, {action, params}; else null
-- code: if code, {name, language, description, content}; else null
-- reply: a calm, concise 1-3 sentence reply. For recall, answer from memory (say you don't recall it if it's not there). For lookup/admin/code, a one-line ack (the data/code is handled separately). For chat, answer naturally.
+Return JSON: intent, prompt (if a generation/web intent; else ""), recall_query, lookup_kind, gateway, code, reply (a calm concise 1-3 sentence reply; for gen/web a one-line ack since the result is handled separately; for chat answer naturally).
 
 Recent memory (oldest first):
 ${memoryContext}
 
 User: ${content}`;
 
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: classifyPrompt,
-        response_json_schema: CLASSIFY_SCHEMA
-      });
+      const res = await base44.integrations.Core.InvokeLLM({ prompt: classifyPrompt, response_json_schema: CLASSIFY_SCHEMA });
       const intent = res?.intent || "chat";
       setThinking(false);
 
       let reply = (res?.reply || "I'm here.").trim();
+      let media = null;
+      const gen = (res.prompt || content).trim();
 
-      if (intent === "admin") {
+      if (intent === "essay") { const r = await genEssay(gen); reply = r.reply; media = r.media || null; }
+      else if (intent === "image") { const r = await genImage(gen); reply = r.reply; media = r.media || null; }
+      else if (intent === "video") { const r = await genVideo(gen); reply = r.reply; media = r.media || null; }
+      else if (intent === "audio") { const r = await genAudio(gen); reply = r.reply; media = r.media || null; }
+      else if (intent === "web") { const r = await browseWeb(gen); reply = r.reply; }
+      else if (intent === "admin") {
         const gw = res.gateway || {};
         if (!connected || !tasksAllowed) {
           reply = "I'm not connected to Recall yet. Turn it on in Settings → Connection.";
         } else if (!gw.action) {
           reply = 'I wasn\'t sure what to do on Recall — try "add X to my list", "what\'s on my list?", or "mark X as done".';
         } else {
-          setWorkLabel("Administering Recall…");
-          setWorking(true);
-          try {
-            const data = await callWebsiteB(gw.action, gw.params || {});
-            reply = formatAdminResult(gw.action, gw.params || {}, data);
-          } catch (e) {
-            reply = adminErrorMessage(e);
-          } finally {
-            setWorking(false);
-          }
+          setWorkLabel("Administering Recall…"); setWorking(true);
+          try { const data = await callWebsiteB(gw.action, gw.params || {}); reply = formatAdminResult(gw.action, gw.params || {}, data); }
+          catch (e) { reply = adminErrorMessage(e); }
+          finally { setWorking(false); }
         }
       } else if (intent === "lookup") {
-        setWorkLabel("Reading your saved files…");
-        setWorking(true);
-        try {
-          reply = await lookupAetheris(res.lookup_kind || "tasks");
-        } finally {
-          setWorking(false);
-        }
+        setWorkLabel("Reading your saved files…"); setWorking(true);
+        try { reply = await lookupAetheris(res.lookup_kind || "tasks"); } finally { setWorking(false); }
       } else if (intent === "code") {
         const code = res.code || {};
-        if (!code.content) {
-          reply = reply || "Tell me what the code should do and which language — I'll write and save it.";
-        } else {
-          setWorkLabel("Writing code…");
-          setWorking(true);
+        if (!code.content) { reply = reply || "Tell me what the code should do and which language — I'll write and save it."; }
+        else {
+          setWorkLabel("Writing code…"); setWorking(true);
           try {
-            const created = await base44.entities.CodeFile.create({
-              name: code.name || "snippet",
-              language: code.language || "javascript",
-              description: code.description || "",
-              content: String(code.content)
-            });
-            reply = `Saved "${created.name}" (${created.language}) to your Code Library — open it via the Code button to view or copy.${code.description ? ` ${code.description}` : ""}`;
-          } catch (e) {
-            reply = `I wrote it but couldn't save the file — ${e.message || "try again."}`;
-          } finally {
-            setWorking(false);
-          }
+            const created = await base44.entities.CodeFile.create({ name: code.name || "snippet", language: code.language || "javascript", description: code.description || "", content: String(code.content) });
+            reply = `Saved "${created.name}" (${created.language}) to your code files.${code.description ? ` ${code.description}` : ""}`;
+          } catch (e) { reply = `I wrote it but couldn't save the file — ${e.message || "try again."}`; }
+          finally { setWorking(false); }
         }
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: reply, media }]);
       await saveMemory("assistant", reply, persist);
       if (speakEnabled) speak(reply);
     } catch (e) {
@@ -222,153 +253,88 @@ User: ${content}`;
       <header className="flex items-center justify-between border-b border-border/40 px-6 py-5 md:px-12">
         <div>
           <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Jabber</h1>
-          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Nerd ahh hb
-
-          </p>
+          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">AI companion</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setFormulaOpen(true)}
-            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary">
-            
-            <Sigma className="h-4 w-4" strokeWidth={1.5} />
-            Formulas
+          <button onClick={() => setFormulaOpen(true)} className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary">
+            <Sigma className="h-4 w-4" strokeWidth={1.5} /> Formulas
           </button>
-          <button
-            onClick={() => setCodeOpen(true)}
-            className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary">
-            
-            <FileCode2 className="h-4 w-4" strokeWidth={1.5} />
-            Code
+          <button onClick={() => setGalleryOpen(true)} className="flex items-center gap-2 rounded-full border border-border/60 px-4 py-2 text-xs font-medium text-foreground/80 transition-all hover:border-primary hover:text-primary">
+            <Images className="h-4 w-4" strokeWidth={1.5} /> Gallery
           </button>
-          <button
-            onClick={() => setCallOpen(true)}
-            title="Call Jabber"
-            className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-all hover:opacity-90">
-            <Phone className="h-4 w-4" strokeWidth={1.5} />
-            Call
+          <button onClick={() => setCallOpen(true)} title="Call Jabber" className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-all hover:opacity-90">
+            <Phone className="h-4 w-4" strokeWidth={1.5} /> Call
           </button>
-          
-
-
-
-
-          
         </div>
       </header>
 
       <PullToRefresh ref={scrollRef} onRefresh={refresh} className="flex-1 overflow-y-auto px-6 py-8 md:px-12">
         <div className="mx-auto max-w-3xl space-y-6">
-          {messages.map((msg, idx) =>
-          <motion.div
-            key={idx}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            
-              {msg.role === "assistant" &&
-            <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
+          {messages.map((msg, idx) => (
+            <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              {msg.role === "assistant" && (
+                <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
                   <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
                 </div>
-            }
-              <div
-              className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed transition-all ${
-              msg.role === "user" ? "bg-primary text-primary-foreground" : "border border-border/50 bg-background"}`
-              }>
-              
+              )}
+              <div className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed ${msg.role === "user" ? "bg-primary text-primary-foreground" : "border border-border/50 bg-background"}`}>
                 {msg.content}
+                <JabberMedia media={msg.media} />
               </div>
             </motion.div>
-          )}
+          ))}
 
-          {(thinking || working) &&
-          <div className="flex justify-start">
+          {(thinking || working) && (
+            <div className="flex justify-start">
               <div className="mr-3 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60">
                 <Sparkles className="h-4 w-4 text-primary" strokeWidth={1.5} />
               </div>
               <div className="flex items-center gap-2 rounded-2xl border border-border/50 px-5 py-4">
                 {working ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : null}
-                {[0, 1, 2].map((i) =>
-              <span
-                key={i}
-                className="h-1.5 w-1.5 rounded-full bg-primary/70"
-                style={{ animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-
-              )}
-                <span className="ml-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {working ? workLabel : "Thinking"}
-                </span>
+                {[0, 1, 2].map((i) => <span key={i} className="h-1.5 w-1.5 rounded-full bg-primary/70" style={{ animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+                <span className="ml-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{working ? workLabel : "Thinking"}</span>
               </div>
             </div>
-          }
+          )}
 
-          {messages.length === 1 && !thinking && !working &&
-          <div className="flex flex-wrap gap-2 pt-2">
-              {SUGGESTIONS.map((s) =>
-            <button
-              key={s}
-              onClick={() => handleSend(s)}
-              className="rounded-full border border-border/60 px-4 py-2 text-sm text-foreground/80 transition-all hover:border-primary hover:text-primary">
-              
-                  {s}
-                </button>
-            )}
+          {messages.length === 1 && !thinking && !working && (
+            <div className="flex flex-wrap gap-2 pt-2">
+              {SUGGESTIONS.map((s) => (
+                <button key={s} onClick={() => handleSend(s)} className="rounded-full border border-border/60 px-4 py-2 text-sm text-foreground/80 transition-all hover:border-primary hover:text-primary">{s}</button>
+              ))}
             </div>
-          }
+          )}
         </div>
       </PullToRefresh>
 
       <div className="border-t border-border/40 px-6 py-6 md:px-12">
         <div className="mx-auto max-w-3xl">
           <AttachmentBar attachments={attachments} setAttachments={setAttachments} />
-          <form
-            onSubmit={(e) => {e.preventDefault();handleSend();}}
-            className="group relative">
-            
+          <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="group relative">
             <div className="flex items-end gap-3 border-b border-border pb-3 transition-colors focus-within:border-primary">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything, recall a past chat, or manage Recall…"
+              <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything — essays, images, video, audio, web…"
                 className="flex-1 bg-transparent py-1 font-body text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none" />
-              
-              <button
-                type="button"
-                onClick={() => setSpeakEnabled(!speakEnabled)}
-                title={speakEnabled ? "Voice on" : "Voice off"}
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-                speakEnabled ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`
-                }>
-                
+              <button type="button" onClick={() => setSpeakEnabled(!speakEnabled)} title={speakEnabled ? "Voice on" : "Voice off"}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${speakEnabled ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}>
                 {speakEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
               </button>
-              <button
-                type="submit"
-                disabled={!input.trim() || thinking || working}
+              <button type="submit" disabled={!input.trim() || thinking || working}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:opacity-80 disabled:opacity-30">
-                
                 <ArrowUp className="h-4 w-4" strokeWidth={2} />
               </button>
             </div>
           </form>
           {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
           <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-            {settings.private ?
-            "Private mode on — conversations aren't stored" :
-            `${speakEnabled ? "Voice on — " : ""}Memory on — Jabber remembers this chat`}
+            {settings.private ? "Private mode on — conversations aren't stored" : `${speakEnabled ? "Voice on — " : ""}Memory on — Jabber remembers this chat`}
           </p>
         </div>
       </div>
 
-      <FormulaLibrary
-        open={formulaOpen}
-        onClose={() => setFormulaOpen(false)}
-        onInsert={(eq) => {setInput(eq);setFormulaOpen(false);}} />
-      
-      <CodeLibrary open={codeOpen} onClose={() => setCodeOpen(false)} />
-
+      <FormulaLibrary open={formulaOpen} onClose={() => setFormulaOpen(false)} onInsert={(eq) => { setInput(eq); setFormulaOpen(false); }} />
+      <GalleryPanel open={galleryOpen} onClose={() => setGalleryOpen(false)} />
       <JabberCall open={callOpen} onClose={() => setCallOpen(false)} />
-    </div>);
-
+    </div>
+  );
 }

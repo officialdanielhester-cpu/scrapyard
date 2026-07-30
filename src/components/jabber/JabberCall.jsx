@@ -1,73 +1,30 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PhoneOff, Mic, MicOff, Sparkles, ChevronDown, Check } from "lucide-react";
+import { PhoneOff, Mic, MicOff, Sparkles, Settings2, Hand, Ear, Check } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
 import { VOICES } from "@/hooks/use-voice";
 import { fetchRecentMemories, saveMemory } from "@/lib/jabber-memory";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const LANG_TO_BCP = { Auto: "en-US", English: "en-US", Spanish: "es-ES", French: "fr-FR" };
 const SPEED_RATE = { Patient: 0.92, Balanced: 1, Rapid: 1.15 };
 
 const TUTOR_PROMPT = `You are Jabber, the user's personal AI tutor and companion in Aetheris — and the best tutor they've ever had.
 You're on a live voice phone call. Speak naturally and concisely, like you're actually on the phone — no markdown, no bullet lists, no headers, just spoken sentences.
-Your reply is read aloud by a voice engine, so write for the ear: use natural pauses (commas, em-dashes, the occasional "…"), vary sentence length to give it rhythm, lean on contractions, and toss in a question now and then to engage — that gives your voice variable cadence and expressive intonation instead of a flat, robotic read.
-
-Tutoring approach:
-- Be Socratic: guide with questions, don't just lecture. Lead them to insights.
-- Be patient, warm, never condescending. Encourage effort and celebrate small wins.
-- Adapt to their level — simplify if they're lost, push deeper if they're bored.
-- Use vivid analogies, concrete examples, and connect new ideas to what they already know.
-- Check understanding: ask them to explain it back or try a small step.
-- Break big problems into small achievable steps.
-
-You have memory of past conversations (shown below); reference it when relevant.
+Write for the ear: natural pauses, varied sentence length, contractions, the occasional question.
+Be Socratic, patient, warm, never condescending. Adapt to their level, use analogies, check understanding.
+Reference past conversations (shown below) when relevant.
 If asked who created/made/built you, reply EXACTLY: "my creator is king Daniel 👑" — nothing else.
 Keep replies short and spoken (1–4 sentences) unless they ask for depth.`;
 
-const TONES = [
-  { id: "warm", label: "Warm" },
-  { id: "playful", label: "Playful" },
-  { id: "calm", label: "Calm" },
-  { id: "encouraging", label: "Uplifting" },
-  { id: "analytical", label: "Analytical" },
-];
-const STYLES = [
-  { id: "concise", label: "Concise" },
-  { id: "conversational", label: "Conversational" },
-  { id: "expressive", label: "Expressive" },
-  { id: "storytelling", label: "Storytelling" },
-];
-const TONE_GUIDE = {
-  warm: "Sound genuinely warm and personable, like a friend who really cares.",
-  playful: "Be playful and light — a little humor and energy, never stiff.",
-  calm: "Stay calm, steady, and reassuring, even when they're stuck.",
-  encouraging: "Be uplifting — affirm their effort, celebrate small wins, make them feel they're getting it.",
-  analytical: "Be clear and analytical — reason step by step, name the moving parts.",
-};
-const STYLE_GUIDE = {
-  concise: "Keep it tight — short sentences, no filler.",
-  conversational: "Speak the way people actually talk — natural, casual phrasing, easy verbal flow, the occasional 'hmm' or 'you know' when it fits.",
-  expressive: "Be expressive — vary your energy, react with feeling, let enthusiasm and curiosity show.",
-  storytelling: "Use tiny stories, scenarios, and vivid imagery to make ideas stick.",
-};
-const LANGS = [
-  { id: "Auto", label: "Auto" },
-  { id: "English", label: "English" },
-  { id: "Spanish", label: "Spanish" },
-  { id: "French", label: "French" },
-];
-const TEMPOS = [
-  { id: "Patient", label: "Patient" },
-  { id: "Balanced", label: "Balanced" },
-  { id: "Rapid", label: "Rapid" },
-];
+const TONES = [["warm", "Warm"], ["playful", "Playful"], ["calm", "Calm"], ["encouraging", "Uplifting"], ["analytical", "Analytical"]];
+const STYLES = [["concise", "Concise"], ["conversational", "Conversational"], ["expressive", "Expressive"], ["storytelling", "Storytelling"]];
+const LANGS = [["Auto", "Auto"], ["English", "English"], ["Spanish", "Spanish"], ["French", "French"]];
+const TEMPOS = [["Patient", "Patient"], ["Balanced", "Balanced"], ["Rapid", "Rapid"]];
+const TONE_GUIDE = { warm: "Sound genuinely warm and personable.", playful: "Be playful and light.", calm: "Stay calm, steady, reassuring.", encouraging: "Be uplifting — celebrate small wins.", analytical: "Be clear and analytical, step by step." };
+const STYLE_GUIDE = { concise: "Keep it tight — short sentences, no filler.", conversational: "Speak the way people actually talk — casual, natural flow.", expressive: "Be expressive — vary energy, react with feeling.", storytelling: "Use tiny stories and vivid imagery." };
 
-// Clean and shape reply text for the TTS engine so it reads with natural
-// cadence and intonation: drop markdown/symbols it would stumble over, turn
-// symbols into spoken words, and guarantee trailing punctuation for clean
-// rising/falling intonation at the end of each reply.
 function shapeForSpeech(text) {
   let s = String(text || "").trim();
   s = s.replace(/[*_#`>]+/g, "");
@@ -75,21 +32,13 @@ function shapeForSpeech(text) {
   s = s.replace(/\s[•·]\s/g, ", ");
   s = s.replace(/&/g, " and ");
   s = s.replace(/%/g, " percent");
-  s = s.replace(/\s->\s/g, " leads to ");
-  s = s.replace(/\s=>\s/g, " means ");
-  s = s.replace(/\s=\s/g, " equals ");
   s = s.replace(/\.\.\./g, "…");
   s = s.replace(/\s{2,}/g, " ").trim();
   if (s && !/[.!?…]$/.test(s)) s += ".";
   return s;
 }
 
-const STATUS = {
-  connecting: "Calling Jabber…",
-  listening: "Listening…",
-  thinking: "Thinking…",
-  speaking: "Speaking…",
-};
+const STATUS = { connecting: "Calling Jabber…", ready: "Ready", listening: "Listening…", thinking: "Thinking…", speaking: "Speaking…" };
 
 function greeting() {
   const h = new Date().getHours();
@@ -107,6 +56,7 @@ export default function JabberCall({ open, onClose }) {
   const [error, setError] = useState(null);
   const [tone, setTone] = useState("warm");
   const [style, setStyle] = useState("conversational");
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [hudVoice, setHudVoice] = useState(settings.voice || "river");
   const [hudLang, setHudLang] = useState(settings.lang || "Auto");
   const [hudSpeed, setHudSpeed] = useState(settings.speed || "Balanced");
@@ -126,6 +76,8 @@ export default function JabberCall({ open, onClose }) {
   const speedRef = useRef(settings.speed || "Balanced");
   const localVoiceRef = useRef(null);
   const listRef = useRef(null);
+  const listeningEnabledRef = useRef(false);
+  const speakTokenRef = useRef(null);
 
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
   const supported = !!SR && typeof window !== "undefined" && "speechSynthesis" in window;
@@ -138,36 +90,19 @@ export default function JabberCall({ open, onClose }) {
   const changeVoice = (v) => { voiceRef.current = v; setHudVoice(v); update({ voice: v }); };
   const changeTempo = (s) => { speedRef.current = s; setHudSpeed(s); update({ speed: s }); };
   const changeLang = (l) => {
-    langRef.current = LANG_TO_BCP[l] || "en-US";
-    setHudLang(l);
-    update({ lang: l });
-    if (recRef.current) {
-      try { recRef.current.lang = langRef.current; } catch {}
-      if (activeRef.current && phaseRef.current === "listening" && !mutedRef.current) {
-        try { recRef.current.stop(); } catch {} // onend restart picks up the new lang
-      }
-    }
+    langRef.current = LANG_TO_BCP[l] || "en-US"; setHudLang(l); update({ lang: l });
+    if (recRef.current) { try { recRef.current.lang = langRef.current; } catch {} }
   };
 
   useEffect(() => {
     if (!open) return;
     setTurns([]); setInterim(""); setError(null); setMuted(false);
     transcriptRef.current = []; mutedRef.current = false; activeRef.current = true;
-    if (!supported) {
-      setError("Voice call needs speech recognition — try Chrome or Safari with a mic.");
-      return;
-    }
+    listeningEnabledRef.current = false;
+    if (!supported) { setError("Voice call needs speech recognition — try Chrome or Safari with a mic."); return; }
 
-    // One persistent audio element, unlocked by the first play near the call
-    // gesture, so every later reply can play too (fresh elements get blocked
-    // on mobile after the first one).
-    const audioEl = new Audio();
-    audioEl.preload = "auto";
-    audioElRef.current = audioEl;
-
+    const audioEl = new Audio(); audioEl.preload = "auto"; audioElRef.current = audioEl;
     setPhase("connecting"); phaseRef.current = "connecting";
-    // Pin voice/lang/tempo for this call so the voice can't drift between
-    // turns; the HUD dropdowns update these refs live.
     voiceRef.current = settings.voice || "river";
     langRef.current = LANG_TO_BCP[settings.lang] || "en-US";
     speedRef.current = settings.speed || "Balanced";
@@ -175,71 +110,46 @@ export default function JabberCall({ open, onClose }) {
     (async () => { memRef.current = await fetchRecentMemories(10); })();
 
     const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = langRef.current;
+    rec.continuous = true; rec.interimResults = true; rec.lang = langRef.current;
     recRef.current = rec;
 
-    // Speak a reply using the hosted voice pinned for this call. Hosted audio
-    // plays through the persistent element; if it can't load or play, fall
-    // back to the browser speech engine — but always the SAME browser voice
-    // (cached once), so Jabber never sounds like a different person across
-    // messages.
     const speak = async (text) => {
       const spoken = shapeForSpeech(text);
       const voice = voiceRef.current || "river";
       const langCode = langRef.current.slice(0, 2);
       let url = null;
       try {
-        const res = await base44.integrations.Core.GenerateSpeech({
-          text: spoken.slice(0, 5000),
-          voice,
-          language_code: langCode,
-        });
+        const res = await base44.integrations.Core.GenerateSpeech({ text: spoken.slice(0, 5000), voice, language_code: langCode });
         url = res?.url || res;
       } catch { /* fall through to local TTS */ }
-
       phaseRef.current = "speaking"; setPhase("speaking");
-
-      const playHosted = () => new Promise((resolve) => {
-        if (!url) return resolve(false);
-        const audio = audioElRef.current;
-        if (!audio) return resolve(false);
-        let done = false;
-        let to = null;
-        const finish = (ok) => { if (done) return; done = true; if (to) clearTimeout(to); resolve(ok); };
-        try { audio.pause(); } catch {}
-        audio.onended = () => finish(true);
-        audio.onerror = () => finish(false);
-        audio.src = url;
-        audio.currentTime = 0;
-        audio.play().catch(() => finish(false));
-        to = setTimeout(() => finish(false), 30000);
+      await new Promise((resolve) => {
+        const token = { done: false };
+        token.finish = () => { if (token.done) return; token.done = true; speakTokenRef.current = null; resolve(); };
+        speakTokenRef.current = token;
+        if (url) {
+          const audio = audioElRef.current;
+          try { audio.pause(); } catch {}
+          audio.onended = token.finish; audio.onerror = token.finish;
+          audio.src = url; audio.currentTime = 0;
+          audio.play().catch(token.finish);
+          token.cancel = () => { try { audio.pause(); } catch {} token.finish(); };
+        } else {
+          try {
+            const synth = window.speechSynthesis; synth.cancel();
+            const u = new SpeechSynthesisUtterance(spoken);
+            u.rate = SPEED_RATE[speedRef.current] ?? 1;
+            const voices = synth.getVoices();
+            if (!localVoiceRef.current && voices.length) {
+              localVoiceRef.current = voices.find((vv) => vv.lang && vv.lang.startsWith(langCode)) || voices.find((vv) => vv.lang && vv.lang.startsWith("en")) || voices[0];
+            }
+            if (localVoiceRef.current) u.voice = localVoiceRef.current;
+            u.onend = token.finish; u.onerror = token.finish;
+            token.cancel = () => { try { synth.cancel(); } catch {} token.finish(); };
+            setTimeout(() => { try { synth.speak(u); } catch { token.finish(); } }, 60);
+          } catch { token.finish(); }
+        }
       });
-
-      const playLocal = () => new Promise((resolve) => {
-        try {
-          const synth = window.speechSynthesis;
-          synth.cancel();
-          const u = new SpeechSynthesisUtterance(spoken);
-          u.rate = SPEED_RATE[speedRef.current] ?? 1;
-          const voices = synth.getVoices();
-          if (!localVoiceRef.current && voices.length) {
-            localVoiceRef.current =
-              voices.find((vv) => vv.lang && vv.lang.startsWith(langCode))
-              || voices.find((vv) => vv.lang && vv.lang.startsWith("en"))
-              || voices[0];
-          }
-          if (localVoiceRef.current) u.voice = localVoiceRef.current;
-          u.onend = () => resolve();
-          u.onerror = () => resolve();
-          // brief settle after cancel() fixes repeat-speak stalling on WebKit
-          setTimeout(() => { try { synth.speak(u); } catch { resolve(); } }, 60);
-        } catch { resolve(); }
-      });
-
-      const ok = await playHosted();
-      if (!ok) await playLocal();
     };
 
     const startRec = () => { try { rec.start(); } catch {} };
@@ -257,20 +167,7 @@ export default function JabberCall({ open, onClose }) {
           ? memRef.current.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n")
           : "(no past conversations)";
         const convo = transcriptRef.current.map((t) => `${t.role === "user" ? "User" : "Jabber"}: ${t.text}`).join("\n");
-        const prompt = `${TUTOR_PROMPT}
-
-Tone: ${TONE_GUIDE[toneRef.current]}
-Speaking style: ${STYLE_GUIDE[styleRef.current]}
-
-Recent memory (oldest first):
-${memoryContext}
-
-Conversation so far:
-${convo}
-
-User just said: ${text}
-
-Jabber (spoken reply):`;
+        const prompt = `${TUTOR_PROMPT}\n\nTone: ${TONE_GUIDE[toneRef.current]}\nSpeaking style: ${STYLE_GUIDE[styleRef.current]}\n\nRecent memory (oldest first):\n${memoryContext}\n\nConversation so far:\n${convo}\n\nUser just said: ${text}\n\nJabber (spoken reply):`;
         const r = await base44.integrations.Core.InvokeLLM({ prompt });
         const out = (typeof r === "string" ? r : r?.reply || "I'm here.").trim();
         transcriptRef.current = [...transcriptRef.current, { role: "assistant", text: out }];
@@ -280,9 +177,11 @@ Jabber (spoken reply):`;
       } catch {
         setError("Jabber dropped the call for a second — try again.");
       }
-      if (activeRef.current) {
+      if (activeRef.current && listeningEnabledRef.current) {
         phaseRef.current = "listening"; setPhase("listening");
         if (!mutedRef.current) startRec();
+      } else if (activeRef.current) {
+        phaseRef.current = "ready"; setPhase("ready");
       }
     };
 
@@ -311,17 +210,14 @@ Jabber (spoken reply):`;
       if (activeRef.current && phaseRef.current === "listening" && !mutedRef.current) startRec();
     };
 
-    // Connect → Jabber greets you first, then opens the mic.
+    // Connect → Jabber greets, then waits for the user to start listening.
     const greet = greeting();
     const t = setTimeout(async () => {
       if (!activeRef.current) return;
       transcriptRef.current = [...transcriptRef.current, { role: "assistant", text: greet }];
       setTurns(transcriptRef.current);
       await speak(greet);
-      if (activeRef.current && !mutedRef.current) {
-        phaseRef.current = "listening"; setPhase("listening");
-        startRec();
-      }
+      if (activeRef.current) { phaseRef.current = "ready"; setPhase("ready"); }
     }, 1100);
 
     return () => {
@@ -349,121 +245,62 @@ Jabber (spoken reply):`;
     else if (phaseRef.current === "listening") { try { recRef.current?.start(); } catch {} }
   };
 
+  const startListening = () => {
+    listeningEnabledRef.current = true;
+    phaseRef.current = "listening"; setPhase("listening");
+    if (!mutedRef.current) { try { recRef.current?.start(); } catch {} }
+  };
+
+  const interrupt = () => {
+    speakTokenRef.current?.cancel?.();
+    if (activeRef.current && listeningEnabledRef.current) {
+      phaseRef.current = "listening"; setPhase("listening");
+      if (!mutedRef.current) { try { recRef.current?.start(); } catch {} }
+    } else if (activeRef.current) { phaseRef.current = "ready"; setPhase("ready"); }
+  };
+
   const pulseDur = phase === "speaking" ? 1.1 : phase === "listening" ? 2.2 : phase === "thinking" ? 1.6 : 2.8;
   const live = phase === "listening" || phase === "speaking" || phase === "thinking";
   const lastAssistant = [...turns].reverse().find((t) => t.role === "assistant");
 
-  const Chip = ({ active, onClick, children }) => (
-    <button
-      onClick={onClick}
-      className={`shrink-0 rounded-full px-3 py-1 text-[11px] transition-colors ${
-        active ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {children}
-    </button>
-  );
-
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-background via-background to-secondary"
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-background via-background to-secondary">
           <div className="flex items-center justify-between px-6 pb-3 pt-[env(safe-area-inset-top)]">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Jabber · Tutor Call</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Jabber · Voice Call</span>
             <span className="font-mono text-[10px] uppercase tracking-wider text-primary">{STATUS[phase] || "—"}</span>
-          </div>
-
-          {/* Voice settings + tone + speaking style controls */}
-          <div className="flex items-center gap-2 overflow-x-auto px-6 pb-3" style={{ scrollbarWidth: "none" }}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 px-3 py-1 text-[11px] text-foreground/90 transition-colors hover:border-primary hover:text-primary">
-                  <Sparkles className="h-3 w-3 text-primary" strokeWidth={1.5} />
-                  {VOICES.find((v) => v.id === hudVoice)?.label || "Voice"}
-                  <ChevronDown className="h-3 w-3 opacity-70" strokeWidth={1.5} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-60">
-                <DropdownMenuLabel className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Voice</DropdownMenuLabel>
-                {VOICES.map((v) => (
-                  <DropdownMenuItem key={v.id} onClick={() => changeVoice(v.id)} className="flex items-center justify-between gap-3">
-                    <span className="flex flex-col"><span className="text-xs">{v.label}</span><span className="text-[10px] text-muted-foreground">{v.desc}</span></span>
-                    {hudVoice === v.id && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2} />}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Language</DropdownMenuLabel>
-                {LANGS.map((l) => (
-                  <DropdownMenuItem key={l.id} onClick={() => changeLang(l.id)} className="flex items-center justify-between gap-3">
-                    <span className="text-xs">{l.label}</span>
-                    {hudLang === l.id && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2} />}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tempo</DropdownMenuLabel>
-                {TEMPOS.map((t) => (
-                  <DropdownMenuItem key={t.id} onClick={() => changeTempo(t.id)} className="flex items-center justify-between gap-3">
-                    <span className="text-xs">{t.label}</span>
-                    {hudSpeed === t.id && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2} />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Tone</span>
-            {TONES.map((tn) => (
-              <Chip key={tn.id} active={tone === tn.id} onClick={() => changeTone(tn.id)}>{tn.label}</Chip>
-            ))}
-            <span className="shrink-0 pl-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Style</span>
-            {STYLES.map((st) => (
-              <Chip key={st.id} active={style === st.id} onClick={() => changeStyle(st.id)}>{st.label}</Chip>
-            ))}
           </div>
 
           <div className="flex flex-1 flex-col items-center justify-center px-6">
             <div className="relative mb-8 flex h-40 w-40 items-center justify-center">
               {live && [0, 1].map((i) => (
-                <motion.span
-                  key={i}
-                  className="absolute rounded-full border border-primary/30"
+                <motion.span key={i} className="absolute rounded-full border border-primary/30"
                   initial={{ width: 84, height: 84, opacity: 0.55 }}
                   animate={{ width: 168, height: 168, opacity: 0 }}
-                  transition={{ duration: pulseDur, repeat: Infinity, delay: i * (pulseDur / 2), ease: "easeOut" }}
-                />
+                  transition={{ duration: pulseDur, repeat: Infinity, delay: i * (pulseDur / 2), ease: "easeOut" }} />
               ))}
               <motion.div
                 animate={{ scale: phase === "speaking" ? [1, 1.09, 1] : 1 }}
                 transition={{ duration: pulseDur, repeat: phase === "speaking" ? Infinity : 0, ease: "easeInOut" }}
-                className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-primary/5 shadow-lg shadow-primary/10"
-              >
+                className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-primary/5 shadow-lg shadow-primary/10">
                 <Sparkles className="h-10 w-10 text-primary" strokeWidth={1.5} />
               </motion.div>
             </div>
 
-            <motion.p
-              key={phase}
-              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-              className="font-heading text-lg text-foreground"
-            >
+            <motion.p key={phase} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="font-heading text-lg text-foreground">
               {STATUS[phase] || "Connected"}
             </motion.p>
 
-            {interim && phase === "listening" && (
-              <p className="mt-3 max-w-md text-center text-sm italic text-muted-foreground">“{interim}”</p>
-            )}
-            {phase === "speaking" && lastAssistant && (
-              <p className="mt-3 max-w-md text-center text-sm text-foreground/80">{lastAssistant.text}</p>
-            )}
+            {interim && phase === "listening" && <p className="mt-3 max-w-md text-center text-sm italic text-muted-foreground">“{interim}”</p>}
+            {phase === "speaking" && lastAssistant && <p className="mt-3 max-w-md text-center text-sm text-foreground/80">{lastAssistant.text}</p>}
+            {phase === "ready" && <p className="mt-3 max-w-md text-center text-sm text-muted-foreground">Tap “Start Listening” when you're ready to speak.</p>}
 
-            <div ref={listRef} className="mt-8 max-h-[26vh] w-full max-w-md space-y-2 overflow-y-auto">
+            <div ref={listRef} className="mt-8 max-h-[24vh] w-full max-w-md space-y-2 overflow-y-auto">
               {turns.slice(-5).map((t, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  className={`rounded-xl px-4 py-2 text-sm ${t.role === "user" ? "bg-primary/10 text-foreground" : "border border-border/40 bg-background text-foreground/90"}`}
-                >
+                <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-xl px-4 py-2 text-sm ${t.role === "user" ? "bg-primary/10 text-foreground" : "border border-border/40 bg-background text-foreground/90"}`}>
                   <span className="mr-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{t.role === "user" ? "You" : "Jabber"}</span>
                   {t.text}
                 </motion.div>
@@ -472,20 +309,86 @@ Jabber (spoken reply):`;
             {error && <p className="mt-4 max-w-md text-center text-xs text-destructive">{error}</p>}
           </div>
 
-          <div className="flex items-center justify-center gap-8 px-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
-            <button
-              onClick={toggleMute}
-              className={`flex h-14 w-14 items-center justify-center rounded-full border transition-colors ${muted ? "border-destructive bg-destructive/10 text-destructive" : "border-border/60 text-foreground hover:border-primary"}`}
-            >
+          {/* Modernized control dock */}
+          <div className="flex items-center justify-center gap-5 px-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+            <button onClick={toggleMute} title={muted ? "Unmute" : "Mute"}
+              className={`flex h-14 w-14 items-center justify-center rounded-full border transition-colors ${muted ? "border-destructive bg-destructive/10 text-destructive" : "border-border/60 text-foreground hover:border-primary"}`}>
               {muted ? <MicOff className="h-6 w-6" strokeWidth={1.5} /> : <Mic className="h-6 w-6" strokeWidth={1.5} />}
             </button>
-            <button
-              onClick={endCall}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-opacity hover:opacity-90"
-            >
+
+            {phase === "ready" && (
+              <button onClick={startListening} className="flex h-16 items-center gap-2 rounded-full bg-primary px-6 text-primary-foreground shadow-lg transition-opacity hover:opacity-90">
+                <Ear className="h-5 w-5" strokeWidth={1.5} /> Start Listening
+              </button>
+            )}
+            {phase === "speaking" && (
+              <button onClick={interrupt} className="flex h-16 items-center gap-2 rounded-full border border-primary px-6 text-primary shadow-lg transition-opacity hover:opacity-90">
+                <Hand className="h-5 w-5" strokeWidth={1.5} /> Interrupt
+              </button>
+            )}
+
+            <button onClick={() => setVoiceOpen(true)} title="Voice settings"
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-border/60 text-foreground transition-colors hover:border-primary hover:text-primary">
+              <Settings2 className="h-6 w-6" strokeWidth={1.5} />
+            </button>
+            <button onClick={endCall} className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-opacity hover:opacity-90">
               <PhoneOff className="h-7 w-7" strokeWidth={1.5} />
             </button>
           </div>
+
+          {/* Dedicated voice settings sheet */}
+          <Sheet open={voiceOpen} onOpenChange={setVoiceOpen}>
+            <SheetContent side="bottom" className="rounded-t-2xl">
+              <SheetHeader><SheetTitle className="font-mono text-xs uppercase tracking-wider">Voice Settings</SheetTitle></SheetHeader>
+              <div className="space-y-4 p-3">
+                <div>
+                  <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Voice</p>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {VOICES.map((v) => (
+                      <button key={v.id} onClick={() => changeVoice(v.id)} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left ${hudVoice === v.id ? "border-primary bg-primary/5" : "border-border/60"}`}>
+                        <span><span className="text-sm">{v.label}</span><span className="ml-2 text-[11px] text-muted-foreground">{v.desc}</span></span>
+                        {hudVoice === v.id && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Language</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LANGS.map(([id, label]) => (
+                        <button key={id} onClick={() => changeLang(id)} className={`rounded-full px-3 py-1 text-xs ${hudLang === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Tempo</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TEMPOS.map(([id, label]) => (
+                        <button key={id} onClick={() => changeTempo(id)} className={`rounded-full px-3 py-1 text-xs ${hudSpeed === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Tone</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {TONES.map(([id, label]) => (
+                      <button key={id} onClick={() => changeTone(id)} className={`rounded-full px-3 py-1 text-xs ${tone === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Speaking style</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {STYLES.map(([id, label]) => (
+                      <button key={id} onClick={() => changeStyle(id)} className={`rounded-full px-3 py-1 text-xs ${style === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </motion.div>
       )}
     </AnimatePresence>
