@@ -1,18 +1,35 @@
 // Original Web Audio engine for the Studio music editor.
-// Playback scheduling, per-track mixing, real-time meters, recording,
-// import/decode, offline WAV export, metronome, and procedural samples.
+// Playback scheduling, per-track mixing + real-time meters, recording,
+// import/decode, offline WAV export, metronome, procedural samples, effects.
 
 export const BUILTIN_SAMPLES = {
-  drum:  { name: "Drum Hit",     duration: 0.4 },
-  pad:   { name: "Soft Pad",     duration: 0.6 },
-  bell:  { name: "Bell",         duration: 1.2 },
-  sine:  { name: "Sine Tone",    duration: 2.0 },
-  saw:   { name: "Saw Tone",     duration: 2.0 },
-  noise: { name: "Noise",        duration: 2.0 },
-  loop:  { name: "Loop Snippet", duration: 3.0 },
-  bass:  { name: "Bass",         duration: 1.5 },
-  piano: { name: "Piano Note",   duration: 1.2 },
-  strings: { name: "Strings",    duration: 1.8 },
+  // drums / percussion
+  kick: { name: "Kick", duration: 0.4 },
+  snare: { name: "Snare", duration: 0.3 },
+  hihat: { name: "Hi-Hat", duration: 0.2 },
+  openhat: { name: "Open Hat", duration: 0.5 },
+  clap: { name: "Clap", duration: 0.3 },
+  tom: { name: "Tom", duration: 0.4 },
+  ride: { name: "Ride", duration: 0.6 },
+  crash: { name: "Crash", duration: 0.8 },
+  drum: { name: "Drum Hit", duration: 0.4 },
+  noise: { name: "Noise", duration: 2.0 },
+  // melodic / instruments
+  bass: { name: "Bass", duration: 1.5 },
+  piano: { name: "Piano", duration: 1.2 },
+  strings: { name: "Strings", duration: 1.8 },
+  pluck: { name: "Pluck", duration: 0.6 },
+  synth: { name: "Synth", duration: 1.0 },
+  lead: { name: "Lead", duration: 1.0 },
+  organ: { name: "Organ", duration: 1.2 },
+  flute: { name: "Flute", duration: 1.0 },
+  guitar: { name: "Guitar", duration: 0.8 },
+  marimba: { name: "Marimba", duration: 0.9 },
+  pad: { name: "Soft Pad", duration: 0.6 },
+  bell: { name: "Bell", duration: 1.2 },
+  sine: { name: "Sine Tone", duration: 2.0 },
+  saw: { name: "Saw Tone", duration: 2.0 },
+  loop: { name: "Loop Snippet", duration: 3.0 },
 };
 
 function genBuffer(ctx, type, duration) {
@@ -23,16 +40,31 @@ function genBuffer(ctx, type, duration) {
     const t = i / 44100;
     let v = 0;
     switch (type) {
+      case "kick": { const e = Math.exp(-t * 40); v = (Math.sin(t * 180) * 0.6 + (Math.random() * 2 - 1) * 0.2) * e; break; }
+      case "snare": { const e = Math.exp(-t * 18); v = ((Math.random() * 2 - 1) * 0.5 + Math.sin(t * 200) * 0.2) * e; break; }
+      case "hihat": { const e = Math.exp(-t * 60); v = (Math.random() * 2 - 1) * e * 0.4; break; }
+      case "openhat": { const e = Math.exp(-t * 12); v = (Math.random() * 2 - 1) * e * 0.35; break; }
+      case "clap": { const e = Math.exp(-t * 20); v = (Math.random() * 2 - 1) * e * 0.5; break; }
+      case "tom": { const e = Math.exp(-t * 12); v = Math.sin(t * 120) * e * 0.6; break; }
+      case "ride": { const e = Math.exp(-t * 6); v = ((Math.random() * 2 - 1) * 0.2 + Math.sin(t * 600) * 0.1) * e; break; }
+      case "crash": { const e = Math.exp(-t * 4); v = (Math.random() * 2 - 1) * e * 0.5; break; }
       case "drum": { const e = Math.exp(-t * 30); v = (Math.random() * 2 - 1) * e * 0.9 + Math.sin(t * 220) * e * 0.3; break; }
-      case "pad": { const e = Math.exp(-t * 14) * (0.5 + Math.sin(t * 60) * 0.5); v = Math.sin(t * 180) * e * 0.5; break; }
-      case "bell": v = Math.sin(t * Math.PI * 2 * 4) * Math.exp(-t * 3.2) * 0.8; break;
-      case "sine": v = Math.sin(t * Math.PI * 2 * 2.2) * 0.5; break;
-      case "saw":  v = (Math.tan(t * 5) * 0.2) * 0.5; break;
       case "noise": v = (Math.random() * 2 - 1) * 0.45; break;
-      case "loop": { const m = Math.sin(t * Math.PI * 2 * 1.5) * 0.5 + Math.sin(t * Math.PI * 2 * 0.7) * 0.5; v = m * 0.4 * (0.6 + Math.sin(t * 2) * 0.4); break; }
-      case "bass": { const env = Math.exp(-t * 2.5); v = (Math.sin(t * Math.PI * 2 * 1.1) * 0.6 + Math.sin(t * Math.PI * 2 * 0.3) * 0.4) * env; break; }
-      case "piano": { const env = Math.exp(-t * 4); v = Math.sin(t * Math.PI * 2 * 5.5) * env * 0.5; break; }
-      case "strings": { const env = Math.exp(-t * 1.8); v = (Math.sin(t * Math.PI * 2 * 3) * 0.4 + Math.sin(t * Math.PI * 2 * 1.4 + 0.3) * 0.3 + Math.sin(t * Math.PI * 2 * 0.8 + 0.7) * 0.2) * env; break; }
+      case "bass": { const e = Math.exp(-t * 2.5); v = (Math.sin(t * 6.9) * 0.6 + Math.sin(t * 1.9) * 0.4) * e; break; }
+      case "piano": { const e = Math.exp(-t * 4); v = Math.sin(t * 34.5) * e * 0.5; break; }
+      case "strings": { const e = Math.exp(-t * 1.8); v = (Math.sin(t * 18.8) * 0.4 + Math.sin(t * 8.8 + 0.3) * 0.3 + Math.sin(t * 5 + 0.7) * 0.2) * e; break; }
+      case "pluck": { const e = Math.exp(-t * 8); v = Math.sin(t * 20) * e * 0.5; break; }
+      case "synth": { const e = Math.exp(-t * 3); v = (Math.sin(t * 15) * 0.4 + Math.sin(t * 30) * 0.2) * e; break; }
+      case "lead": { const e = Math.exp(-t * 4); v = (Math.sin(t * 25) + Math.sin(t * 25.3)) * 0.3 * e; break; }
+      case "organ": { const e = Math.exp(-t * 2); v = (Math.sin(t * 20) * 0.4 + Math.sin(t * 40) * 0.2) * e; break; }
+      case "flute": { const e = Math.exp(-t * 1.5); v = Math.sin(t * 22) * e * 0.4; break; }
+      case "guitar": { const e = Math.exp(-t * 6); v = (Math.sin(t * 16) * 0.4 + Math.sin(t * 32) * 0.2) * e; break; }
+      case "marimba": { const e = Math.exp(-t * 5); v = (Math.sin(t * 30) * 0.5 + Math.sin(t * 60) * 0.2) * e; break; }
+      case "pad": { const e = Math.exp(-t * 14) * (0.5 + Math.sin(t * 60) * 0.5); v = Math.sin(t * 11.3) * e * 0.5; break; }
+      case "bell": v = Math.sin(t * 25.1) * Math.exp(-t * 3.2) * 0.8; break;
+      case "sine": v = Math.sin(t * 13.8) * 0.5; break;
+      case "saw": v = Math.tan(t * 5) * 0.1 * 0.5; break;
+      case "loop": { const m = Math.sin(t * 9.4) * 0.5 + Math.sin(t * 4.4) * 0.5; v = m * 0.4 * (0.6 + Math.sin(t * 2) * 0.4); break; }
       default: v = 0;
     }
     d[i] = v;
@@ -127,7 +159,10 @@ export default class MusicEngine {
   }
 
   _disposeTrack(node) {
-    [node.input, node.eq, node.flanger, node.distortion, node.gain].forEach((n) => { try { n.disconnect(); } catch {} });
+    [node.input, node.eq, node.flanger, node.distortion, node.tremoloGain, node.gain, node.delayWet].forEach((n) => { try { n.disconnect(); } catch {} });
+    try { node.tremoloLfo.stop(); } catch {}
+    try { node.tremoloLfo.disconnect(); node.tremoloDepth.disconnect(); } catch {}
+    try { node.delay.disconnect(); node.delayFb.disconnect(); } catch {}
     if (node.compressor) { try { node.compressor.disconnect(); } catch {} }
     if (node.reverb) { try { node.reverb.delay.disconnect(); node.reverb.fb.disconnect(); } catch {} }
   }
@@ -139,13 +174,24 @@ export default class MusicEngine {
     const eq = this.ctx.createBiquadFilter(); eq.type = "lowpass"; eq.frequency.value = 8000;
     const flanger = this.ctx.createWaveShaper(); flanger.frequency.value = 0;
     const distortion = this.ctx.createWaveShaper(); distortion.frequency.value = 0;
+    const tremoloGain = this.ctx.createGain(); tremoloGain.gain.value = 1;
+    const tremoloLfo = this.ctx.createOscillator(); tremoloLfo.type = "sine"; tremoloLfo.frequency.value = 5;
+    const tremoloDepth = this.ctx.createGain(); tremoloDepth.gain.value = 0;
+    tremoloLfo.connect(tremoloDepth); tremoloDepth.connect(tremoloGain.gain);
+    try { tremoloLfo.start(); } catch {}
     const gain = this.ctx.createGain(); gain.gain.value = track.volume ?? 0.8;
-    input.connect(eq); eq.connect(flanger); flanger.connect(distortion); distortion.connect(gain); gain.connect(this.masterGain);
-    const node = { input, eq, flanger, distortion, compressor: null, gain, reverb: null };
+    const delay = this.ctx.createDelay(); delay.delayTime.value = 0.3;
+    const delayFb = this.ctx.createGain(); delayFb.gain.value = 0.3;
+    const delayWet = this.ctx.createGain(); delayWet.gain.value = (track.delay || 0) * 0.5;
+    input.connect(eq); eq.connect(flanger); flanger.connect(distortion); distortion.connect(tremoloGain); tremoloGain.connect(gain); gain.connect(this.masterGain);
+    gain.connect(delay); delay.connect(delayFb); delayFb.connect(delay); delay.connect(delayWet); delayWet.connect(this.masterGain);
+    const node = { input, eq, flanger, distortion, compressor: null, tremoloGain, tremoloLfo, tremoloDepth, gain, delay, delayFb, delayWet, reverb: null };
     this._setEq(node, track.eq || "none");
     this._setFlanger(node, track.flanger || 0);
     this._setDistortion(node, track.distortion || 0);
     this._setCompressor(node, !!track.compressor);
+    this._setTremolo(node, track.tremolo || 0);
+    this._setDelay(node, track.delay || 0);
     this._setReverb(node, !!track.reverb);
     this.trackNodes.set(track.id, node);
   }
@@ -160,15 +206,17 @@ export default class MusicEngine {
 
   _setFlanger(node, v) { try { node.flanger.frequency.value = -(v || 0) * 0.8; } catch {} }
   _setDistortion(node, v) { try { node.distortion.frequency.value = (v || 0) * 0.8; } catch {} }
+  _setTremolo(node, v) { try { node.tremoloDepth.gain.value = (v || 0) * 0.5; node.tremoloLfo.frequency.value = 4 + (v || 0) * 6; } catch {} }
+  _setDelay(node, v) { try { node.delayWet.gain.value = (v || 0) * 0.5; node.delayFb.gain.value = 0.2 + (v || 0) * 0.3; } catch {} }
 
   _setCompressor(node, on) {
     try { node.distortion.disconnect(); if (node.compressor) node.compressor.disconnect(); } catch {}
     if (on) {
       if (!node.compressor) node.compressor = this.ctx.createDynamicsCompressor();
       node.distortion.connect(node.compressor);
-      node.compressor.connect(node.gain);
+      node.compressor.connect(node.tremoloGain);
     } else {
-      node.distortion.connect(node.gain);
+      node.distortion.connect(node.tremoloGain);
     }
   }
 
@@ -212,6 +260,8 @@ export default class MusicEngine {
     if (patch.flanger !== undefined) this._setFlanger(node, t.flanger);
     if (patch.distortion !== undefined) this._setDistortion(node, t.distortion);
     if (patch.compressor !== undefined) this._setCompressor(node, t.compressor);
+    if (patch.tremolo !== undefined) this._setTremolo(node, t.tremolo);
+    if (patch.delay !== undefined) this._setDelay(node, t.delay);
     if (patch.reverb !== undefined) this._setReverb(node, t.reverb);
   }
 
@@ -361,30 +411,6 @@ export default class MusicEngine {
     } catch {}
   }
 
-  // ---- Offline WAV export ----
-  async exportWAV() {
-    await this.loadProjectSamples();
-    const dur = this.project.duration || 60;
-    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    const off = new Off(2, Math.ceil(dur * 44100), 44100);
-    const master = off.createGain(); master.gain.value = this.project.masterVolume ?? 0.8;
-    master.connect(off.destination);
-    const anySolo = this.project.tracks.some((t) => t.solo);
-    this.project.tracks.forEach((track) => {
-      const muted = track.muted || (anySolo && !track.solo);
-      const tg = off.createGain(); tg.gain.value = muted ? 0 : (track.volume ?? 0.8);
-      tg.connect(master);
-      this.project.clips.filter((c) => c.trackId === track.id).forEach((clip) => {
-        const buf = this.bufferCache.get(clip.sampleUrl); if (!buf) return;
-        const src = off.createBufferSource(); src.buffer = buf;
-        src.connect(tg);
-        try { src.start(clip.start, clip.sourceStart || 0, clip.duration); } catch {}
-      });
-    });
-    const rendered = await off.startRendering();
-    return audioBufferToWav(rendered);
-  }
-
   // ---- Live note/sample preview ----
   playNoteNow(midi) {
     if (!this.ctx) this.init();
@@ -422,6 +448,30 @@ export default class MusicEngine {
     const note = names[((midi % 12) + 12) % 12];
     const oct = Math.floor(midi / 12) - 1;
     return { key, name: `${note}${oct}`, duration: 0.6 };
+  }
+
+  // ---- Offline WAV export (master + per-track stems) ----
+  async exportWAV() {
+    await this.loadProjectSamples();
+    const dur = this.project.duration || 60;
+    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const off = new Off(2, Math.ceil(dur * 44100), 44100);
+    const master = off.createGain(); master.gain.value = this.project.masterVolume ?? 0.8;
+    master.connect(off.destination);
+    const anySolo = this.project.tracks.some((t) => t.solo);
+    this.project.tracks.forEach((track) => {
+      const muted = track.muted || (anySolo && !track.solo);
+      const tg = off.createGain(); tg.gain.value = muted ? 0 : (track.volume ?? 0.8);
+      tg.connect(master);
+      this.project.clips.filter((c) => c.trackId === track.id).forEach((clip) => {
+        const buf = this.bufferCache.get(clip.sampleUrl); if (!buf) return;
+        const src = off.createBufferSource(); src.buffer = buf;
+        src.connect(tg);
+        try { src.start(clip.start, clip.sourceStart || 0, clip.duration); } catch {}
+      });
+    });
+    const rendered = await off.startRendering();
+    return audioBufferToWav(rendered);
   }
 
   async exportStems() {

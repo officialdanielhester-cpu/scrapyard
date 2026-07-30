@@ -76,6 +76,14 @@
           "compressor": {
             "type": "boolean",
             "default": false
+          },
+          "delay": {
+            "type": "number",
+            "default": 0
+          },
+          "tremolo": {
+            "type": "number",
+            "default": 0
           }
         }
       }

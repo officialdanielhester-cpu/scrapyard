@@ -7,12 +7,15 @@ import Mixer from "@/components/music/Mixer";
 import EffectsRack from "@/components/music/EffectsRack";
 import SampleLibrary from "@/components/music/SampleLibrary";
 import MusicTools from "@/components/music/MusicTools";
+import VersionHistory from "@/components/music/VersionHistory";
+import CollabPanel from "@/components/music/CollabPanel";
+import { parseMidi, encodeMidi } from "@/components/music/midiUtils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SlidersHorizontal } from "lucide-react";
 
 const COLORS = ["#a855f7", "#8b5cf6", "#6366f1", "#ec4899", "#f97316", "#10b981", "#06b6d4", "#eab308"];
 const uid = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
-const mkTrack = (i) => ({ id: uid("t"), name: `Track ${i}`, color: COLORS[(i - 1) % COLORS.length], height: 56, volume: 0.8, pan: 0, muted: false, solo: false, eq: "none", reverb: false, flanger: 0, distortion: 0, compressor: false });
+const mkTrack = (i) => ({ id: uid("t"), name: `Track ${i}`, color: COLORS[(i - 1) % COLORS.length], height: 56, volume: 0.8, pan: 0, muted: false, solo: false, eq: "none", reverb: false, flanger: 0, distortion: 0, compressor: false, delay: 0, tremolo: 0 });
 
 function emptyProject() {
   return { name: "Untitled Project", bpm: 120, duration: 60, masterVolume: 0.8, loop: true, tracks: [mkTrack(1)], clips: [] };
@@ -39,6 +42,10 @@ export default function MusicStudio() {
   const [beat, setBeat] = useState(0);
   const [aiBusy, setAiBusy] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [collabOpen, setCollabOpen] = useState(false);
+  const [userName, setUserName] = useState("You");
+  const midiRef = useRef(null);
   const engineRef = useRef(null);
   const recRef = useRef(null);
   const recChunksRef = useRef([]);
@@ -51,6 +58,7 @@ export default function MusicStudio() {
     engine.onEnd = () => setPlaying(false);
     engine.onBeat = () => setBeat((b) => b + 1);
     (async () => { try { const list = await base44.entities.MusicProject.list("-updated_date", 30); setProjects(list); } catch {} })();
+    base44.auth.me().then((u) => setUserName(u?.full_name || u?.email || "You")).catch(() => {});
     return () => { engine.stopMetronome(); engine.stop(); };
   }, []);
 
@@ -143,6 +151,42 @@ export default function MusicStudio() {
         URL.revokeObjectURL(url);
       });
     } catch {} finally { setExporting(false); }
+  };
+
+  const importMidi = async (file) => {
+    try {
+      const arr = await file.arrayBuffer();
+      const parsed = parseMidi(arr);
+      snapshot();
+      setProject((p) => {
+        const tracks = [...p.tracks];
+        const clips = [...p.clips];
+        parsed.tracks.forEach((tr, ti) => {
+          if (!tr.notes || !tr.notes.length) return;
+          while (tracks.length <= ti) tracks.push(mkTrack(tracks.length + 1));
+          tr.notes.forEach((n) => {
+            const meta = engineRef.current.addPianoNote(n.midi);
+            clips.push({ id: uid("c"), trackId: tracks[ti].id, name: meta.name, start: Math.min(p.duration, n.start), duration: Math.min(meta.duration, n.duration || 0.4), sourceStart: 0, sampleUrl: meta.key });
+          });
+        });
+        return { ...p, tracks, clips };
+      });
+      setRedo([]);
+    } catch {}
+  };
+  const onMidiFile = async (e) => { const f = e.target.files?.[0]; if (f) await importMidi(f); e.target.value = ""; };
+  const exportMidi = () => {
+    const notes = [];
+    project.clips.forEach((c) => {
+      const m = c.sampleUrl.match(/^piano:(\d+)$/); if (!m) return;
+      notes.push({ midi: parseInt(m[1]), start: c.start, duration: c.duration, velocity: 100 });
+    });
+    if (!notes.length) return;
+    const bytes = encodeMidi(notes, { bpm: project.bpm });
+    const blob = new Blob([bytes], { type: "audio/midi" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${(project.name || "project").replace(/[^a-z0-9-_ ]/gi, "")}.mid`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const generateAIMelody = async () => {
@@ -281,7 +325,8 @@ export default function MusicStudio() {
           <Timeline project={project} pxPerSec={zoom} currentTime={currentTime} selectedClipId={selectedClipId}
             onSelectClip={setSelectedClipId} onMoveClip={moveClip} onTrimClip={trimClip} onSplitClip={splitClip} onDeleteClip={deleteClip}
             onAddTrack={addTrack} onSeek={handleSeek} onZoomIn={zoomIn} onZoomOut={zoomOut} onFit={fit} onClipInteractionStart={snapshot} />
-          <SampleLibrary onAddClip={addClip} onImportFile={importFile} recording={recording} onRecord={handleRecord} onStopRecord={stopRecord} onAIBeat={generateAIBeat} aiBusy={aiBusy} onTools={() => setToolsOpen(true)} />
+          <SampleLibrary onAddClip={addClip} onImportFile={importFile} recording={recording} onRecord={handleRecord} onStopRecord={stopRecord} onAIBeat={generateAIBeat} aiBusy={aiBusy} onTools={() => setToolsOpen(true)} onMidiImport={() => midiRef.current?.click()} onMidiExport={exportMidi} onHistory={() => setHistoryOpen(true)} onCollab={() => setCollabOpen(true)} />
+          <input ref={midiRef} type="file" accept=".mid,.midi,audio/midi" className="hidden" onChange={onMidiFile} />
         </div>
         <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-border/40 bg-background/30 p-3 lg:block">{mixerPanel}</aside>
 
@@ -298,6 +343,8 @@ export default function MusicStudio() {
       </div>
 
       <MusicTools open={toolsOpen} onOpenChange={setToolsOpen} onNote={handleNote} onPad={handleDrumPad} />
+      <VersionHistory open={historyOpen} onOpenChange={setHistoryOpen} projectId={savedId} project={project} onRestore={(snap) => { if (snap) { setProject({ ...emptyProject(), ...snap, tracks: snap.tracks?.length ? snap.tracks : [mkTrack(1)], clips: snap.clips || [] }); engineRef.current?.stop(); setPlaying(false); setCurrentTime(0); } }} />
+      <CollabPanel open={collabOpen} onOpenChange={setCollabOpen} roomId={savedId} userName={userName} />
 
       <Sheet open={projectsOpen} onOpenChange={setProjectsOpen}>
         <SheetContent side="right" className="w-80 overflow-y-auto">

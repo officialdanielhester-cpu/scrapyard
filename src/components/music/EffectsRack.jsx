@@ -41,6 +41,14 @@ export default function EffectsRack({ track, onChange }) {
         <label className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase text-muted-foreground"><Waves className="h-3 w-3" /> Flanger {Math.round((track.flanger || 0) * 100)}%</label>
         <input type="range" min="0" max="1" step="0.05" value={track.flanger || 0} onChange={(e) => onChange({ flanger: Number(e.target.value) })} className="w-full accent-primary" />
       </div>
+      <div>
+        <label className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase text-muted-foreground"><Waves className="h-3 w-3" /> Delay {Math.round((track.delay || 0) * 100)}%</label>
+        <input type="range" min="0" max="1" step="0.05" value={track.delay || 0} onChange={(e) => onChange({ delay: Number(e.target.value) })} className="w-full accent-primary" />
+      </div>
+      <div>
+        <label className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase text-muted-foreground"><Waves className="h-3 w-3" /> Tremolo {Math.round((track.tremolo || 0) * 100)}%</label>
+        <input type="range" min="0" max="1" step="0.05" value={track.tremolo || 0} onChange={(e) => onChange({ tremolo: Number(e.target.value) })} className="w-full accent-primary" />
+      </div>
     </div>
   );
 }
