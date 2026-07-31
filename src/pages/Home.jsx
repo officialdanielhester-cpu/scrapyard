@@ -12,6 +12,7 @@ import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
 import MusicStudio from "@/components/music/MusicStudio";
 import PlaceholderSection from "@/components/PlaceholderSection";
+import MindMapperSection from "@/components/mindmapper/MindMapperSection";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -136,11 +137,7 @@ export default function Home({ section: sectionProp }) {
               )}
               {active === "mind-mapper" && (
                 <div className="min-h-screen">
-                  <PlaceholderSection
-                    title="Mind Mapper"
-                    subtitle="Coming soon"
-                    description="Map your thoughts — connect ideas, build concept maps, and visualize your thinking. This space is under construction."
-                  />
+                  <MindMapperSection />
                 </div>
               )}
               {active === "fit-maker" && (

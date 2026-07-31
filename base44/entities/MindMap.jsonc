@@ -1,0 +1,74 @@
+{
+  "name": "MindMap",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "nodes": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number",
+            "default": 0
+          },
+          "y": {
+            "type": "number",
+            "default": 0
+          },
+          "text": {
+            "type": "string",
+            "default": ""
+          },
+          "color": {
+            "type": "string",
+            "default": "#3b82f6"
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "user"
+      }
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}
