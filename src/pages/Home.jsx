@@ -12,7 +12,7 @@ import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
 import MusicStudio from "@/components/music/MusicStudio";
 import PlaceholderSection from "@/components/PlaceholderSection";
-import MindMapperSection from "@/components/mindmapper/MindMapperSection";
+import MindSection from "@/components/mind/MindSection";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -137,7 +137,7 @@ export default function Home({ section: sectionProp }) {
               )}
               {active === "mind-mapper" && (
                 <div className="min-h-screen">
-                  <MindMapperSection />
+                  <MindSection />
                 </div>
               )}
               {active === "fit-maker" && (

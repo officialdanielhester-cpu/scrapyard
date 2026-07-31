@@ -1,0 +1,74 @@
+{
+  "name": "Note",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string",
+      "default": ""
+    },
+    "tags": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "type": "string",
+      "default": "Inbox"
+    },
+    "workspace": {
+      "type": "string",
+      "default": "Personal"
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false
+    },
+    "favorite": {
+      "type": "boolean",
+      "default": false
+    },
+    "aliases": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "icon": {
+      "type": "string",
+      "default": "\ud83d\udcdd"
+    },
+    "is_template": {
+      "type": "boolean",
+      "default": false
+    },
+    "daily": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "user"
+      }
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

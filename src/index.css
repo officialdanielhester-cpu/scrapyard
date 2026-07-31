@@ -102,6 +102,22 @@ canvas,
   user-select: none;
 }
 
+/* Mind note preview typography */
+.prose-note { color: hsl(var(--foreground)); font-size: 0.95rem; line-height: 1.7; }
+.prose-note h1 { font-size: 1.6rem; font-weight: 800; margin: 1rem 0 0.5rem; }
+.prose-note h2 { font-size: 1.3rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+.prose-note h3 { font-size: 1.1rem; font-weight: 600; margin: 0.8rem 0 0.4rem; }
+.prose-note p { margin: 0.5rem 0; }
+.prose-note ul, .prose-note ol { margin: 0.5rem 0; padding-left: 1.4rem; }
+.prose-note li { margin: 0.2rem 0; }
+.prose-note code { background: hsl(var(--muted)); padding: 0.12rem 0.35rem; border-radius: 0.3rem; font-family: var(--font-mono); font-size: 0.85em; }
+.prose-note pre { background: hsl(var(--muted)); padding: 0.8rem; border-radius: 0.6rem; overflow-x: auto; margin: 0.6rem 0; }
+.prose-note pre code { background: none; padding: 0; }
+.prose-note blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 0.9rem; color: hsl(var(--muted-foreground)); margin: 0.6rem 0; }
+.prose-note img { border-radius: 0.6rem; max-width: 100%; margin: 0.6rem 0; }
+.prose-note a { color: hsl(var(--primary)); }
+.prose-note hr { border: none; border-top: 1px solid hsl(var(--border)); margin: 1rem 0; }
+
 /* No rubber-band bounce over Three.js interactives */
 canvas {
   overscroll-behavior: none;
