@@ -11,7 +11,7 @@ import Home from '@/pages/Home';
 
 const SECTIONS = [
   "jabber", "sound", "grid", "studio", "video-editor", "photo-editor",
-  "env", "workshop", "dashboard", "settings",
+  "env", "workshop", "dashboard", "settings", "mind-mapper", "fit-maker",
 ];
 
 const AuthenticatedApp = () => {

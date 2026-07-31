@@ -11,6 +11,8 @@ import StudioSection from "@/components/studio/StudioSection";
 import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
 import MusicStudio from "@/components/music/MusicStudio";
+import PlaceholderSection from "@/components/PlaceholderSection";
+import OnboardingTutorial from "@/components/OnboardingTutorial";
 import { motion, AnimatePresence } from "framer-motion";
 
 const PATH_TO_SECTION = {
@@ -19,8 +21,10 @@ const PATH_TO_SECTION = {
   sound: "sound",
   grid: "grid",
   studio: "studio",
+  "fit-maker": "fit-maker",
   "video-editor": "video-editor",
   "photo-editor": "photo-editor",
+  "mind-mapper": "mind-mapper",
   env: "env",
   workshop: "workshop",
   dashboard: "dashboard",
@@ -58,6 +62,7 @@ export default function Home({ section: sectionProp }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <OnboardingTutorial />
       <JabberNav active={active} onSelect={handleSelect} />
 
       {/* Main canvas — offset for desktop sidebar */}
@@ -127,6 +132,24 @@ export default function Home({ section: sectionProp }) {
               {active === "settings" && (
                 <div className="min-h-screen">
                   <SettingsSection />
+                </div>
+              )}
+              {active === "mind-mapper" && (
+                <div className="min-h-screen">
+                  <PlaceholderSection
+                    title="Mind Mapper"
+                    subtitle="Coming soon"
+                    description="Map your thoughts — connect ideas, build concept maps, and visualize your thinking. This space is under construction."
+                  />
+                </div>
+              )}
+              {active === "fit-maker" && (
+                <div className="min-h-screen">
+                  <PlaceholderSection
+                    title="Fit Maker"
+                    subtitle="Canvas · Coming soon"
+                    description="Design fitness routines, plan workouts, and track progress. This space is under construction."
+                  />
                 </div>
               )}
             </motion.div>

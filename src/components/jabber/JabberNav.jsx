@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music } from "lucide-react";
+import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music, Brain, Dumbbell } from "lucide-react";
 import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
 { id: "jabber", label: "Jabber", icon: Sparkles },
-{ id: "sound", label: "Studio", icon: Music }];
+{ id: "sound", label: "Studio", icon: Music },
+{ id: "mind-mapper", label: "Mind Mapper", icon: Brain }];
 
 const CANVAS_CHILDREN = [
 { id: "grid", label: "The Grid", icon: Boxes },
-{ id: "studio", label: "3D Studio", icon: Box }];
+{ id: "studio", label: "3D Studio", icon: Box },
+{ id: "fit-maker", label: "Fit Maker", icon: Dumbbell }];
 
 const CANVAS_IDS = CANVAS_CHILDREN.map((c) => c.id);
 const ENV_CHILDREN = [
