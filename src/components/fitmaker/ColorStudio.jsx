@@ -86,7 +86,7 @@ export default function ColorStudio({ state, onChange }) {
 
       <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
         <span className="text-xs font-medium">Gradient</span>
-        <input type="checkbox" checked={!!state.gradient} onChange={(e) => onChange({ gradient: e.target.checked })} className="accent-[#a855f7]" />
+        <input type="checkbox" checked={!!state.gradient} onChange={(e) => onChange({ gradient: e.target.checked })} className="accent-primary" />
       </label>
       {state.gradient && (
         <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ function Slider({ label, value, min, max, onChange }) {
   return (
     <div>
       <label className="mb-1 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground"><span>{label}</span><span className="text-foreground/60">{value}</span></label>
-      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(+e.target.value)} className="w-full accent-[#a855f7]" />
+      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(+e.target.value)} className="w-full accent-primary" />
     </div>
   );
 }

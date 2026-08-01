@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Save, Undo2, Redo2, Download, Sparkles, Palette, Layers,
   Ruler, Wand2, Images, FolderOpen, RotateCw, Maximize2, Minimize2, Eye,
-  X, ChevronLeft, ChevronRight, Shirt, Camera, History,
+  X, ChevronLeft, ChevronRight, Shirt, Camera, History, Box, LayoutTemplate,
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import "@/components/fitmaker/fit-theme.css";
@@ -17,6 +17,7 @@ import FeaturesPanel from "@/components/fitmaker/FeaturesPanel";
 import AIPanel from "@/components/fitmaker/AIPanel";
 import FitGallery from "@/components/fitmaker/FitGallery";
 import VersionHistory from "@/components/fitmaker/VersionHistory";
+import Fit3DWorkspace from "@/components/fitmaker/Fit3DWorkspace";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const TOOLS = [
@@ -42,6 +43,8 @@ export default function FitMakerSection() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [viewMode, setViewMode] = useState("pattern");
+  const [garmentImage, setGarmentImage] = useState("");
   const canvasRef = useRef(null);
   const saveTimer = useRef(null);
 
@@ -60,6 +63,18 @@ export default function FitMakerSection() {
     const id = setInterval(() => setRotate((r) => (r + 2) % 360), 40);
     return () => clearInterval(id);
   }, [turntable]);
+
+  // Keep the 3D workspace's garment render in sync while in 3D mode.
+  useEffect(() => {
+    if (viewMode !== "3d" || !active) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const img = await makeThumbnail();
+      if (!cancelled && img) setGarmentImage(img);
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, active?.state, active?.templateId]);
 
   // ---- Project / tab management ----
   const newProject = useCallback((templateId, opts = {}) => {
@@ -247,7 +262,7 @@ export default function FitMakerSection() {
       {/* Top bar */}
       <header className="fit-glass z-30 flex items-center gap-2 border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-purple-900 shadow-lg shadow-primary/30">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 shadow-lg shadow-primary/30">
             <Shirt className="h-4 w-4 text-white" strokeWidth={1.5} />
           </div>
           <span className="font-heading text-base font-extrabold tracking-tight">Fit Maker</span>
@@ -269,6 +284,9 @@ export default function FitMakerSection() {
           <div className="mx-1 h-5 w-px bg-white/10" />
           <IconBtn onClick={() => newProject("tshirt")} title="New design"><Plus className="h-4 w-4" /></IconBtn>
           <IconBtn onClick={() => setGalleryOpen(true)} title="Gallery"><Images className="h-4 w-4" /></IconBtn>
+          <button onClick={() => setViewMode((v) => (v === "pattern" ? "3d" : "pattern"))} title={viewMode === "pattern" ? "3D Studio view" : "2D Pattern view"} className={`flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs ${viewMode === "3d" ? "border-primary bg-primary/15 text-primary" : "border-border/60 text-muted-foreground hover:text-foreground"}`}>
+            {viewMode === "pattern" ? <Box className="h-3.5 w-3.5" /> : <LayoutTemplate className="h-3.5 w-3.5" />} {viewMode === "pattern" ? "3D" : "2D"}
+          </button>
           <IconBtn onClick={() => setHistoryOpen(true)} disabled={!active?.designId} title="Version history"><History className="h-4 w-4" /></IconBtn>
           <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50">
             <Save className="h-3.5 w-3.5" /> {saving ? "Saving…" : "Save"}
@@ -285,7 +303,7 @@ export default function FitMakerSection() {
                   ))}
                   <label className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-primary/10 hover:text-primary">
                     <Camera className="h-3.5 w-3.5" /> Export PNG (transparent)
-                    <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} className="ml-auto accent-[#a855f7]" />
+                    <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} className="ml-auto accent-primary" />
                   </label>
                 </motion.div>
               )}
@@ -302,8 +320,14 @@ export default function FitMakerSection() {
           </div>
         </aside>
 
+        {viewMode === "3d" && (
+          <div className="flex min-w-0 flex-1 flex-col p-3">
+            <Fit3DWorkspace garmentImage={garmentImage} garmentName={active?.name} />
+          </div>
+        )}
+        <div className={viewMode === "3d" ? "hidden" : "contents"}>
         {/* Center: canvas */}
-        <main className="relative flex min-w-0 flex-1 flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_30%,hsl(280_50%_15%/0.5),transparent_70%)] p-4">
+        <main className="relative flex min-w-0 flex-1 flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_30%,hsl(217_60%_20%/0.45),transparent_70%)] p-4">
           {active && template && (
             <motion.div key={active.key} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="fit-glass relative rounded-3xl p-4 shadow-2xl">
               <GarmentCanvas ref={canvasRef} template={template} state={active.state} rotate={rotate} zoom={zoom} showGuides={showGuides} className="h-[min(56vh,420px)] w-auto" />
@@ -352,6 +376,7 @@ export default function FitMakerSection() {
             </div>
           )}
         </aside>
+        </div>
       </div>
 
       <FitGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} onOpen={openDesign} refreshSignal={gallerySignal} />

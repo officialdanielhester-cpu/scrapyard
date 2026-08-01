@@ -40,7 +40,7 @@ function PropSlider({ label, value, min, max, step, onChange }) {
   return (
     <div>
       <label className="mb-0.5 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground"><span>{label}</span><span className="text-foreground/60">{Math.round((value || 0) * 100)}%</span></label>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(+e.target.value)} className="w-full accent-[#a855f7]" />
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(+e.target.value)} className="w-full accent-primary" />
     </div>
   );
 }
