@@ -1,0 +1,100 @@
+{
+  "name": "GarmentDesign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "template_id": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "default": "Tops"
+    },
+    "collection": {
+      "type": "string",
+      "default": "My Designs"
+    },
+    "tags": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "favorite": {
+      "type": "boolean",
+      "default": false
+    },
+    "thumbnail": {
+      "type": "string",
+      "default": ""
+    },
+    "state": {
+      "type": "object",
+      "default": {},
+      "properties": {
+        "color": {
+          "type": "string"
+        },
+        "color2": {
+          "type": "string"
+        },
+        "gradient": {
+          "type": "boolean"
+        },
+        "finish": {
+          "type": "string",
+          "enum": [
+            "matte",
+            "gloss",
+            "metallic"
+          ]
+        },
+        "material": {
+          "type": "string"
+        },
+        "materialProps": {
+          "type": "object"
+        },
+        "measurements": {
+          "type": "object"
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "patternUrl": {
+          "type": "string"
+        }
+      }
+    },
+    "version": {
+      "type": "number",
+      "default": 1
+    }
+  },
+  "required": [
+    "name",
+    "template_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "user"
+      }
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

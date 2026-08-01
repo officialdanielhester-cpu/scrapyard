@@ -1,0 +1,35 @@
+/* Fit Maker scoped theme — dark luxury, purple accents, glassmorphism.
+   Wrapping the studio in .fit-maker overrides the global tokens so the
+   existing Tailwind `bg-primary`/`text-primary`/`border-primary` classes
+   resolve to purple only inside this section. */
+.fit-maker {
+  --primary: 270 91% 65%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 280 50% 22%;
+  --accent-foreground: 270 80% 95%;
+  --background: 260 40% 5%;
+  --foreground: 270 30% 96%;
+  --card: 262 35% 9%;
+  --card-foreground: 270 30% 96%;
+  --muted: 260 25% 14%;
+  --muted-foreground: 265 15% 62%;
+  --border: 265 30% 20%;
+  --input: 265 30% 18%;
+  --ring: 270 91% 65%;
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 0% 100%;
+}
+
+.fit-maker { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+
+/* Glassmorphism panel */
+.fit-glass {
+  background: hsl(262 35% 9% / 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid hsl(265 30% 22% / 0.6);
+}
+
+.fit-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.fit-scroll::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.35); border-radius: 6px; }
+.fit-scroll::-webkit-scrollbar-track { background: transparent; }

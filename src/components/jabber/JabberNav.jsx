@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music, NotebookPen, Dumbbell } from "lucide-react";
+import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music, NotebookPen, Shirt } from "lucide-react";
 import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
@@ -10,7 +10,7 @@ const TOP_ITEMS = [
 const CANVAS_CHILDREN = [
 { id: "grid", label: "The Grid", icon: Boxes },
 { id: "studio", label: "3D Studio", icon: Box },
-{ id: "fit-maker", label: "Fit Maker", icon: Dumbbell }];
+{ id: "fit-maker", label: "Fit Maker", icon: Shirt }];
 
 const CANVAS_IDS = CANVAS_CHILDREN.map((c) => c.id);
 const ENV_CHILDREN = [

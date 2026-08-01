@@ -1,0 +1,339 @@
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Plus, Save, Undo2, Redo2, Download, Sparkles, Palette, Layers,
+  Ruler, Wand2, Images, FolderOpen, RotateCw, Maximize2, Minimize2, Eye,
+  X, ChevronLeft, ChevronRight, Shirt, Camera,
+} from "lucide-react";
+import { base44 } from "@/api/base44Client";
+import "@/components/fitmaker/fit-theme.css";
+import { TEMPLATE_MAP, TEMPLATES, defaultState } from "@/components/fitmaker/garment-templates";
+import GarmentCanvas from "@/components/fitmaker/GarmentCanvas";
+import GarmentLibrary from "@/components/fitmaker/GarmentLibrary";
+import ColorStudio from "@/components/fitmaker/ColorStudio";
+import MaterialsPanel from "@/components/fitmaker/MaterialsPanel";
+import MeasurementsPanel from "@/components/fitmaker/MeasurementsPanel";
+import FeaturesPanel from "@/components/fitmaker/FeaturesPanel";
+import AIPanel from "@/components/fitmaker/AIPanel";
+import FitGallery from "@/components/fitmaker/FitGallery";
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const TOOLS = [
+  { id: "color", label: "Color", icon: Palette },
+  { id: "material", label: "Fabric", icon: Layers },
+  { id: "measure", label: "Fit", icon: Ruler },
+  { id: "features", label: "Details", icon: Wand2 },
+  { id: "ai", label: "AI", icon: Sparkles },
+];
+
+export default function FitMakerSection() {
+  const [tabs, setTabs] = useState([]);
+  const [activeKey, setActiveKey] = useState(null);
+  const [tool, setTool] = useState("color");
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [gallerySignal, setGallerySignal] = useState(0);
+  const [rotate, setRotate] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [turntable, setTurntable] = useState(false);
+  const [showGuides, setShowGuides] = useState(false);
+  const [transparent, setTransparent] = useState(true);
+  const [exportMenu, setExportMenu] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const canvasRef = useRef(null);
+  const saveTimer = useRef(null);
+
+  // Boot with a fresh T-shirt project.
+  useEffect(() => {
+    newProject("tshirt");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const active = tabs.find((t) => t.key === activeKey) || null;
+  const template = active ? TEMPLATE_MAP[active.templateId] : null;
+
+  // Turntable animation.
+  useEffect(() => {
+    if (!turntable) return;
+    const id = setInterval(() => setRotate((r) => (r + 2) % 360), 40);
+    return () => clearInterval(id);
+  }, [turntable]);
+
+  // ---- Project / tab management ----
+  const newProject = useCallback((templateId, opts = {}) => {
+    const tpl = TEMPLATE_MAP[templateId] || TEMPLATES[0];
+    const key = uid();
+    const tab = { key, name: opts.name || `${tpl.name} design`, templateId, designId: opts.designId || null, state: opts.state || defaultState(tpl), past: [], future: [], dirty: false };
+    setTabs((prev) => [...prev, tab]);
+    setActiveKey(key);
+    setRotate(0); setZoom(1); setTurntable(false);
+    return tab;
+  }, []);
+
+  const closeTab = (key) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.key === key);
+      const next = prev.filter((t) => t.key !== key);
+      if (activeKey === key) setActiveKey(next[idx - 1]?.key || next[0]?.key || null);
+      return next;
+    });
+  };
+
+  // ---- History-backed state patching for the active tab ----
+  const patch = useCallback((next) => {
+    setTabs((prev) => prev.map((t) => {
+      if (t.key !== activeKey) return t;
+      const value = typeof next === "function" ? next(t.state) : { ...t.state, ...next };
+      if (value === t.state) return t;
+      return { ...t, state: value, past: [...t.past, t.state].slice(-200), future: [], dirty: true };
+    }));
+    scheduleAutosave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]);
+
+  const undo = useCallback(() => {
+    setTabs((prev) => prev.map((t) => {
+      if (t.key !== activeKey || !t.past.length) return t;
+      const prev2 = t.past[t.past.length - 1];
+      return { ...t, state: prev2, past: t.past.slice(0, -1), future: [t.state, ...t.future].slice(0, 200), dirty: true };
+    }));
+    scheduleAutosave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]);
+
+  const redo = useCallback(() => {
+    setTabs((prev) => prev.map((t) => {
+      if (t.key !== activeKey || !t.future.length) return t;
+      const nxt = t.future[0];
+      return { ...t, state: nxt, past: [...t.past, t.state].slice(-200), future: t.future.slice(1), dirty: true };
+    }));
+    scheduleAutosave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]);
+
+  // ---- Persistence (autosave) ----
+  const scheduleAutosave = useCallback(() => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => doSave(true), 1200);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]);
+
+  const makeThumbnail = async () => {
+    const svg = canvasRef.current;
+    if (!svg) return "";
+    try {
+      const data = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([data], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+      const c = document.createElement("canvas");
+      c.width = 240; c.height = 240 * (svg.viewBox.baseVal.height / svg.viewBox.baseVal.width);
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      return c.toDataURL("image/png");
+    } catch { return ""; }
+  };
+
+  const doSave = useCallback(async (auto = false) => {
+    if (!active) return;
+    setSaving(true);
+    try {
+      const thumb = await makeThumbnail();
+      const payload = {
+        name: active.name,
+        template_id: active.templateId,
+        category: template?.category || "Tops",
+        state: active.state,
+        thumbnail: thumb,
+        version: (active.version || 1) + (auto && active.designId ? 0 : 1),
+      };
+      if (active.designId) {
+        await base44.entities.GarmentDesign.update(active.designId, payload);
+      } else {
+        const created = await base44.entities.GarmentDesign.create({ ...payload, collection: "My Designs", tags: [], favorite: false });
+        setTabs((prev) => prev.map((t) => t.key === active.key ? { ...t, designId: created.id, version: created.version || 1, dirty: false } : t));
+      }
+      setSavedAt(new Date());
+      setTabs((prev) => prev.map((t) => t.key === active.key ? { ...t, dirty: false } : t));
+      setGallerySignal((s) => s + 1);
+    } catch { /* ignore */ } finally { setSaving(false); }
+  }, [active, template]);
+
+  // ---- Gallery open ----
+  const openDesign = useCallback((d) => {
+    newProject(d.template_id, { name: d.name, designId: d.id, state: { ...defaultState(TEMPLATE_MAP[d.template_id]), ...(d.state || {}) } });
+    setGalleryOpen(false);
+  }, [newProject]);
+
+  // ---- Export ----
+  const exportArt = useCallback(async (format) => {
+    const svg = canvasRef.current;
+    if (!svg) return;
+    const data = new XMLSerializer().serializeToString(svg);
+    if (format === "svg") {
+      download(new Blob([data], { type: "image/svg+xml" }), `${active?.name || "design"}.svg`);
+      return;
+    }
+    const blob = new Blob([data], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const vb = svg.viewBox.baseVal;
+    const scale = 3;
+    const c = document.createElement("canvas");
+    c.width = vb.width * scale; c.height = vb.height * scale;
+    const ctx = c.getContext("2d");
+    if (format === "jpg" || (format === "png" && !transparent)) { ctx.fillStyle = "#1a1033"; ctx.fillRect(0, 0, c.width, c.height); }
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    c.toBlob((b) => b && download(b, `${active?.name || "design"}.${format}`), format === "jpg" ? "image/jpeg" : "image/png", 0.95);
+    setExportMenu(false);
+  }, [active, transparent]);
+
+  // ---- Keyboard shortcuts ----
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+      else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); doSave(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo, doSave]);
+
+  const canUndo = active?.past?.length > 0;
+  const canRedo = active?.future?.length > 0;
+
+  return (
+    <div className="fit-maker flex h-screen flex-col overflow-hidden bg-background text-foreground">
+      {/* Top bar */}
+      <header className="fit-glass z-30 flex items-center gap-2 border-b px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-purple-900 shadow-lg shadow-primary/30">
+            <Shirt className="h-4 w-4 text-white" strokeWidth={1.5} />
+          </div>
+          <span className="font-heading text-base font-extrabold tracking-tight">Fit Maker</span>
+        </div>
+
+        {/* Tabs */}
+        <div className="ml-2 flex items-center gap-1 overflow-x-auto">
+          {tabs.map((t) => (
+            <div key={t.key} onClick={() => setActiveKey(t.key)} className={`group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-xs ${activeKey === t.key ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+              <span className="max-w-[120px] truncate">{t.name}{t.dirty ? " ·" : ""}</span>
+              <button onClick={(e) => { e.stopPropagation(); closeTab(t.key); }} className="opacity-0 transition-opacity group-hover:opacity-100"><X className="h-3 w-3" /></button>
+            </div>
+          ))}
+        </div>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <IconBtn onClick={undo} disabled={!canUndo} title="Undo (⌘Z)"><Undo2 className="h-4 w-4" /></IconBtn>
+          <IconBtn onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z)"><Redo2 className="h-4 w-4" /></IconBtn>
+          <div className="mx-1 h-5 w-px bg-white/10" />
+          <IconBtn onClick={() => newProject("tshirt")} title="New design"><Plus className="h-4 w-4" /></IconBtn>
+          <IconBtn onClick={() => setGalleryOpen(true)} title="Gallery"><Images className="h-4 w-4" /></IconBtn>
+          <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50">
+            <Save className="h-3.5 w-3.5" /> {saving ? "Saving…" : "Save"}
+          </button>
+          <div className="relative">
+            <IconBtn onClick={() => setExportMenu((v) => !v)} title="Export"><Download className="h-4 w-4" /></IconBtn>
+            <AnimatePresence>
+              {exportMenu && (
+                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="absolute right-0 top-10 z-40 w-44 rounded-xl border border-white/10 bg-card p-1.5 shadow-2xl">
+                  {["png", "svg", "jpg"].map((f) => (
+                    <button key={f} onClick={() => exportArt(f)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-primary/10 hover:text-primary">
+                      <Download className="h-3.5 w-3.5" /> Export .{f.toUpperCase()}
+                    </button>
+                  ))}
+                  <label className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-primary/10 hover:text-primary">
+                    <Camera className="h-3.5 w-3.5" /> Export PNG (transparent)
+                    <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} className="ml-auto accent-[#a855f7]" />
+                  </label>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex min-h-0 flex-1">
+        {/* Left: garment library */}
+        <aside className="fit-glass hidden w-60 shrink-0 flex-col border-r p-3 md:flex">
+          <div className="fit-scroll flex-1 overflow-y-auto pr-1">
+            <GarmentLibrary onPick={(id) => newProject(id)} />
+          </div>
+        </aside>
+
+        {/* Center: canvas */}
+        <main className="relative flex min-w-0 flex-1 flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_30%,hsl(280_50%_15%/0.5),transparent_70%)] p-4">
+          {active && template && (
+            <motion.div key={active.key} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="fit-glass relative rounded-3xl p-4 shadow-2xl">
+              <GarmentCanvas ref={canvasRef} template={template} state={active.state} rotate={rotate} zoom={zoom} showGuides={showGuides} className="h-[min(56vh,420px)] w-auto" />
+            </motion.div>
+          )}
+
+          {/* Floating viewport controls */}
+          <div className="fit-glass absolute bottom-20 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full px-2 py-1.5 md:bottom-4">
+            <IconBtn onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} title="Zoom out"><Minimize2 className="h-4 w-4" /></IconBtn>
+            <span className="w-10 text-center font-mono text-[10px] text-muted-foreground">{Math.round(zoom * 100)}%</span>
+            <IconBtn onClick={() => setZoom((z) => Math.min(2, z + 0.1))} title="Zoom in"><Maximize2 className="h-4 w-4" /></IconBtn>
+            <div className="mx-1 h-5 w-px bg-white/10" />
+            <IconBtn onClick={() => setRotate((r) => r - 15)} title="Rotate left"><ChevronLeft className="h-4 w-4" /></IconBtn>
+            <button onClick={() => setTurntable((v) => !v)} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ${turntable ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"}`}><RotateCw className="h-3.5 w-3.5" /> Turntable</button>
+            <IconBtn onClick={() => setRotate((r) => r + 15)} title="Rotate right"><ChevronRight className="h-4 w-4" /></IconBtn>
+            <div className="mx-1 h-5 w-px bg-white/10" />
+            <IconBtn onClick={() => setShowGuides((v) => !v)} title="Measurement guides" active={showGuides}><Eye className="h-4 w-4" /></IconBtn>
+          </div>
+
+          {/* mobile library access */}
+          <button onClick={() => setGalleryOpen(true)} className="fit-glass absolute left-4 top-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] text-muted-foreground md:hidden"><FolderOpen className="h-3.5 w-3.5" /> Library</button>
+
+          {savedAt && <span className="absolute right-4 top-4 font-mono text-[9px] text-muted-foreground/60">Saved {savedAt.toLocaleTimeString()}</span>}
+        </main>
+
+        {/* Right: tool dock */}
+        <aside className="fit-glass flex w-[320px] shrink-0 flex-col border-l">
+          <div className="flex items-center gap-1 border-b p-1.5">
+            {TOOLS.map((t) => (
+              <button key={t.id} onClick={() => setTool(t.id)} className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] ${tool === t.id ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                <t.icon className="h-4 w-4" strokeWidth={1.5} />{t.label}
+              </button>
+            ))}
+          </div>
+          <div className="fit-scroll flex-1 overflow-y-auto p-4">
+            {active && template && tool === "color" && <ColorStudio state={active.state} onChange={patch} />}
+            {active && template && tool === "material" && <MaterialsPanel state={active.state} onChange={patch} />}
+            {active && template && tool === "measure" && <MeasurementsPanel template={template} state={active.state} onChange={patch} showGuides={showGuides} onToggleGuides={() => setShowGuides((v) => !v)} />}
+            {active && template && tool === "features" && <FeaturesPanel template={template} state={active.state} onChange={patch} />}
+            {active && template && tool === "ai" && <AIPanel template={template} state={active.state} onApply={patch} />}
+          </div>
+          {/* Project meta */}
+          {active && (
+            <div className="border-t p-3">
+              <input value={active.name} onChange={(e) => setTabs((prev) => prev.map((t) => t.key === active.key ? { ...t, name: e.target.value, dirty: true } : t))} className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs outline-none focus:border-primary" />
+            </div>
+          )}
+        </aside>
+      </div>
+
+      <FitGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} onOpen={openDesign} refreshSignal={gallerySignal} />
+    </div>
+  );
+}
+
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function IconBtn({ children, onClick, disabled, title, active }) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={title} className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${active ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"} disabled:opacity-30`}>
+      {children}
+    </button>
+  );
+}

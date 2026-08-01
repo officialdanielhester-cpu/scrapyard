@@ -12,6 +12,7 @@ import VideoEditor from "@/components/gallery/VideoEditor";
 import PhotoEditor from "@/components/gallery/PhotoEditor";
 import MusicStudio from "@/components/music/MusicStudio";
 import PlaceholderSection from "@/components/PlaceholderSection";
+import FitMakerSection from "@/components/fitmaker/FitMakerSection";
 import MindSection from "@/components/mind/MindSection";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import { motion, AnimatePresence } from "framer-motion";
@@ -141,12 +142,8 @@ export default function Home({ section: sectionProp }) {
                 </div>
               )}
               {active === "fit-maker" && (
-                <div className="min-h-screen">
-                  <PlaceholderSection
-                    title="Fit Maker"
-                    subtitle="Canvas · Coming soon"
-                    description="Design fitness routines, plan workouts, and track progress. This space is under construction."
-                  />
+                <div className="h-screen">
+                  <FitMakerSection />
                 </div>
               )}
             </motion.div>
