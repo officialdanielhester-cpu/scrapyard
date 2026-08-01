@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Save, Undo2, Redo2, Download, Sparkles, Palette, Layers,
   Ruler, Wand2, Images, FolderOpen, RotateCw, Maximize2, Minimize2, Eye,
-  X, ChevronLeft, ChevronRight, Shirt, Camera,
+  X, ChevronLeft, ChevronRight, Shirt, Camera, History,
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import "@/components/fitmaker/fit-theme.css";
@@ -16,6 +16,7 @@ import MeasurementsPanel from "@/components/fitmaker/MeasurementsPanel";
 import FeaturesPanel from "@/components/fitmaker/FeaturesPanel";
 import AIPanel from "@/components/fitmaker/AIPanel";
 import FitGallery from "@/components/fitmaker/FitGallery";
+import VersionHistory from "@/components/fitmaker/VersionHistory";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const TOOLS = [
@@ -40,6 +41,7 @@ export default function FitMakerSection() {
   const [exportMenu, setExportMenu] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const canvasRef = useRef(null);
   const saveTimer = useRef(null);
 
@@ -161,6 +163,39 @@ export default function FitMakerSection() {
     } catch { /* ignore */ } finally { setSaving(false); }
   }, [active, template]);
 
+  // ---- Version snapshots ----
+  const createSnapshot = useCallback(async () => {
+    if (!active || !active.designId) return;
+    try {
+      const thumb = await makeThumbnail();
+      await base44.entities.GarmentVersion.create({
+        design_id: active.designId,
+        name: active.name,
+        version_number: (active.version || 1),
+        snapshot: { state: active.state, template_id: active.templateId, design_name: active.name },
+        thumbnail: thumb,
+      });
+      setGallerySignal((s) => s + 1);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, template]);
+
+  const restoreSnapshot = useCallback(async (v) => {
+    if (!v?.snapshot) return;
+    const tpl = TEMPLATE_MAP[v.snapshot.template_id] || template;
+    setTabs((prev) => prev.map((t) => t.key === active.key ? {
+      ...t,
+      state: { ...defaultState(tpl), ...(v.snapshot.state || {}) },
+      templateId: v.snapshot.template_id || t.templateId,
+      name: v.snapshot.design_name || t.name,
+      past: [...t.past, t.state].slice(-200),
+      future: [],
+      dirty: true,
+    } : t));
+    scheduleAutosave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, template]);
+
   // ---- Gallery open ----
   const openDesign = useCallback((d) => {
     newProject(d.template_id, { name: d.name, designId: d.id, state: { ...defaultState(TEMPLATE_MAP[d.template_id]), ...(d.state || {}) } });
@@ -234,6 +269,7 @@ export default function FitMakerSection() {
           <div className="mx-1 h-5 w-px bg-white/10" />
           <IconBtn onClick={() => newProject("tshirt")} title="New design"><Plus className="h-4 w-4" /></IconBtn>
           <IconBtn onClick={() => setGalleryOpen(true)} title="Gallery"><Images className="h-4 w-4" /></IconBtn>
+          <IconBtn onClick={() => setHistoryOpen(true)} disabled={!active?.designId} title="Version history"><History className="h-4 w-4" /></IconBtn>
           <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50">
             <Save className="h-3.5 w-3.5" /> {saving ? "Saving…" : "Save"}
           </button>
@@ -319,6 +355,14 @@ export default function FitMakerSection() {
       </div>
 
       <FitGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} onOpen={openDesign} refreshSignal={gallerySignal} />
+      <VersionHistory
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        designId={active?.designId}
+        activeVersion={active?.version || 0}
+        onCreateSnapshot={createSnapshot}
+        onRestore={restoreSnapshot}
+      />
     </div>
   );
 }
