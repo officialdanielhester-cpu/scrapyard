@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Save, Undo2, Redo2, Download, Sparkles, Palette, Layers,
   Ruler, Wand2, Images, FolderOpen, RotateCw, Maximize2, Minimize2, Eye,
-  X, ChevronLeft, ChevronRight, Shirt, Camera, History, Box, LayoutTemplate,
+  X, ChevronLeft, ChevronRight, Shirt, Camera, History, Box, LayoutTemplate, Brush,
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import "@/components/fitmaker/fit-theme.css";
@@ -18,10 +18,12 @@ import AIPanel from "@/components/fitmaker/AIPanel";
 import FitGallery from "@/components/fitmaker/FitGallery";
 import VersionHistory from "@/components/fitmaker/VersionHistory";
 import Fit3DWorkspace from "@/components/fitmaker/Fit3DWorkspace";
+import PaintPanel from "@/components/fitmaker/PaintPanel";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const TOOLS = [
   { id: "color", label: "Color", icon: Palette },
+  { id: "paint", label: "Paint", icon: Brush },
   { id: "material", label: "Fabric", icon: Layers },
   { id: "measure", label: "Fit", icon: Ruler },
   { id: "features", label: "Details", icon: Wand2 },
@@ -45,6 +47,7 @@ export default function FitMakerSection() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [viewMode, setViewMode] = useState("pattern");
   const [garmentImage, setGarmentImage] = useState("");
+  const [paint, setPaint] = useState({ brush: "pen", color: "#3b82f6", size: 8, opacity: 1 });
   const canvasRef = useRef(null);
   const saveTimer = useRef(null);
 
@@ -330,7 +333,9 @@ export default function FitMakerSection() {
         <main className="relative flex min-w-0 flex-1 flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_30%,hsl(217_60%_20%/0.45),transparent_70%)] p-4">
           {active && template && (
             <motion.div key={active.key} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="fit-glass relative rounded-3xl p-4 shadow-2xl">
-              <GarmentCanvas ref={canvasRef} template={template} state={active.state} rotate={rotate} zoom={zoom} showGuides={showGuides} className="h-[min(56vh,420px)] w-auto" />
+              <GarmentCanvas ref={canvasRef} template={template} state={active.state} rotate={rotate} zoom={zoom} showGuides={showGuides} className="h-[min(56vh,420px)] w-auto"
+                paint={tool === "paint"} paintBrush={paint.brush} paintColor={paint.color} paintSize={paint.size} paintOpacity={paint.opacity}
+                onPaintStroke={(s) => patch({ strokes: [...(active.state.strokes || []), s] })} />
             </motion.div>
           )}
 
@@ -364,6 +369,7 @@ export default function FitMakerSection() {
           </div>
           <div className="fit-scroll flex-1 overflow-y-auto p-4">
             {active && template && tool === "color" && <ColorStudio state={active.state} onChange={patch} />}
+            {active && template && tool === "paint" && <PaintPanel paint={paint} setPaint={setPaint} onClear={() => patch({ strokes: [] })} />}
             {active && template && tool === "material" && <MaterialsPanel state={active.state} onChange={patch} />}
             {active && template && tool === "measure" && <MeasurementsPanel template={template} state={active.state} onChange={patch} showGuides={showGuides} onToggleGuides={() => setShowGuides((v) => !v)} />}
             {active && template && tool === "features" && <FeaturesPanel template={template} state={active.state} onChange={patch} />}

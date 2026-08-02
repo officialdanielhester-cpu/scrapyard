@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo } from "react";
+import React, { forwardRef, useMemo, useRef, useState } from "react";
 import { MATERIAL_MAP, FINISHES } from "@/components/fitmaker/materials";
 
 // Build the SVG transform string for a group based on matching measurements.
@@ -16,7 +16,24 @@ function groupTransform(tpl, group, measurements) {
   return parts.join(" ");
 }
 
-const GarmentCanvas = forwardRef(function GarmentCanvas({ template, state, rotate = 0, zoom = 1, showGuides = false, className = "" }, ref) {
+// Convert an array of [x,y] points into an SVG path string (a single point becomes a dot).
+function pathFromPoints(pts) {
+  if (!pts || !pts.length) return "";
+  if (pts.length === 1) {
+    const [x, y] = pts[0];
+    return `M ${x} ${y} L ${x} ${y}`;
+  }
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) d += ` L ${pts[i][0]} ${pts[i][1]}`;
+  return d;
+}
+
+const GUIDE = "#3b82f6";
+
+const GarmentCanvas = forwardRef(function GarmentCanvas({
+  template, state, rotate = 0, zoom = 1, showGuides = false, className = "",
+  paint = false, paintBrush = "pen", paintColor = "#3b82f6", paintSize = 8, paintOpacity = 1, onPaintStroke,
+}, ref) {
   const mat = MATERIAL_MAP[state.material] || MATERIAL_MAP.cotton;
   const matProps = state.materialProps || {};
   const texture = matProps.texture ?? mat.texture;
@@ -29,6 +46,7 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({ template, state, rotat
   const filterId = useMemo(() => `fabric-${template.id}-${Math.random().toString(36).slice(2, 7)}`, [template.id]);
   const fillId = useMemo(() => `fill-${template.id}-${Math.random().toString(36).slice(2, 7)}`, [template.id]);
   const sheenId = useMemo(() => `sheen-${template.id}-${Math.random().toString(36).slice(2, 7)}`, [template.id]);
+  const maskId = useMemo(() => `paint-mask-${template.id}-${Math.random().toString(36).slice(2, 7)}`, [template.id]);
 
   const measurements = state.measurements || {};
   const enabled = state.features || [];
@@ -37,13 +55,91 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({ template, state, rotat
 
   const featurePaths = (template.features || []).filter((f) => enabled.includes(f.id)).flatMap((f) => f.paths);
 
+  const [vbx, vby, vbw, vbh] = useMemo(() => template.viewBox.split(/\s+/).map(Number), [template.viewBox]);
+  const strokes = state.strokes || [];
+
+  // Live (in-progress) paint stroke.
+  const svgRef = useRef(null);
+  const drawingRef = useRef(false);
+  const liveRef = useRef(null);
+  const [live, setLive] = useState(null);
+
+  const setSvgRef = (el) => {
+    svgRef.current = el;
+    if (typeof ref === "function") ref(el);
+    else if (ref) ref.current = el;
+  };
+
+  const toSvg = (e) => {
+    const svg = svgRef.current;
+    if (!svg || !svg.getScreenCTM) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    const m = svg.getScreenCTM();
+    if (!m) return null;
+    const p = pt.matrixTransform(m.inverse());
+    return [p.x, p.y];
+  };
+
+  const onDown = (e) => {
+    if (!paint) return;
+    e.stopPropagation();
+    const p = toSvg(e);
+    if (!p) return;
+    drawingRef.current = true;
+    const isEraser = paintBrush === "eraser";
+    const s = {
+      tool: isEraser ? "eraser" : paintBrush,
+      color: paintColor,
+      width: paintSize,
+      opacity: isEraser ? 1 : paintOpacity,
+      points: [p],
+    };
+    liveRef.current = s;
+    setLive(s);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  };
+
+  const onMove = (e) => {
+    if (!drawingRef.current) return;
+    const p = toSvg(e);
+    if (!p) return;
+    const s = liveRef.current;
+    if (!s) return;
+    const last = s.points[s.points.length - 1];
+    if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) < 0.6) return;
+    s.points.push(p);
+    setLive({ ...s, points: s.points.slice() });
+  };
+
+  const finishStroke = () => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    const s = liveRef.current;
+    liveRef.current = null;
+    setLive(null);
+    if (s && s.points.length) onPaintStroke?.(s);
+  };
+
+  const allStrokes = live ? [...strokes, live] : strokes;
+
   return (
     <svg
-      ref={ref}
+      ref={setSvgRef}
       viewBox={template.viewBox}
       className={className}
-      style={{ transform: `perspective(900px) rotateY(${rotate}deg) scale(${zoom})`, transition: "transform 0.25s ease", transformOrigin: "center" }}
       xmlns="http://www.w3.org/2000/svg"
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={finishStroke}
+      onPointerCancel={finishStroke}
+      style={{
+        transform: `perspective(900px) rotateY(${rotate}deg) scale(${zoom})`,
+        transition: "transform 0.25s ease",
+        transformOrigin: "center",
+        cursor: paint ? "crosshair" : "default",
+        touchAction: paint ? "none" : "auto",
+      }}
     >
       <defs>
         {/* Fabric texture filter */}
@@ -69,6 +165,22 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({ template, state, rotat
           <stop offset="40%" stopColor="#ffffff" stopOpacity={sheen * 0.15} />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </radialGradient>
+        {/* Paint mask: white reveals paint, black (eraser / default) hides it */}
+        <mask id={maskId}>
+          <rect x={vbx} y={vby} width={vbw} height={vbh} fill="black" />
+          {allStrokes.map((s, i) => (
+            <path
+              key={`m-${i}`}
+              d={pathFromPoints(s.points)}
+              stroke={s.tool === "eraser" ? "black" : "white"}
+              strokeWidth={s.width}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={s.opacity}
+            />
+          ))}
+        </mask>
       </defs>
 
       {/* Soft drop shadow */}
@@ -97,13 +209,32 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({ template, state, rotat
         ))}
       </g>
 
+      {/* Paint layer (masked: eraser hides prior paint) */}
+      <g mask={`url(#${maskId})`} style={{ pointerEvents: "none" }}>
+        {allStrokes.map((s, i) => (
+          s.tool !== "eraser" ? (
+            <path
+              key={`p-${i}`}
+              d={pathFromPoints(s.points)}
+              stroke={s.color}
+              strokeWidth={s.width}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={s.opacity}
+              style={s.tool === "highlighter" ? { mixBlendMode: "multiply" } : undefined}
+            />
+          ) : null
+        ))}
+      </g>
+
       {/* Measurement guides */}
       {showGuides && Object.entries(template.measurements).map(([key, m]) => {
         const [px, py] = m.pivot;
         return (
-          <g key={`guide-${key}`} stroke="#a855f7" strokeWidth="1" strokeDasharray="3 3" opacity="0.8">
+          <g key={`guide-${key}`} stroke={GUIDE} strokeWidth="1" strokeDasharray="3 3" opacity="0.8">
             {m.axis === "y" ? <line x1={px} y1={py - 20} x2={px} y2={py + 60} /> : <line x1={px - 30} y1={py} x2={px + 30} y2={py} />}
-            <text x={px + 6} y={py - 6} fontSize="9" fill="#a855f7" stroke="none">{m.label}</text>
+            <text x={px + 6} y={py - 6} fontSize="9" fill={GUIDE} stroke="none">{m.label}</text>
           </g>
         );
       })}

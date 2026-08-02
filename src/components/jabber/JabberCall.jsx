@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PhoneOff, Mic, MicOff, Sparkles, Settings2, Hand, Ear, Check } from "lucide-react";
+import { PhoneOff, Mic, MicOff, Sparkles, Settings2, Hand, Ear, Check, X } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
 import { VOICES } from "@/hooks/use-voice";
 import { fetchRecentMemories, saveMemory } from "@/lib/jabber-memory";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const LANG_TO_BCP = { Auto: "en-US", English: "en-US", Spanish: "es-ES", French: "fr-FR" };
 const SPEED_RATE = { Patient: 0.92, Balanced: 1, Rapid: 1.15 };
@@ -96,7 +95,7 @@ export default function JabberCall({ open, onClose }) {
 
   useEffect(() => {
     if (!open) return;
-    setTurns([]); setInterim(""); setError(null); setMuted(false);
+    setTurns([]); setInterim(""); setError(null); setMuted(false); setVoiceOpen(false);
     transcriptRef.current = []; mutedRef.current = false; activeRef.current = true;
     listeningEnabledRef.current = false;
     if (!supported) { setError("Voice call needs speech recognition — try Chrome or Safari with a mic."); return; }
@@ -128,12 +127,23 @@ export default function JabberCall({ open, onClose }) {
         token.finish = () => { if (token.done) return; token.done = true; speakTokenRef.current = null; resolve(); };
         speakTokenRef.current = token;
         if (url) {
-          const audio = audioElRef.current;
-          try { audio.pause(); } catch {}
-          audio.onended = token.finish; audio.onerror = token.finish;
-          audio.src = url; audio.currentTime = 0;
-          audio.play().catch(token.finish);
-          token.cancel = () => { try { audio.pause(); } catch {} token.finish(); };
+          // A fresh Audio per utterance avoids the state buildup that occurs
+          // when a single element is reused across turns (which can cause
+          // play() to silently reject and the voice to drop out after a couple
+          // of turns). Releasing the src on completion keeps playback smooth.
+          const audio = new Audio();
+          audio.preload = "auto";
+          audio.src = url;
+          audio.playbackRate = 1;
+          audio.defaultPlaybackRate = 1;
+          audio.preservesPitch = true;
+          audioElRef.current = audio;
+          const done = () => { try { audio.pause(); audio.onended = null; audio.onerror = null; audio.removeAttribute("src"); audio.load(); } catch {} token.finish(); };
+          audio.onended = done;
+          audio.onerror = done;
+          token.cancel = done;
+          // Defer one tick so the element can buffer → smoother, click-free start.
+          setTimeout(() => { try { const p = audio.play(); if (p && p.catch) p.catch(done); } catch { done(); } }, 30);
         } else {
           try {
             const synth = window.speechSynthesis; synth.cancel();
@@ -231,6 +241,8 @@ export default function JabberCall({ open, onClose }) {
 
   const endCall = () => {
     activeRef.current = false;
+    setVoiceOpen(false);
+    try { speakTokenRef.current?.cancel?.(); } catch {}
     try { recRef.current?.abort(); } catch {}
     try { window.speechSynthesis.cancel(); } catch {}
     if (audioElRef.current) { try { audioElRef.current.pause(); } catch {} }
@@ -336,59 +348,69 @@ export default function JabberCall({ open, onClose }) {
             </button>
           </div>
 
-          {/* Dedicated voice settings sheet */}
-          <Sheet open={voiceOpen} onOpenChange={setVoiceOpen}>
-            <SheetContent side="bottom" className="rounded-t-2xl">
-              <SheetHeader><SheetTitle className="font-mono text-xs uppercase tracking-wider">Voice Settings</SheetTitle></SheetHeader>
-              <div className="space-y-4 p-3">
-                <div>
-                  <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Voice</p>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {VOICES.map((v) => (
-                      <button key={v.id} onClick={() => changeVoice(v.id)} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left ${hudVoice === v.id ? "border-primary bg-primary/5" : "border-border/60"}`}>
-                        <span><span className="text-sm">{v.label}</span><span className="ml-2 text-[11px] text-muted-foreground">{v.desc}</span></span>
-                        {hudVoice === v.id && <Check className="h-4 w-4 text-primary" />}
-                      </button>
-                    ))}
-                  </div>
+          {/* Dedicated voice settings panel (inline so it stays above the call overlay) */}
+          <AnimatePresence>
+            {voiceOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }}
+                transition={{ type: "spring", stiffness: 320, damping: 32 }}
+                className="absolute inset-x-4 bottom-24 z-20 mx-auto max-w-md rounded-3xl border border-border/60 bg-card/95 p-5 shadow-2xl backdrop-blur-xl"
+              >
+                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border/60" />
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Voice Settings</span>
+                  <button onClick={() => setVoiceOpen(false)} className="text-muted-foreground transition-colors hover:text-foreground"><X className="h-4 w-4" /></button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="max-h-[50vh] space-y-4 overflow-y-auto pr-1">
                   <div>
-                    <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Language</p>
+                    <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Voice</p>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {VOICES.map((v) => (
+                        <button key={v.id} onClick={() => changeVoice(v.id)} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left ${hudVoice === v.id ? "border-primary bg-primary/5" : "border-border/60"}`}>
+                          <span><span className="text-sm">{v.label}</span><span className="ml-2 text-[11px] text-muted-foreground">{v.desc}</span></span>
+                          {hudVoice === v.id && <Check className="h-4 w-4 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Language</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {LANGS.map(([id, label]) => (
+                          <button key={id} onClick={() => changeLang(id)} className={`rounded-full px-3 py-1 text-xs ${hudLang === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Tempo</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TEMPOS.map(([id, label]) => (
+                          <button key={id} onClick={() => changeTempo(id)} className={`rounded-full px-3 py-1 text-xs ${hudSpeed === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Tone</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {LANGS.map(([id, label]) => (
-                        <button key={id} onClick={() => changeLang(id)} className={`rounded-full px-3 py-1 text-xs ${hudLang === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                      {TONES.map(([id, label]) => (
+                        <button key={id} onClick={() => changeTone(id)} className={`rounded-full px-3 py-1 text-xs ${tone === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Tempo</p>
+                    <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Speaking style</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {TEMPOS.map(([id, label]) => (
-                        <button key={id} onClick={() => changeTempo(id)} className={`rounded-full px-3 py-1 text-xs ${hudSpeed === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
+                      {STYLES.map(([id, label]) => (
+                        <button key={id} onClick={() => changeStyle(id)} className={`rounded-full px-3 py-1 text-xs ${style === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
                       ))}
                     </div>
                   </div>
                 </div>
-                <div>
-                  <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Tone</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {TONES.map(([id, label]) => (
-                      <button key={id} onClick={() => changeTone(id)} className={`rounded-full px-3 py-1 text-xs ${tone === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-1 font-mono text-[10px] uppercase text-muted-foreground">Speaking style</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {STYLES.map(([id, label]) => (
-                      <button key={id} onClick={() => changeStyle(id)} className={`rounded-full px-3 py-1 text-xs ${style === id ? "bg-primary text-primary-foreground" : "border border-border/60 text-muted-foreground"}`}>{label}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
