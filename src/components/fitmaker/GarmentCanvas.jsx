@@ -1,5 +1,6 @@
 import React, { forwardRef, useMemo, useRef, useState } from "react";
 import { MATERIAL_MAP, FINISHES } from "@/components/fitmaker/materials";
+import { DECOR_BY_ID } from "@/components/fitmaker/decorations";
 
 // Build the SVG transform string for a group based on matching measurements.
 function groupTransform(tpl, group, measurements) {
@@ -19,10 +20,7 @@ function groupTransform(tpl, group, measurements) {
 // Convert an array of [x,y] points into an SVG path string (a single point becomes a dot).
 function pathFromPoints(pts) {
   if (!pts || !pts.length) return "";
-  if (pts.length === 1) {
-    const [x, y] = pts[0];
-    return `M ${x} ${y} L ${x} ${y}`;
-  }
+  if (pts.length === 1) { const [x, y] = pts[0]; return `M ${x} ${y} L ${x} ${y}`; }
   let d = `M ${pts[0][0]} ${pts[0][1]}`;
   for (let i = 1; i < pts.length; i++) d += ` L ${pts[i][0]} ${pts[i][1]}`;
   return d;
@@ -33,6 +31,7 @@ const GUIDE = "#3b82f6";
 const GarmentCanvas = forwardRef(function GarmentCanvas({
   template, state, rotate = 0, zoom = 1, showGuides = false, className = "",
   paint = false, paintBrush = "pen", paintColor = "#3b82f6", paintSize = 8, paintOpacity = 1, onPaintStroke,
+  decorate = false, onMoveDecoration,
 }, ref) {
   const mat = MATERIAL_MAP[state.material] || MATERIAL_MAP.cotton;
   const matProps = state.materialProps || {};
@@ -57,12 +56,16 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({
 
   const [vbx, vby, vbw, vbh] = useMemo(() => template.viewBox.split(/\s+/).map(Number), [template.viewBox]);
   const strokes = state.strokes || [];
+  const decorations = state.decorations || [];
 
-  // Live (in-progress) paint stroke.
+  // Paint (freehand) + decoration drag state.
   const svgRef = useRef(null);
   const drawingRef = useRef(false);
   const liveRef = useRef(null);
   const [live, setLive] = useState(null);
+  const dragIdRef = useRef(null);
+  const [dragId, setDragId] = useState(null);
+  const [dragLive, setDragLive] = useState(null);
 
   const setSvgRef = (el) => {
     svgRef.current = el;
@@ -88,37 +91,52 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({
     if (!p) return;
     drawingRef.current = true;
     const isEraser = paintBrush === "eraser";
-    const s = {
-      tool: isEraser ? "eraser" : paintBrush,
-      color: paintColor,
-      width: paintSize,
-      opacity: isEraser ? 1 : paintOpacity,
-      points: [p],
-    };
+    const s = { tool: isEraser ? "eraser" : paintBrush, color: paintColor, width: paintSize, opacity: isEraser ? 1 : paintOpacity, points: [p] };
     liveRef.current = s;
     setLive(s);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
   };
 
   const onMove = (e) => {
-    if (!drawingRef.current) return;
-    const p = toSvg(e);
-    if (!p) return;
-    const s = liveRef.current;
-    if (!s) return;
-    const last = s.points[s.points.length - 1];
-    if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) < 0.6) return;
-    s.points.push(p);
-    setLive({ ...s, points: s.points.slice() });
+    if (drawingRef.current) {
+      const p = toSvg(e); if (!p) return;
+      const s = liveRef.current; if (!s) return;
+      const last = s.points[s.points.length - 1];
+      if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) < 0.6) return;
+      s.points.push(p);
+      setLive({ ...s, points: s.points.slice() });
+      return;
+    }
+    if (dragIdRef.current) {
+      const p = toSvg(e); if (!p) return;
+      setDragLive(p);
+    }
   };
 
   const finishStroke = () => {
-    if (!drawingRef.current) return;
-    drawingRef.current = false;
-    const s = liveRef.current;
-    liveRef.current = null;
-    setLive(null);
-    if (s && s.points.length) onPaintStroke?.(s);
+    if (drawingRef.current) {
+      drawingRef.current = false;
+      const s = liveRef.current;
+      liveRef.current = null;
+      setLive(null);
+      if (s && s.points.length) onPaintStroke?.(s);
+    }
+    if (dragIdRef.current && dragLive) {
+      onMoveDecoration?.(dragIdRef.current, dragLive[0], dragLive[1]);
+    }
+    dragIdRef.current = null;
+    setDragId(null);
+    setDragLive(null);
+  };
+
+  const onDecorDown = (e, d) => {
+    if (!decorate) return;
+    e.stopPropagation();
+    const p = toSvg(e); if (!p) return;
+    dragIdRef.current = d.id;
+    setDragId(d.id);
+    setDragLive(p);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
   };
 
   const allStrokes = live ? [...strokes, live] : strokes;
@@ -137,18 +155,16 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({
         transform: `perspective(900px) rotateY(${rotate}deg) scale(${zoom})`,
         transition: "transform 0.25s ease",
         transformOrigin: "center",
-        cursor: paint ? "crosshair" : "default",
+        cursor: paint ? "crosshair" : decorate ? "default" : "default",
         touchAction: paint ? "none" : "auto",
       }}
     >
       <defs>
-        {/* Fabric texture filter */}
         <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">
           <feTurbulence type="fractalNoise" baseFrequency={0.02 + texture * 0.05} numOctaves={2} seed={3} result="noise" />
           <feDisplacementMap in="SourceGraphic" in2="noise" scale={texture * 10} xChannelSelector="R" yChannelSelector="G" />
           <feGaussianBlur stdDeviation={roughness * 0.4} />
         </filter>
-        {/* Fill (solid, gradient, or pattern) */}
         {state.patternUrl ? (
           <pattern id={fillId} patternUnits="userSpaceOnUse" width="60" height="60">
             <image href={state.patternUrl} x="0" y="0" width="60" height="60" preserveAspectRatio="xMidYMid slice" />
@@ -159,51 +175,28 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({
             <stop offset="100%" stopColor={state.color2} />
           </linearGradient>
         ) : null}
-        {/* Sheen overlay for glossy / metallic finishes */}
         <radialGradient id={sheenId} cx="0.35" cy="0.3" r="0.8">
           <stop offset="0%" stopColor="#ffffff" stopOpacity={sheen * 0.9} />
           <stop offset="40%" stopColor="#ffffff" stopOpacity={sheen * 0.15} />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </radialGradient>
-        {/* Paint mask: white reveals paint, black (eraser / default) hides it */}
         <mask id={maskId}>
           <rect x={vbx} y={vby} width={vbw} height={vbh} fill="black" />
           {allStrokes.map((s, i) => (
-            <path
-              key={`m-${i}`}
-              d={pathFromPoints(s.points)}
-              stroke={s.tool === "eraser" ? "black" : "white"}
-              strokeWidth={s.width}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={s.opacity}
-            />
+            <path key={`m-${i}`} d={pathFromPoints(s.points)} stroke={s.tool === "eraser" ? "black" : "white"} strokeWidth={s.width} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={s.opacity} />
           ))}
         </mask>
       </defs>
 
-      {/* Soft drop shadow */}
       <ellipse cx="150" cy="345" rx="110" ry="12" fill="#00000022" />
 
-      {/* Garment groups */}
       <g filter={`url(#${filterId})`} opacity={opacity}>
         {template.groups.map((g) => (
-          <path
-            key={g.id}
-            d={g.d}
-            fill={g.role === "detail" ? "none" : bodyFill}
-            stroke={g.role === "detail" ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.25)"}
-            strokeWidth={g.role === "detail" ? 1.4 : 1.2}
-            strokeLinejoin="round"
-            transform={groupTransform(template, g, measurements)}
-          />
+          <path key={g.id} d={g.d} fill={g.role === "detail" ? "none" : bodyFill} stroke={g.role === "detail" ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.25)"} strokeWidth={g.role === "detail" ? 1.4 : 1.2} strokeLinejoin="round" transform={groupTransform(template, g, measurements)} />
         ))}
-        {/* Sheen overlay clipped to body silhouette */}
         {sheen > 0.05 && template.groups.filter((g) => g.role === "body" || g.role === "collar").map((g) => (
           <path key={`sheen-${g.id}`} d={g.d} fill={`url(#${sheenId})`} transform={groupTransform(template, g, measurements)} style={{ mixBlendMode: "screen" }} />
         ))}
-        {/* Feature graphics */}
         {featurePaths.map((p, i) => (
           <path key={`feat-${i}`} d={p.d} fill={p.fill || (p.role === "detail" ? "none" : bodyFill)} stroke="rgba(0,0,0,0.45)" strokeWidth={p.fill ? 0 : 1.4} strokeLinecap="round" />
         ))}
@@ -213,20 +206,22 @@ const GarmentCanvas = forwardRef(function GarmentCanvas({
       <g mask={`url(#${maskId})`} style={{ pointerEvents: "none" }}>
         {allStrokes.map((s, i) => (
           s.tool !== "eraser" ? (
-            <path
-              key={`p-${i}`}
-              d={pathFromPoints(s.points)}
-              stroke={s.color}
-              strokeWidth={s.width}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={s.opacity}
-              style={s.tool === "highlighter" ? { mixBlendMode: "multiply" } : undefined}
-            />
+            <path key={`p-${i}`} d={pathFromPoints(s.points)} stroke={s.color} strokeWidth={s.width} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={s.opacity} style={s.tool === "highlighter" ? { mixBlendMode: "multiply" } : undefined} />
           ) : null
         ))}
       </g>
+
+      {/* Decorations / embellishments (draggable when decorate tool is active) */}
+      {decorations.map((d) => {
+        const dec = DECOR_BY_ID[d.type];
+        if (!dec) return null;
+        const pos = (dragId === d.id && dragLive) ? dragLive : [d.x, d.y];
+        return (
+          <g key={d.id} transform={`translate(${pos[0]} ${pos[1]}) scale(${d.scale})`} onPointerDown={(e) => onDecorDown(e, d)} style={{ cursor: decorate ? "grab" : "default", pointerEvents: decorate ? "auto" : "none" }}>
+            {dec.render(d.color)}
+          </g>
+        );
+      })}
 
       {/* Measurement guides */}
       {showGuides && Object.entries(template.measurements).map(([key, m]) => {

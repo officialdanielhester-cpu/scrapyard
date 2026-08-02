@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, User, Trash2 } from "lucide-react";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import StudioViewport from "@/components/studio/StudioViewport";
 import StudioSidebar from "@/components/studio/StudioSidebar";
@@ -88,6 +88,34 @@ export default function Fit3DWorkspace({ garmentImage, garmentName }) {
   const addSpec = (spec) => { const o = objectFromSpec(spec); setObjects((p) => [...p, o]); setSelectedId(o.id); };
   const addPreset = (preset) => { const parts = preset.parts.map((p) => ({ ...p, color: p.color || LIGHT_GREY })); const placed = placeComposite(parts, preset.realSize); const o = { id: newId(), name: preset.name, kind: "composite", pos: placed.pos, scale: placed.scale, rot: [0, 0, 0], metal: 0.3, rough: 0.55, parts }; setObjects((p) => [...p, o]); setSelectedId(o.id); };
 
+  // Human-shaped doll to try the garment on. Builds a simple mannequin and
+  // parks the garment image plane in front of its torso.
+  const addMannequin = () => {
+    pushUndo();
+    const skin = "#d4b896";
+    const parts = [
+      { type: "sphere", ox: 0, oy: 3.2, oz: 0, sx: 0.45, sy: 0.5, sz: 0.45, rx: 0, ry: 0, rz: 0, color: skin },
+      { type: "box", ox: 0, oy: 2.95, oz: 0, sx: 0.18, sy: 0.2, sz: 0.18, rx: 0, ry: 0, rz: 0, color: skin },
+      { type: "box", ox: 0, oy: 2.2, oz: 0, sx: 0.85, sy: 1.0, sz: 0.45, rx: 0, ry: 0, rz: 0, color: skin },
+      { type: "box", ox: 0, oy: 1.5, oz: 0, sx: 0.75, sy: 0.5, sz: 0.4, rx: 0, ry: 0, rz: 0, color: skin },
+      { type: "box", ox: -0.75, oy: 2.2, oz: 0, sx: 0.22, sy: 1.0, sz: 0.22, rx: 0, ry: 0, rz: 0, color: skin },
+      { type: "box", ox: 0.75, oy: 2.2, oz: 0, sx: 0.22, sy: 1.0, sz: 0.22, rx: 0, ry: 0, rz: 0, color: skin },
+      { type: "box", ox: -0.2, oy: 0.7, oz: 0, sx: 0.26, sy: 1.4, sz: 0.26, rx: 0, ry: 0, rz: 0, color: skin },
+      { type: "box", ox: 0.2, oy: 0.7, oz: 0, sx: 0.26, sy: 1.4, sz: 0.26, rx: 0, ry: 0, rz: 0, color: skin },
+    ];
+    const mannequin = { id: newId(), name: "Mannequin", kind: "composite", pos: [0, 0, 0], scale: 1, rot: [0, 0, 0], metal: 0.1, rough: 0.85, parts, isMannequin: true };
+    setObjects((prev) => {
+      const without = prev.filter((o) => !o.isMannequin);
+      return [...without, mannequin].map((o) => (o.isGarment ? { ...o, pos: [0, 2.2, 0.3], scale: 1.4, rot: [0, 0, 0] } : o));
+    });
+    setSelectedId(mannequin.id);
+  };
+  const removeMannequin = () => {
+    pushUndo();
+    setObjects((prev) => prev.filter((o) => !o.isMannequin).map((o) => (o.isGarment ? { ...o, pos: [0, 1, 0], scale: 1.4, rot: [0, 0, 0] } : o)));
+    setSelectedId(null);
+  };
+
   const updateObject = (id, patch) => setObjects((p) => p.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   const updateGeometry = (id, newGeo) => { const old = objectsRef.current.find((o) => o.id === id); if (old?.geo) old.geo.dispose(); setObjects((p) => p.map((o) => (o.id === id ? { ...o, geo: newGeo } : o))); };
   const handleDuplicate = () => { if (!selectedId) return; const sel = objects.find((o) => o.id === selectedId); if (!sel) return; pushUndo(); const d = { ...sel, id: newId(), name: `${sel.name} copy`, pos: [sel.pos[0] + 1.5, sel.pos[1], sel.pos[2]], geo: sel.kind === "mesh" ? sel.geo.clone() : undefined, parts: sel.parts?.map((p) => ({ ...p })) }; setObjects((p) => [...p, d]); setSelectedId(d.id); };
@@ -130,6 +158,16 @@ export default function Fit3DWorkspace({ garmentImage, garmentName }) {
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <div className="flex-1">
         <div className="relative">
+          <div className="absolute left-3 top-3 z-10 flex gap-2">
+            <button onClick={addMannequin} title="Add a human-shaped doll to try clothing on" className="flex items-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-3 py-1.5 text-xs backdrop-blur transition-colors hover:border-primary hover:text-primary">
+              <User className="h-3.5 w-3.5" /> Doll
+            </button>
+            {objects.some((o) => o.isMannequin) && (
+              <button onClick={removeMannequin} title="Remove the doll" className="flex items-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-3 py-1.5 text-xs backdrop-blur transition-colors hover:border-destructive hover:text-destructive">
+                <Trash2 className="h-3.5 w-3.5" /> Remove
+              </button>
+            )}
+          </div>
           <StudioViewport
             objects={objects}
             selectedId={selectedId}

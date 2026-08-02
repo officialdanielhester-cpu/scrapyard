@@ -126,25 +126,10 @@ export default function JabberCall({ open, onClose }) {
         const token = { done: false };
         token.finish = () => { if (token.done) return; token.done = true; speakTokenRef.current = null; resolve(); };
         speakTokenRef.current = token;
-        if (url) {
-          // A fresh Audio per utterance avoids the state buildup that occurs
-          // when a single element is reused across turns (which can cause
-          // play() to silently reject and the voice to drop out after a couple
-          // of turns). Releasing the src on completion keeps playback smooth.
-          const audio = new Audio();
-          audio.preload = "auto";
-          audio.src = url;
-          audio.playbackRate = 1;
-          audio.defaultPlaybackRate = 1;
-          audio.preservesPitch = true;
-          audioElRef.current = audio;
-          const done = () => { try { audio.pause(); audio.onended = null; audio.onerror = null; audio.removeAttribute("src"); audio.load(); } catch {} token.finish(); };
-          audio.onended = done;
-          audio.onerror = done;
-          token.cancel = done;
-          // Defer one tick so the element can buffer → smoother, click-free start.
-          setTimeout(() => { try { const p = audio.play(); if (p && p.catch) p.catch(done); } catch { done(); } }, 30);
-        } else {
+
+        // Local browser TTS — used as a fallback so Jabber ALWAYS responds audibly,
+        // even if the remote speech URL fails to load or play.
+        const localTTS = () => {
           try {
             const synth = window.speechSynthesis; synth.cancel();
             const u = new SpeechSynthesisUtterance(spoken);
@@ -158,6 +143,29 @@ export default function JabberCall({ open, onClose }) {
             token.cancel = () => { try { synth.cancel(); } catch {} token.finish(); };
             setTimeout(() => { try { synth.speak(u); } catch { token.finish(); } }, 60);
           } catch { token.finish(); }
+        };
+
+        if (url) {
+          // A fresh Audio per utterance avoids the state buildup that occurs
+          // when a single element is reused across turns (which can cause
+          // play() to silently reject and the voice to drop out). On any load
+          // or playback error we fall back to local TTS so the reply is heard.
+          const audio = new Audio();
+          audio.preload = "auto";
+          audio.src = url;
+          audio.playbackRate = 1;
+          audio.defaultPlaybackRate = 1;
+          audio.preservesPitch = true;
+          audioElRef.current = audio;
+          let fellBack = false;
+          const done = () => { try { audio.onended = null; audio.onerror = null; audio.pause(); audio.removeAttribute("src"); audio.load(); } catch {} token.finish(); };
+          const fallback = () => { if (fellBack) return; fellBack = true; try { audio.pause(); } catch {} localTTS(); };
+          audio.onended = done;
+          audio.onerror = fallback;
+          token.cancel = done;
+          setTimeout(() => { try { const p = audio.play(); if (p && p.catch) p.catch(fallback); } catch { fallback(); } }, 30);
+        } else {
+          localTTS();
         }
       });
     };
@@ -271,6 +279,14 @@ export default function JabberCall({ open, onClose }) {
     } else if (activeRef.current) { phaseRef.current = "ready"; setPhase("ready"); }
   };
 
+  // Tapping the Jabber logo is a manual control: cut Jabber off mid-speech,
+  // or start listening when idle/ready.
+  const handleLogoTap = () => {
+    if (!activeRef.current) return;
+    if (phaseRef.current === "speaking") { try { speakTokenRef.current?.cancel?.(); } catch {} }
+    startListening();
+  };
+
   const pulseDur = phase === "speaking" ? 1.1 : phase === "listening" ? 2.2 : phase === "thinking" ? 1.6 : 2.8;
   const live = phase === "listening" || phase === "speaking" || phase === "thinking";
   const lastAssistant = [...turns].reverse().find((t) => t.role === "assistant");
@@ -293,12 +309,16 @@ export default function JabberCall({ open, onClose }) {
                   animate={{ width: 168, height: 168, opacity: 0 }}
                   transition={{ duration: pulseDur, repeat: Infinity, delay: i * (pulseDur / 2), ease: "easeOut" }} />
               ))}
-              <motion.div
+              <motion.button
+                type="button"
+                onClick={handleLogoTap}
+                whileTap={{ scale: 0.92 }}
                 animate={{ scale: phase === "speaking" ? [1, 1.09, 1] : 1 }}
                 transition={{ duration: pulseDur, repeat: phase === "speaking" ? Infinity : 0, ease: "easeInOut" }}
-                className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-primary/5 shadow-lg shadow-primary/10">
+                title={phase === "speaking" ? "Tap to cut in & start talking" : "Tap to start listening"}
+                className="relative flex h-24 w-24 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-primary/5 shadow-lg shadow-primary/10 ring-1 ring-primary/20 transition-shadow hover:ring-primary/50">
                 <Sparkles className="h-10 w-10 text-primary" strokeWidth={1.5} />
-              </motion.div>
+              </motion.button>
             </div>
 
             <motion.p key={phase} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="font-heading text-lg text-foreground">
@@ -307,7 +327,7 @@ export default function JabberCall({ open, onClose }) {
 
             {interim && phase === "listening" && <p className="mt-3 max-w-md text-center text-sm italic text-muted-foreground">“{interim}”</p>}
             {phase === "speaking" && lastAssistant && <p className="mt-3 max-w-md text-center text-sm text-foreground/80">{lastAssistant.text}</p>}
-            {phase === "ready" && <p className="mt-3 max-w-md text-center text-sm text-muted-foreground">Tap “Start Listening” when you're ready to speak.</p>}
+            {phase === "ready" && <p className="mt-3 max-w-md text-center text-sm text-muted-foreground">Tap the logo or “Start Listening” to speak — tap it again while I'm talking to cut me off.</p>}
 
             <div ref={listRef} className="mt-8 max-h-[24vh] w-full max-w-md space-y-2 overflow-y-auto">
               {turns.slice(-5).map((t, i) => (

@@ -189,6 +189,144 @@ export const TEMPLATES = [
       { id: "logo", label: "Front Logo", defaultOn: false, paths: [{ d: "M120,140 a10,10 0 1,0 0.1,0 Z", fill: "#ffffff55" }] },
     ],
   },
+  {
+    id: "skirt", name: "Skirt", category: "Bottoms", viewBox: VB, defaultColor: "#ec4899", defaultMaterial: "satin",
+    groups: [
+      { id: "waist", d: "M104,70 L196,70 L196,92 L104,92 Z", role: "collar" },
+      { id: "skirt", d: "M104,92 L196,92 L224,300 L76,300 Z", role: "body" },
+    ],
+    measurements: {
+      skirtLength: { label: "Length", group: "body", axis: "y", pivot: [150, 92], default: 208, min: 110, max: 300 },
+      waistWidth: { label: "Waist", group: "collar", axis: "x", pivot: [150, 80], default: 1, min: 0.7, max: 1.3 },
+    },
+    features: [
+      { id: "slit", label: "Side Slit", defaultOn: false, paths: [{ d: "M210,180 L224,300", role: "detail" }] },
+      { id: "pleats", label: "Pleats", defaultOn: false, paths: [{ d: "M130,92 L118,300", role: "detail" }, { d: "M170,92 L182,300", role: "detail" }] },
+    ],
+  },
+  {
+    id: "blouse", name: "Blouse", category: "Tops", viewBox: VB, defaultColor: "#f9fafb", defaultMaterial: "silk",
+    groups: [
+      { id: "sleeveL", d: "M122,82 L80,96 L70,150 L92,158 L110,140 Z", role: "sleeve" },
+      { id: "sleeveR", d: "M178,82 L220,96 L230,150 L208,158 L190,140 Z", role: "sleeve" },
+      { id: "body", d: "M122,74 L100,82 L94,150 L100,310 Q100,322 114,322 L186,322 Q200,322 200,310 L206,150 L200,82 L178,74 Q150,92 122,74 Z", role: "body" },
+      { id: "collar", d: "M122,74 Q150,96 178,74 L172,64 Q150,84 128,64 Z", role: "collar" },
+    ],
+    measurements: {
+      sleeveLength: { label: "Sleeve Length", group: "sleeve", axis: "y", pivot: [150, 82], default: 22, min: 10, max: 60 },
+      bodyLength: { label: "Body Length", group: "body", axis: "y", pivot: [150, 82], default: 248, min: 170, max: 320 },
+      chestWidth: { label: "Chest Width", group: "body", axis: "x", pivot: [150, 200], default: 1, min: 0.7, max: 1.4 },
+    },
+    features: [
+      { id: "bow", label: "Bow Tie", defaultOn: true, paths: [{ d: "M140,86 L150,96 L160,86 L160,104 L150,96 L140,104 Z", role: "detail" }] },
+      { id: "cuffs", label: "Cuffed Sleeves", defaultOn: false, paths: [{ d: "M70,146 L92,154 L92,158 L70,150 Z", role: "detail" }, { d: "M230,146 L208,154 L208,158 L230,150 Z", role: "detail" }] },
+    ],
+  },
+  {
+    id: "coat", name: "Coat", category: "Outerwear", viewBox: VB, defaultColor: "#1e293b", defaultMaterial: "wool",
+    groups: [
+      { id: "sleeveL", d: "M100,86 L58,104 L44,150 L40,270 L62,276 L80,160 L98,148 Z", role: "sleeve" },
+      { id: "sleeveR", d: "M200,86 L242,104 L256,150 L260,270 L238,276 L220,160 L202,148 Z", role: "sleeve" },
+      { id: "body", d: "M122,80 L100,86 L94,150 L98,330 Q98,344 114,344 L186,344 Q202,344 202,330 L206,150 L200,86 L178,80 Q150,96 122,80 Z", role: "body" },
+      { id: "lapelL", d: "M122,80 L150,160 L138,330 L116,330 L112,150 Z", role: "detail" },
+      { id: "lapelR", d: "M178,80 L150,160 L162,330 L184,330 L188,150 Z", role: "detail" },
+    ],
+    measurements: {
+      sleeveLength: { label: "Sleeve Length", group: "sleeve", axis: "y", pivot: [150, 86], default: 70, min: 40, max: 100 },
+      bodyLength: { label: "Length", group: "body", axis: "y", pivot: [150, 86], default: 264, min: 180, max: 340 },
+      chestWidth: { label: "Chest Width", group: "body", axis: "x", pivot: [150, 200], default: 1, min: 0.7, max: 1.4 },
+    },
+    features: [
+      { id: "belt", label: "Belt", defaultOn: true, paths: [{ d: "M96,210 L204,210 L200,230 L100,230 Z", role: "detail" }] },
+      { id: "buttons", label: "Buttons", defaultOn: true, paths: [{ d: "M150,160 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,200 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,240 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,280 a3,3 0 1,0 0.1,0 Z", role: "detail" }] },
+      { id: "collar", label: "Fur Collar", defaultOn: false, paths: [{ d: "M120,80 Q150,108 180,80 Q180,98 150,98 Q120,98 120,80 Z", role: "detail" }] },
+    ],
+  },
+  {
+    id: "overalls", name: "Overalls", category: "Full Body", viewBox: VB, defaultColor: "#7c3aed", defaultMaterial: "denim",
+    groups: [
+      { id: "bib", d: "M120,72 L180,72 L180,150 L120,150 Z", role: "body" },
+      { id: "strapL", d: "M120,72 L116,40 L130,40 L130,72 Z", role: "sleeve" },
+      { id: "strapR", d: "M180,72 L184,40 L170,40 L170,72 Z", role: "sleeve" },
+      { id: "legL", d: "M120,150 L100,150 L96,330 L138,330 L142,150 Z", role: "body" },
+      { id: "legR", d: "M180,150 L200,150 L204,330 L162,330 L158,150 Z", role: "body" },
+    ],
+    measurements: {
+      bodyLength: { label: "Length", group: "body", axis: "y", pivot: [150, 150], default: 180, min: 120, max: 260 },
+      chestWidth: { label: "Width", group: "body", axis: "x", pivot: [150, 150], default: 1, min: 0.7, max: 1.3 },
+    },
+    features: [
+      { id: "pocket", label: "Front Pocket", defaultOn: true, paths: [{ d: "M126,90 L174,90 L174,130 L126,130 Z", role: "detail" }] },
+      { id: "buckles", label: "Buckles", defaultOn: true, paths: [{ d: "M118,44 a6,4 0 1,0 0.1,0 Z", role: "detail" }, { d: "M182,44 a6,4 0 1,0 0.1,0 Z", role: "detail" }] },
+    ],
+  },
+  {
+    id: "cardigan", name: "Cardigan", category: "Tops", viewBox: VB, defaultColor: "#9333ea", defaultMaterial: "knit",
+    groups: [
+      { id: "sleeveL", d: "M100,86 L60,104 L46,150 L42,250 L62,256 L78,160 L98,146 Z", role: "sleeve" },
+      { id: "sleeveR", d: "M200,86 L240,104 L254,150 L258,250 L238,256 L222,160 L202,146 Z", role: "sleeve" },
+      { id: "bodyL", d: "M122,80 L100,86 L96,150 L100,300 Q100,316 116,316 L150,316 L150,80 Q136,96 122,80 Z", role: "body" },
+      { id: "bodyR", d: "M178,80 L200,86 L204,150 L200,300 Q200,316 184,316 L150,316 L150,80 Q164,96 178,80 Z", role: "body" },
+    ],
+    measurements: {
+      sleeveLength: { label: "Sleeve Length", group: "sleeve", axis: "y", pivot: [150, 86], default: 50, min: 30, max: 90 },
+      bodyLength: { label: "Body Length", group: "body", axis: "y", pivot: [150, 86], default: 236, min: 160, max: 320 },
+      chestWidth: { label: "Chest Width", group: "body", axis: "x", pivot: [150, 200], default: 1, min: 0.7, max: 1.4 },
+    },
+    features: [
+      { id: "buttons", label: "Buttons", defaultOn: true, paths: [{ d: "M150,120 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,160 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,200 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,240 a3,3 0 1,0 0.1,0 Z", role: "detail" }] },
+      { id: "pockets", label: "Patch Pockets", defaultOn: false, paths: [{ d: "M104,220 L140,220 L138,250 L106,250 Z", role: "detail" }, { d: "M196,220 L160,220 L162,250 L194,250 Z", role: "detail" }] },
+    ],
+  },
+  {
+    id: "gown", name: "Gown", category: "Full Body", viewBox: VB, defaultColor: "#1e3a8a", defaultMaterial: "satin",
+    groups: [
+      { id: "strapL", d: "M126,72 L122,46 L134,44 L138,72 Z", role: "sleeve" },
+      { id: "strapR", d: "M174,72 L178,46 L166,44 L162,72 Z", role: "sleeve" },
+      { id: "bodice", d: "M126,72 L118,84 L106,170 L150,178 L194,170 L182,84 L174,72 Q150,94 126,72 Z", role: "body" },
+      { id: "skirt", d: "M106,170 L150,178 L194,170 L226,340 L74,340 Z", role: "body" },
+    ],
+    measurements: {
+      bodyLength: { label: "Length", group: "body", axis: "y", pivot: [150, 72], default: 268, min: 180, max: 340 },
+      waistWidth: { label: "Waist", group: "body", axis: "x", pivot: [150, 170], default: 1, min: 0.7, max: 1.3 },
+      hemWidth: { label: "Hem", group: "body", axis: "x", pivot: [150, 320], default: 1, min: 0.8, max: 1.6 },
+    },
+    features: [
+      { id: "train", label: "Train", defaultOn: false, paths: [{ d: "M74,340 L226,340 L240,356 L60,356 Z", role: "detail" }] },
+      { id: "slit", label: "Leg Slit", defaultOn: false, paths: [{ d: "M150,250 L150,340", role: "detail" }] },
+    ],
+  },
+  {
+    id: "vest", name: "Vest", category: "Outerwear", viewBox: VB, defaultColor: "#92400e", defaultMaterial: "leather",
+    groups: [
+      { id: "bodyL", d: "M118,76 L96,86 L92,150 L96,300 Q96,316 112,316 L150,316 L150,76 Q134,92 118,76 Z", role: "body" },
+      { id: "bodyR", d: "M182,76 L204,86 L208,150 L204,300 Q204,316 188,316 L150,316 L150,76 Q166,92 182,76 Z", role: "body" },
+      { id: "collar", d: "M118,76 L150,100 L182,76 L172,66 Q150,86 128,66 Z", role: "collar" },
+    ],
+    measurements: {
+      bodyLength: { label: "Length", group: "body", axis: "y", pivot: [150, 80], default: 240, min: 160, max: 320 },
+      chestWidth: { label: "Chest", group: "body", axis: "x", pivot: [150, 200], default: 1, min: 0.7, max: 1.4 },
+    },
+    features: [
+      { id: "buttons", label: "Buttons", defaultOn: true, paths: [{ d: "M150,120 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,160 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,200 a3,3 0 1,0 0.1,0 Z", role: "detail" }, { d: "M150,240 a3,3 0 1,0 0.1,0 Z", role: "detail" }] },
+      { id: "pockets", label: "Welt Pockets", defaultOn: false, paths: [{ d: "M104,220 L138,220", role: "detail" }, { d: "M196,220 L162,220", role: "detail" }] },
+    ],
+  },
+  {
+    id: "scarf", name: "Scarf", category: "Accessories", viewBox: VB, defaultColor: "#dc2626", defaultMaterial: "silk",
+    groups: [
+      { id: "scarf", d: "M90,80 L210,80 L210,120 L150,140 L90,120 Z", role: "body" },
+      { id: "tailL", d: "M90,120 L70,300 L96,300 L112,140 Z", role: "detail" },
+      { id: "tailR", d: "M210,120 L230,300 L204,300 L188,140 Z", role: "detail" },
+    ],
+    measurements: {
+      bodyLength: { label: "Length", group: "body", axis: "y", pivot: [150, 80], default: 60, min: 40, max: 120 },
+      bodyWidth: { label: "Width", group: "body", axis: "x", pivot: [150, 100], default: 1, min: 0.7, max: 1.4 },
+    },
+    features: [
+      { id: "fringe", label: "Fringe", defaultOn: true, paths: [{ d: "M70,296 L70,310", role: "detail" }, { d: "M78,296 L78,312", role: "detail" }, { d: "M86,296 L86,310", role: "detail" }, { d: "M224,296 L224,310", role: "detail" }, { d: "M216,296 L216,312", role: "detail" }, { d: "M208,296 L208,310", role: "detail" }] },
+    ],
+  },
 ];
 
 export const TEMPLATE_MAP = Object.fromEntries(TEMPLATES.map((t) => [t.id, t]));
