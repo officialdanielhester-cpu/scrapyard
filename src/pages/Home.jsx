@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import JabberNav from "@/components/jabber/JabberNav";
 import WorkspaceLanding from "@/components/workspace/WorkspaceLanding";
-import { trackWorkspace } from "@/components/workspace/workspace-data";
+import { trackWorkspace, useRecentItems } from "@/components/workspace/workspace-data";
+import GlobalSearchOverlay from "@/components/workspace/GlobalSearchOverlay";
 import GridSection from "@/components/grid/GridSection";
 import SettingsSection from "@/components/settings/SettingsSection";
 import EnvironmentSection from "@/components/environment/EnvironmentSection";
@@ -62,6 +63,17 @@ export default function Home({ section: sectionProp }) {
     if (active) trackWorkspace(active);
   }, [active]);
 
+  // Global search state + ⌘K / Ctrl+K shortcut.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const { items: searchIndex, loading: searchLoading } = useRecentItems();
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setSearchOpen(true); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Navigate to a route — called by the nav bar.
   const handleSelect = useCallback((id) => {
     setActive(id);
@@ -71,7 +83,7 @@ export default function Home({ section: sectionProp }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <OnboardingTutorial />
-      <JabberNav active={active} onSelect={handleSelect} />
+      <JabberNav active={active} onSelect={handleSelect} onOpenSearch={() => setSearchOpen(true)} />
 
       {/* Main canvas — offset for desktop sidebar */}
       <main className="md:ml-64 min-h-screen pb-[calc(5rem_+_env(safe-area-inset-bottom))] md:pb-0">
@@ -104,7 +116,7 @@ export default function Home({ section: sectionProp }) {
             >
               {active === "jabber" && (
                 <div className="h-screen">
-                  <WorkspaceLanding onNavigate={handleSelect} />
+                  <WorkspaceLanding onNavigate={handleSelect} onOpenSearch={() => setSearchOpen(true)} recentItems={searchIndex} recentLoading={searchLoading} />
                 </div>
               )}
               {active === "sound" && (
@@ -185,6 +197,14 @@ export default function Home({ section: sectionProp }) {
           }}
         />
       </div>
+
+      <GlobalSearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        items={searchIndex}
+        loading={searchLoading}
+        onNavigate={handleSelect}
+      />
     </div>
   );
 }

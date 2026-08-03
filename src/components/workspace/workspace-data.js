@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import {
   Sparkles, Music, Boxes, Box, Shirt, NotebookPen, FlaskConical,
   Hammer, LineChart, Sun, Video, Mic, FileText, Network, Images,
+  Braces, MessageCircle,
 } from "lucide-react";
 
 export const WORKSPACE_META = {
@@ -31,15 +32,17 @@ export function relativeDate(dateStr) {
 }
 
 const ENTITY_QUERIES = [
-  { entity: "GalleryItem", ws: "jabber", typeLabel: "Gallery", getLabel: (i) => i.title, getIcon: (i) => i.kind === "video" ? Video : i.kind === "essay" ? FileText : i.kind === "audio" ? Mic : Images },
-  { entity: "Note", ws: "mind-mapper", typeLabel: "Note", getLabel: (i) => i.title, getIcon: () => NotebookPen },
-  { entity: "GarmentDesign", ws: "fit-maker", typeLabel: "Design", getLabel: (i) => i.name, getIcon: () => Shirt },
-  { entity: "Model", ws: "grid", typeLabel: "Model", getIcon: () => Box },
-  { entity: "Experiment", ws: "env", typeLabel: "Experiment", getLabel: (i) => i.name, getIcon: () => FlaskConical },
-  { entity: "VehicleBuild", ws: "workshop", typeLabel: "Build", getLabel: (i) => i.name, getIcon: () => Hammer },
-  { entity: "MusicProject", ws: "sound", typeLabel: "Music", getLabel: (i) => i.name, getIcon: () => Music },
-  { entity: "SoundProject", ws: "sound", typeLabel: "Sound", getLabel: (i) => i.name, getIcon: () => Music },
-  { entity: "MindMap", ws: "mind-mapper", typeLabel: "Mind Map", getLabel: (i) => i.name, getIcon: () => Network },
+  { entity: "GalleryItem", ws: "jabber", typeLabel: "Gallery", category: "Gallery", getLabel: (i) => i.title, getIcon: (i) => i.kind === "video" ? Video : i.kind === "essay" ? FileText : i.kind === "audio" ? Mic : Images },
+  { entity: "Note", ws: "mind-mapper", typeLabel: "Note", category: "Notes", getLabel: (i) => i.title, getIcon: () => NotebookPen },
+  { entity: "GarmentDesign", ws: "fit-maker", typeLabel: "Design", category: "Designs", getLabel: (i) => i.name, getIcon: () => Shirt },
+  { entity: "Model", ws: "grid", typeLabel: "Model", category: "Models", getIcon: () => Box },
+  { entity: "Experiment", ws: "env", typeLabel: "Experiment", category: "Experiments", getLabel: (i) => i.name, getIcon: () => FlaskConical },
+  { entity: "VehicleBuild", ws: "workshop", typeLabel: "Build", category: "Vehicles", getLabel: (i) => i.name, getIcon: () => Hammer },
+  { entity: "MusicProject", ws: "sound", typeLabel: "Music", category: "Music", getLabel: (i) => i.name, getIcon: () => Music },
+  { entity: "SoundProject", ws: "sound", typeLabel: "Sound", category: "Music", getLabel: (i) => i.name, getIcon: () => Music },
+  { entity: "MindMap", ws: "mind-mapper", typeLabel: "Mind Map", category: "Mind Maps", getLabel: (i) => i.name, getIcon: () => Network },
+  { entity: "CodeFile", ws: "jabber", typeLabel: "Code", category: "Code", getLabel: (i) => i.name, getIcon: () => Braces },
+  { entity: "Memory", ws: "jabber", typeLabel: "Conversation", category: "Conversations", getLabel: (i) => (i.content || "").slice(0, 80), getIcon: () => MessageCircle },
 ];
 
 export function useRecentItems() {
@@ -51,12 +54,13 @@ export function useRecentItems() {
     (async () => {
       const results = await Promise.allSettled(
         ENTITY_QUERIES.map(async (q) => {
-          const records = await base44.entities[q.entity].list("-created_date", 20);
+          const records = await base44.entities[q.entity].list("-created_date", 50);
           return records.map((r) => ({
             id: r.id,
             label: q.getLabel ? q.getLabel(r) : (r.name || r.title || "Untitled"),
             workspace: q.ws,
             typeLabel: q.typeLabel,
+            category: q.category,
             Icon: q.getIcon(r),
             created_date: r.created_date,
           }));

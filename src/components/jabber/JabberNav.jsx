@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music, NotebookPen, Shirt } from "lucide-react";
+import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music, NotebookPen, Shirt, Search } from "lucide-react";
 import GalleryNav from "@/components/jabber/GalleryNav";
 
 const TOP_ITEMS = [
@@ -21,7 +21,7 @@ const ENV_CHILDREN = [
 const ENV_IDS = ENV_CHILDREN.map((c) => c.id);
 const BOTTOM_ITEMS = [{ id: "settings", label: "Settings", icon: Sun }];
 
-export default function JabberNav({ active, onSelect }) {
+export default function JabberNav({ active, onSelect, onOpenSearch }) {
   const [openGroup, setOpenGroup] = useState(() => {
     if (CANVAS_IDS.includes(active)) return "canvas";
     if (ENV_IDS.includes(active)) return "env";
@@ -81,7 +81,13 @@ export default function JabberNav({ active, onSelect }) {
 
           </p>
 
-          <nav className="mt-16 flex flex-col gap-1">
+          <button onClick={onOpenSearch} className="mt-6 flex w-full items-center gap-2 rounded-lg border border-border/40 px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary">
+            <Search className="h-4 w-4" strokeWidth={1.5} />
+            <span>Search…</span>
+            <kbd className="ml-auto font-mono text-[10px] text-muted-foreground/60">⌘K</kbd>
+          </button>
+
+          <nav className="mt-8 flex flex-col gap-1">
             {TOP_ITEMS.map(renderTop)}
 
             {/* Canvas dropdown group */}
@@ -180,6 +186,10 @@ export default function JabberNav({ active, onSelect }) {
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
         
         <div className="flex items-center justify-around px-2 pt-2">
+          <button onClick={onOpenSearch} className="flex min-h-[44px] min-w-[44px] flex-1 flex-col items-center gap-1 py-1 text-muted-foreground">
+            <Search className="h-5 w-5" strokeWidth={1.5} />
+            <span className="font-mono text-[9px] uppercase tracking-wider">Search</span>
+          </button>
           {TOP_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.id;
