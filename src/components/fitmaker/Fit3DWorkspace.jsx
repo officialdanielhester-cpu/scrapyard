@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
-import { SlidersHorizontal, User, Trash2 } from "lucide-react";
+import { SlidersHorizontal, User, Trash2, Wind } from "lucide-react";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import StudioViewport from "@/components/studio/StudioViewport";
 import StudioSidebar from "@/components/studio/StudioSidebar";
 import ImportModelsPanel from "@/components/studio/ImportModelsPanel";
 import JabberModelGen from "@/components/studio/JabberModelGen";
 import ModelPresetsPanel from "@/components/studio/ModelPresetsPanel";
+import ClothDrapeCanvas from "@/components/fitmaker/ClothDrapeCanvas";
 import { createPrimitive, extrudeFaces, subdivide, mergeVertices, mirrorGeometry, deleteFaces, applyVertexColors } from "@/components/studio/mesh-utils";
 
 const LIGHT_GREY = "#d4d4d8";
@@ -115,6 +116,7 @@ export default function Fit3DWorkspace({ garmentImage, garmentName }) {
     setObjects((prev) => prev.filter((o) => !o.isMannequin).map((o) => (o.isGarment ? { ...o, pos: [0, 1, 0], scale: 1.4, rot: [0, 0, 0] } : o)));
     setSelectedId(null);
   };
+  const [drapeOpen, setDrapeOpen] = useState(false);
 
   const updateObject = (id, patch) => setObjects((p) => p.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   const updateGeometry = (id, newGeo) => { const old = objectsRef.current.find((o) => o.id === id); if (old?.geo) old.geo.dispose(); setObjects((p) => p.map((o) => (o.id === id ? { ...o, geo: newGeo } : o))); };
@@ -165,6 +167,11 @@ export default function Fit3DWorkspace({ garmentImage, garmentName }) {
             {objects.some((o) => o.isMannequin) && (
               <button onClick={removeMannequin} title="Remove the doll" className="flex items-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-3 py-1.5 text-xs backdrop-blur transition-colors hover:border-destructive hover:text-destructive">
                 <Trash2 className="h-3.5 w-3.5" /> Remove
+              </button>
+            )}
+            {objects.some((o) => o.isMannequin) && (
+              <button onClick={() => setDrapeOpen(true)} title="Run a fabric-physics drape simulation on the doll" className="flex items-center gap-1.5 rounded-full border border-primary/60 bg-primary/15 px-3 py-1.5 text-xs text-primary backdrop-blur transition-colors hover:bg-primary/25">
+                <Wind className="h-3.5 w-3.5" /> Drape
               </button>
             )}
           </div>
@@ -240,6 +247,7 @@ export default function Fit3DWorkspace({ garmentImage, garmentName }) {
       <ImportModelsPanel open={importOpen} onClose={() => setImportOpen(false)} onImport={addSpec} />
       <JabberModelGen open={jabberOpen} onClose={() => setJabberOpen(false)} onAdd={addSpec} />
       <ModelPresetsPanel open={presetOpen} onClose={() => setPresetOpen(false)} onAdd={addPreset} />
+      {drapeOpen && <ClothDrapeCanvas garmentImage={garmentImage} onClose={() => setDrapeOpen(false)} />}
     </div>
   );
 }
