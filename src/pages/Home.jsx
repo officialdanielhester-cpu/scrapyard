@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import JabberNav from "@/components/jabber/JabberNav";
-import JabberSection from "@/components/jabber/JabberSection";
+import WorkspaceLanding from "@/components/workspace/WorkspaceLanding";
+import { trackWorkspace } from "@/components/workspace/workspace-data";
 import GridSection from "@/components/grid/GridSection";
 import SettingsSection from "@/components/settings/SettingsSection";
 import EnvironmentSection from "@/components/environment/EnvironmentSection";
@@ -56,6 +57,11 @@ export default function Home({ section: sectionProp }) {
     if (DEEP_WORK.has(active)) setDeepMounted((m) => (m[active] ? m : { ...m, [active]: true }));
   }, [active]);
 
+  // Track recently used workspaces for the home screen.
+  useEffect(() => {
+    if (active) trackWorkspace(active);
+  }, [active]);
+
   // Navigate to a route — called by the nav bar.
   const handleSelect = useCallback((id) => {
     setActive(id);
@@ -98,7 +104,7 @@ export default function Home({ section: sectionProp }) {
             >
               {active === "jabber" && (
                 <div className="h-screen">
-                  <JabberSection />
+                  <WorkspaceLanding onNavigate={handleSelect} />
                 </div>
               )}
               {active === "sound" && (

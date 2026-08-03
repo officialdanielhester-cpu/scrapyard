@@ -1,0 +1,96 @@
+import { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import {
+  Sparkles, Music, Boxes, Box, Shirt, NotebookPen, FlaskConical,
+  Hammer, LineChart, Sun, Video, Mic, FileText, Network, Images,
+} from "lucide-react";
+
+export const WORKSPACE_META = {
+  jabber: { label: "Jabber", Icon: Sparkles },
+  sound: { label: "Studio", Icon: Music },
+  grid: { label: "The Grid", Icon: Boxes },
+  studio: { label: "3D Studio", Icon: Box },
+  "fit-maker": { label: "Fit Maker", Icon: Shirt },
+  "mind-mapper": { label: "Mind", Icon: NotebookPen },
+  env: { label: "Playground", Icon: FlaskConical },
+  workshop: { label: "Workshop", Icon: Hammer },
+  dashboard: { label: "Dashboard", Icon: LineChart },
+  settings: { label: "Settings", Icon: Sun },
+  "video-editor": { label: "Video", Icon: Video },
+  "photo-editor": { label: "Photo", Icon: Images },
+};
+
+export function relativeDate(dateStr) {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
+const ENTITY_QUERIES = [
+  { entity: "GalleryItem", ws: "jabber", typeLabel: "Gallery", getLabel: (i) => i.title, getIcon: (i) => i.kind === "video" ? Video : i.kind === "essay" ? FileText : i.kind === "audio" ? Mic : Images },
+  { entity: "Note", ws: "mind-mapper", typeLabel: "Note", getLabel: (i) => i.title, getIcon: () => NotebookPen },
+  { entity: "GarmentDesign", ws: "fit-maker", typeLabel: "Design", getLabel: (i) => i.name, getIcon: () => Shirt },
+  { entity: "Model", ws: "grid", typeLabel: "Model", getIcon: () => Box },
+  { entity: "Experiment", ws: "env", typeLabel: "Experiment", getLabel: (i) => i.name, getIcon: () => FlaskConical },
+  { entity: "VehicleBuild", ws: "workshop", typeLabel: "Build", getLabel: (i) => i.name, getIcon: () => Hammer },
+  { entity: "MusicProject", ws: "sound", typeLabel: "Music", getLabel: (i) => i.name, getIcon: () => Music },
+  { entity: "SoundProject", ws: "sound", typeLabel: "Sound", getLabel: (i) => i.name, getIcon: () => Music },
+  { entity: "MindMap", ws: "mind-mapper", typeLabel: "Mind Map", getLabel: (i) => i.name, getIcon: () => Network },
+];
+
+export function useRecentItems() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.allSettled(
+        ENTITY_QUERIES.map(async (q) => {
+          const records = await base44.entities[q.entity].list("-created_date", 20);
+          return records.map((r) => ({
+            id: r.id,
+            label: q.getLabel ? q.getLabel(r) : (r.name || r.title || "Untitled"),
+            workspace: q.ws,
+            typeLabel: q.typeLabel,
+            Icon: q.getIcon(r),
+            created_date: r.created_date,
+          }));
+        })
+      );
+      if (cancelled) return;
+      const all = results
+        .filter((r) => r.status === "fulfilled")
+        .flatMap((r) => r.value)
+        .sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+      setItems(all);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { items, loading };
+}
+
+export const RECENT_WS_KEY = "scrapyard_recent_workspaces";
+
+export function trackWorkspace(id) {
+  try {
+    const raw = localStorage.getItem(RECENT_WS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    const filtered = arr.filter((w) => w.id !== id);
+    filtered.unshift({ id, ts: Date.now() });
+    localStorage.setItem(RECENT_WS_KEY, JSON.stringify(filtered.slice(0, 10)));
+  } catch { /* ignore */ }
+}
+
+export function getRecentWorkspaces() {
+  try {
+    const raw = localStorage.getItem(RECENT_WS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
