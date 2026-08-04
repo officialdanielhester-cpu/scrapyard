@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
+import { linkToCurrentProject } from "@/components/workspace/use-current-project";
 import MusicEngine, { BUILTIN_SAMPLES } from "@/components/music/audioEngine";
 import Timeline from "@/components/music/Timeline";
 import TransportBar from "@/components/music/TransportBar";
@@ -285,7 +286,7 @@ export default function MusicStudio() {
       }
       const payload = { ...project, clips };
       if (savedId) { await base44.entities.MusicProject.update(savedId, payload); }
-      else { const created = await base44.entities.MusicProject.create(payload); setSavedId(created.id); }
+      else { const created = await base44.entities.MusicProject.create(payload); setSavedId(created.id); linkToCurrentProject("music", created.id, created.name, ""); }
       setProject(payload);
       const list = await base44.entities.MusicProject.list("-updated_date", 30); setProjects(list);
     } catch {} finally { setSaving(false); }

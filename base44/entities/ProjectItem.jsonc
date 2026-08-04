@@ -1,0 +1,57 @@
+{
+  "name": "ProjectItem",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "note",
+        "gallery",
+        "music",
+        "sound",
+        "design",
+        "model",
+        "experiment",
+        "build",
+        "mindmap",
+        "code",
+        "memory"
+      ]
+    },
+    "content_id": {
+      "type": "string"
+    },
+    "content_name": {
+      "type": "string",
+      "default": ""
+    },
+    "content_thumbnail": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "required": [
+    "project_id",
+    "content_type",
+    "content_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "user"
+      }
+    },
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

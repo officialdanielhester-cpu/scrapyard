@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Save, Loader2, RotateCcw, BarChart3 } from "lucide-react";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { base44 } from "@/api/base44Client";
+import { linkToCurrentProject } from "@/components/workspace/use-current-project";
 import { computeStats, normalizeInstances } from "@/components/workshop/parts-catalog";
 import { countByType } from "@/components/workshop/part-3d";
 import WorkshopVehicleSelector from "@/components/workshop/WorkshopVehicleSelector";
@@ -95,6 +96,7 @@ export default function WorkshopSection({ onImportBuild }) {
         const created = await base44.entities.VehicleBuild.create(payload);
         setBuilds((prev) => prev.map((b) => (b.id === tempId ? created : b)));
         setEditingId(created.id);
+        linkToCurrentProject("build", created.id, created.name, "");
       }
       load();
     } catch (e) {

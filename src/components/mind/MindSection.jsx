@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Menu } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { linkToCurrentProject } from "@/components/workspace/use-current-project";
 import MindSidebar from "@/components/mind/MindSidebar";
 import MindDashboard from "@/components/mind/MindDashboard";
 import MindEditor from "@/components/mind/MindEditor";
@@ -55,6 +56,7 @@ export default function MindSection() {
     const n = { title: "Untitled", content: "", tags: [], folder: "Inbox", workspace, pinned: false, favorite: false, aliases: [], icon: "📝", is_template: false, daily: false, ...patch };
     try {
       const created = await base44.entities.Note.create(n);
+      linkToCurrentProject("note", created.id, created.title, "");
       setNotes((prev) => [created, ...prev]);
       setSelectedId(created.id);
       setView("editor");

@@ -5,7 +5,7 @@ import { WORKSPACE_META, relativeDate } from "./workspace-data";
 
 const CATEGORIES = [
   "All", "Notes", "Music", "Designs", "Mind Maps",
-  "Code", "Conversations", "Gallery", "Experiments", "Models", "Vehicles",
+  "Code", "Conversations", "Gallery", "Experiments", "Models", "Vehicles", "Projects",
 ];
 
 export default function GlobalSearchOverlay({ open, onClose, items, loading, onNavigate }) {

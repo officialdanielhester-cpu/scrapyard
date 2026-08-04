@@ -3,8 +3,23 @@ import { base44 } from "@/api/base44Client";
 import {
   Sparkles, Music, Boxes, Box, Shirt, NotebookPen, FlaskConical,
   Hammer, LineChart, Sun, Video, Mic, FileText, Network, Images,
-  Braces, MessageCircle,
+  Braces, MessageCircle, Folder,
 } from "lucide-react";
+
+export const TYPE_META = {
+  note: { label: "Notes", ws: "mind-mapper", Icon: NotebookPen },
+  gallery: { label: "Gallery", ws: "jabber", Icon: Images },
+  music: { label: "Music", ws: "sound", Icon: Music },
+  sound: { label: "Sound", ws: "sound", Icon: Music },
+  design: { label: "Designs", ws: "fit-maker", Icon: Shirt },
+  model: { label: "Models", ws: "grid", Icon: Box },
+  experiment: { label: "Experiments", ws: "env", Icon: FlaskConical },
+  build: { label: "Builds", ws: "workshop", Icon: Hammer },
+  mindmap: { label: "Mind Maps", ws: "mind-mapper", Icon: Network },
+  code: { label: "Code", ws: "jabber", Icon: Braces },
+  memory: { label: "Conversations", ws: "jabber", Icon: MessageCircle },
+  project: { label: "Projects", ws: "projects", Icon: Folder },
+};
 
 export const WORKSPACE_META = {
   jabber: { label: "Jabber", Icon: Sparkles },
@@ -19,6 +34,7 @@ export const WORKSPACE_META = {
   settings: { label: "Settings", Icon: Sun },
   "video-editor": { label: "Video", Icon: Video },
   "photo-editor": { label: "Photo", Icon: Images },
+  projects: { label: "Projects", Icon: Folder },
 };
 
 export function relativeDate(dateStr) {
@@ -43,6 +59,7 @@ const ENTITY_QUERIES = [
   { entity: "MindMap", ws: "mind-mapper", typeLabel: "Mind Map", category: "Mind Maps", getLabel: (i) => i.name, getIcon: () => Network },
   { entity: "CodeFile", ws: "jabber", typeLabel: "Code", category: "Code", getLabel: (i) => i.name, getIcon: () => Braces },
   { entity: "Memory", ws: "jabber", typeLabel: "Conversation", category: "Conversations", getLabel: (i) => (i.content || "").slice(0, 80), getIcon: () => MessageCircle },
+  { entity: "Project", ws: "projects", typeLabel: "Project", category: "Projects", getLabel: (i) => i.name, getIcon: () => Folder },
 ];
 
 export function useRecentItems() {

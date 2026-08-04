@@ -6,6 +6,7 @@ import {
   X, ChevronLeft, ChevronRight, Shirt, Camera, History, Box, LayoutTemplate, Brush, Gem,
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { linkToCurrentProject } from "@/components/workspace/use-current-project";
 import "@/components/fitmaker/fit-theme.css";
 import { TEMPLATE_MAP, TEMPLATES, defaultState } from "@/components/fitmaker/garment-templates";
 import GarmentCanvas from "@/components/fitmaker/GarmentCanvas";
@@ -176,6 +177,7 @@ export default function FitMakerSection() {
       } else {
         const created = await base44.entities.GarmentDesign.create({ ...payload, collection: "My Designs", tags: [], favorite: false });
         setTabs((prev) => prev.map((t) => t.key === active.key ? { ...t, designId: created.id, version: created.version || 1, dirty: false } : t));
+        linkToCurrentProject("design", created.id, created.name, thumb);
       }
       setSavedAt(new Date());
       setTabs((prev) => prev.map((t) => t.key === active.key ? { ...t, dirty: false } : t));

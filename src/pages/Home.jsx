@@ -15,6 +15,7 @@ import PhotoEditor from "@/components/gallery/PhotoEditor";
 import MusicStudio from "@/components/music/MusicStudio";
 import PlaceholderSection from "@/components/PlaceholderSection";
 import FitMakerSection from "@/components/fitmaker/FitMakerSection";
+import ProjectsSection from "@/components/workspace/ProjectsSection";
 import MindSection from "@/components/mind/MindSection";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import { motion, AnimatePresence } from "framer-motion";
@@ -162,6 +163,11 @@ export default function Home({ section: sectionProp }) {
               {active === "fit-maker" && (
                 <div className="h-screen">
                   <FitMakerSection />
+                </div>
+              )}
+              {active === "projects" && (
+                <div className="min-h-screen">
+                  <ProjectsSection onNavigate={handleSelect} />
                 </div>
               )}
             </motion.div>

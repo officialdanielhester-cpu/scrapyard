@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Pause, Rocket, RotateCcw, Circle, Square, Box as BoxIcon, Trash2, FlaskConical, Activity, Loader2, Gauge, ZoomIn, ZoomOut, Orbit, HelpCircle, Crosshair } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { linkToCurrentProject } from "@/components/workspace/use-current-project";
 import { VEHICLES, ENVIRONMENTS, DEFAULT_VARIABLES, DEFAULT_GROUND_CONFIG } from "@/components/environment/presets";
 import SimulationCanvas from "@/components/environment/SimulationCanvas";
 import Sim2DView from "@/components/environment/Sim2DView";
@@ -182,7 +183,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
     setRecording(false);
     setSaving(true);
     try {
-      await base44.entities.Experiment.create({
+      const created = await base44.entities.Experiment.create({
         name: `${VEHICLES[vehicleType].label} · ${ENVIRONMENTS[envKey].label}`,
         description: "",
         vehicle_type: vehicleType,
@@ -205,6 +206,7 @@ export default function EnvironmentSection({ pendingBuild, onConsumed }) {
         acceleration: Number((metrics.acceleration || 0).toFixed(1)),
         duration: Number(duration.toFixed(1)),
       });
+      linkToCurrentProject("experiment", created.id, created.name, "");
       load();
     } catch (e) {
       // ignore

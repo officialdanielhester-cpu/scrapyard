@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music, NotebookPen, Shirt, Search } from "lucide-react";
+import { Sparkles, Boxes, Box, Sun, FlaskConical, Hammer, LineChart, ChevronDown, Palette, Music, NotebookPen, Shirt, Search, Folder } from "lucide-react";
 import GalleryNav from "@/components/jabber/GalleryNav";
+import ProjectPicker from "@/components/workspace/ProjectPicker";
 
 const TOP_ITEMS = [
 { id: "jabber", label: "Jabber", icon: Sparkles },
+{ id: "projects", label: "Projects", icon: Folder },
 { id: "sound", label: "Studio", icon: Music },
 { id: "mind-mapper", label: "Mind", icon: NotebookPen }];
 
@@ -87,7 +89,11 @@ export default function JabberNav({ active, onSelect, onOpenSearch }) {
             <kbd className="ml-auto font-mono text-[10px] text-muted-foreground/60">⌘K</kbd>
           </button>
 
-          <nav className="mt-8 flex flex-col gap-1">
+          <div className="mt-3">
+            <ProjectPicker />
+          </div>
+
+          <nav className="mt-6 flex flex-col gap-1">
             {TOP_ITEMS.map(renderTop)}
 
             {/* Canvas dropdown group */}
