@@ -14,9 +14,30 @@ export function setCurrentProjectId(id) {
   } catch { /* ignore */ }
 }
 
+export const RECENT_EDITS_KEY = "scrapyard_recent_edits";
+
+export function trackEdit(contentType, contentName) {
+  if (!contentName) return;
+  try {
+    const entry = { type: contentType, name: contentName, ts: Date.now() };
+    const raw = localStorage.getItem(RECENT_EDITS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    arr.unshift(entry);
+    localStorage.setItem(RECENT_EDITS_KEY, JSON.stringify(arr.slice(0, 12)));
+  } catch { /* ignore */ }
+}
+
+export function getRecentEdits() {
+  try {
+    const raw = localStorage.getItem(RECENT_EDITS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
 // Standalone function — any module imports and calls this after saving content.
 // If no project is active, it silently does nothing.
 export async function linkToCurrentProject(contentType, contentId, contentName = "", contentThumbnail = "") {
+  if (contentName) trackEdit(contentType, contentName);
   if (!contentId) return;
   try {
     const pid = localStorage.getItem(CURRENT_PROJECT_KEY);

@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
 import { VOICES } from "@/hooks/use-voice";
 import { fetchRecentMemories, saveMemory } from "@/lib/jabber-memory";
+import { buildJabberContext } from "@/components/workspace/jabber-context";
 
 const LANG_TO_BCP = { Auto: "en-US", English: "en-US", Spanish: "es-ES", French: "fr-FR" };
 const SPEED_RATE = { Patient: 0.92, Balanced: 1, Rapid: 1.15 };
@@ -14,6 +15,7 @@ You're on a live voice phone call. Speak naturally and concisely, like you're ac
 Write for the ear: natural pauses, varied sentence length, contractions, the occasional question.
 Be Socratic, patient, warm, never condescending. Adapt to their level, use analogies, check understanding.
 Reference past conversations (shown below) when relevant.
+You can see the user's current project and recent work in the context below — use it to understand what they're working on without asking them to explain.
 If asked who created/made/built you, reply EXACTLY: "my creator is king Daniel 👑" — nothing else.
 Keep replies short and spoken (1–4 sentences) unless they ask for depth.`;
 
@@ -65,6 +67,7 @@ export default function JabberCall({ open, onClose }) {
   const persistRef = useRef(!settings.private);
   const memRef = useRef([]);
   const transcriptRef = useRef([]);
+  const contextRef = useRef("");
   const activeRef = useRef(false);
   const recRef = useRef(null);
   const audioElRef = useRef(null);
@@ -106,7 +109,7 @@ export default function JabberCall({ open, onClose }) {
     langRef.current = LANG_TO_BCP[settings.lang] || "en-US";
     speedRef.current = settings.speed || "Balanced";
     localVoiceRef.current = null;
-    (async () => { memRef.current = await fetchRecentMemories(10); })();
+    (async () => { memRef.current = await fetchRecentMemories(10); contextRef.current = await buildJabberContext(); })();
 
     const rec = new SR();
     rec.continuous = true; rec.interimResults = true; rec.lang = langRef.current;
@@ -185,7 +188,7 @@ export default function JabberCall({ open, onClose }) {
           ? memRef.current.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n")
           : "(no past conversations)";
         const convo = transcriptRef.current.map((t) => `${t.role === "user" ? "User" : "Jabber"}: ${t.text}`).join("\n");
-        const prompt = `${TUTOR_PROMPT}\n\nTone: ${TONE_GUIDE[toneRef.current]}\nSpeaking style: ${STYLE_GUIDE[styleRef.current]}\n\nRecent memory (oldest first):\n${memoryContext}\n\nConversation so far:\n${convo}\n\nUser just said: ${text}\n\nJabber (spoken reply):`;
+        const prompt = `${TUTOR_PROMPT}\n\nTone: ${TONE_GUIDE[toneRef.current]}\nSpeaking style: ${STYLE_GUIDE[styleRef.current]}\n${contextRef.current}\n\nRecent memory (oldest first):\n${memoryContext}\n\nConversation so far:\n${convo}\n\nUser just said: ${text}\n\nJabber (spoken reply):`;
         const r = await base44.integrations.Core.InvokeLLM({ prompt });
         const out = (typeof r === "string" ? r : r?.reply || "I'm here.").trim();
         transcriptRef.current = [...transcriptRef.current, { role: "assistant", text: out }];

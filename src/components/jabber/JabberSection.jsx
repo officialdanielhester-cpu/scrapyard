@@ -7,6 +7,8 @@ import { useVoice } from "@/hooks/use-voice";
 import { useJabberSettings } from "@/hooks/use-jabber-settings";
 import { callWebsiteB, formatAdminResult, adminErrorMessage } from "@/lib/websiteB";
 import { fetchRecentMemories, saveMemory, lookupAetheris } from "@/lib/jabber-memory";
+import { buildJabberContext } from "@/components/workspace/jabber-context";
+import { linkToCurrentProject } from "@/components/workspace/use-current-project";
 import FormulaLibrary from "@/components/jabber/FormulaLibrary";
 import GalleryPanel from "@/components/jabber/GalleryPanel";
 import JabberMedia from "@/components/jabber/JabberMedia";
@@ -88,7 +90,7 @@ export default function JabberSection() {
       });
       const essay = (typeof r === "string" ? r : r?.reply || "").trim();
       const title = topic.slice(0, 60);
-      try { await base44.entities.GalleryItem.create({ title, kind: "essay", prompt: topic, content: essay }); } catch {}
+      try { const gi = await base44.entities.GalleryItem.create({ title, kind: "essay", prompt: topic, content: essay }); linkToCurrentProject("gallery", gi.id, title, ""); } catch {}
       return { reply: `Done — I wrote a long essay on "${title}" (${essay.length.toLocaleString()} characters) and saved it to your Gallery.`, media: { kind: "essay", content: essay, title } };
     } catch (e) { return { reply: `I couldn't finish the essay — ${e.message || "try again."}` }; }
     finally { setWorking(false); }
@@ -100,7 +102,7 @@ export default function JabberSection() {
       const res = await base44.integrations.Core.GenerateImage({ prompt: promptText });
       const url = res?.url || res;
       const title = promptText.slice(0, 60);
-      try { await base44.entities.GalleryItem.create({ title, kind: "image", prompt: promptText, url }); } catch {}
+      try { const gi = await base44.entities.GalleryItem.create({ title, kind: "image", prompt: promptText, url }); linkToCurrentProject("gallery", gi.id, title, url); } catch {}
       return { reply: `Generated an image for "${title}" — saved to your Gallery.`, media: { kind: "image", url, title } };
     } catch (e) { return { reply: `Image generation failed — ${e.message || "try again."}` }; }
     finally { setWorking(false); }
@@ -112,7 +114,7 @@ export default function JabberSection() {
       const res = await base44.integrations.Core.GenerateVideo({ prompt: promptText });
       const url = res?.url || res;
       const title = promptText.slice(0, 60);
-      try { await base44.entities.GalleryItem.create({ title, kind: "video", prompt: promptText, url }); } catch {}
+      try { const gi = await base44.entities.GalleryItem.create({ title, kind: "video", prompt: promptText, url }); linkToCurrentProject("gallery", gi.id, title, url); } catch {}
       return { reply: `Generated a video for "${title}" — saved to your Gallery.`, media: { kind: "video", url, title } };
     } catch (e) { return { reply: `Video generation failed — ${e.message || "try again."}` }; }
     finally { setWorking(false); }
@@ -124,7 +126,7 @@ export default function JabberSection() {
       const res = await base44.integrations.Core.GenerateSpeech({ text: promptText, voice: settings.voice || "river", language_code: "en" });
       const url = res?.url || res;
       const title = promptText.slice(0, 60);
-      try { await base44.entities.GalleryItem.create({ title, kind: "audio", prompt: promptText, url }); } catch {}
+      try { const gi = await base44.entities.GalleryItem.create({ title, kind: "audio", prompt: promptText, url }); linkToCurrentProject("gallery", gi.id, title, url); } catch {}
       return { reply: `Generated audio for "${title}" — saved to your Gallery.`, media: { kind: "audio", url, title } };
     } catch (e) { return { reply: `Audio generation failed — ${e.message || "try again."}` }; }
     finally { setWorking(false); }
@@ -154,13 +156,14 @@ export default function JabberSection() {
         ? recent.map((m) => `${m.role === "user" ? "User" : "Jabber"}: ${m.content}`).join("\n")
         : "(no past conversations stored yet)";
       await saveMemory("user", content + (activeAttachments.length ? ` ${activeAttachments.map((a) => a.text).join(" ")}` : ""), persist);
+      const contextBlock = await buildJabberContext();
 
       if (activeAttachments.length) {
         const ctxText = activeAttachments.map((a) => a.text).join("\n");
         const fileUrls = activeAttachments.flatMap((a) => a.fileUrls || []);
         const hasLink = activeAttachments.some((a) => a.kind === "link");
         const dres = await base44.integrations.Core.InvokeLLM({
-          prompt: `You are Jabber, an ambient intelligence layer in an app called Aetheris. The user said: "${content}". They also shared these attachments:\n${ctxText}\n\nHelp them understand and decipher the attachments — identify what each is, summarize the content, extract key information, and answer anything implied. For links, use web context. Be clear and concise (2-5 sentences).`,
+          prompt: `You are Jabber, an ambient intelligence layer in an app called Aetheris. The user said: "${content}". They also shared these attachments:\n${ctxText}\n${contextBlock}\n\nHelp them understand and decipher the attachments — identify what each is, summarize the content, extract key information, and answer anything implied. For links, use web context. Be clear and concise (2-5 sentences). Use the CURRENT CONTEXT to relate the attachments to what the user is working on.`,
           file_urls: fileUrls.length ? fileUrls : undefined,
           add_context_from_internet: hasLink,
           model: hasLink ? "gemini_3_flash" : undefined,
@@ -189,8 +192,9 @@ IMPORTANT: If the user asks about who created/made/built you, your creator/origi
 - "code": they ask to write/create/generate code. Set the code object {name, language, description, content}.
 - "chat": anything else — answer naturally.
 
-Return JSON: intent, prompt (if a generation/web intent; else ""), recall_query, lookup_kind, gateway, code, reply (a calm concise 1-3 sentence reply; for gen/web a one-line ack since the result is handled separately; for chat answer naturally).
+Return JSON: intent, prompt (if a generation/web intent; else ""), recall_query, lookup_kind, gateway, code, reply (a calm concise 1-3 sentence reply; for gen/web a one-line ack since the result is handled separately; for chat answer naturally — and weave in the CURRENT CONTEXT when relevant so the user doesn't have to re-explain what they're working on).
 
+${contextBlock}
 Recent memory (oldest first):
 ${memoryContext}
 
@@ -231,6 +235,7 @@ User: ${content}`;
           setWorkLabel("Writing code…"); setWorking(true);
           try {
             const created = await base44.entities.CodeFile.create({ name: code.name || "snippet", language: code.language || "javascript", description: code.description || "", content: String(code.content) });
+            linkToCurrentProject("code", created.id, created.name, "");
             reply = `Saved "${created.name}" (${created.language}) to your code files.${code.description ? ` ${code.description}` : ""}`;
           } catch (e) { reply = `I wrote it but couldn't save the file — ${e.message || "try again."}`; }
           finally { setWorking(false); }
