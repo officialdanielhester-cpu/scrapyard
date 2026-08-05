@@ -6,6 +6,7 @@ import { computeProfile } from "@/components/dashboard/flight-profile";
 import FlightChart from "@/components/dashboard/FlightChart";
 import FlightList from "@/components/dashboard/FlightList";
 import PullToRefresh from "@/components/PullToRefresh";
+import { PageHeader, LoadingState, EmptyState, SectionLabel } from "@/components/shared";
 
 export default function DashboardSection() {
   const [experiments, setExperiments] = useState([]);
@@ -43,31 +44,17 @@ export default function DashboardSection() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <header className="px-6 py-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:px-12">
-        <div className="flex items-center gap-2">
-          <LineChart className="h-5 w-5 text-primary" strokeWidth={1.5} />
-          <h1 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">Flight Dashboard</h1>
-        </div>
-        <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-          Speed · Fuel · Altitude
-        </p>
-      </header>
+      <PageHeader icon={LineChart} title="Flight Dashboard" subtitle="Speed · Fuel · Altitude" />
 
       <PullToRefresh onRefresh={load} className="flex-1 overflow-y-auto px-6 pb-10 md:px-12">
         {loading ? (
-          <div className="flex h-64 items-center justify-center rounded-2xl border border-border/50">
-            <Activity className="h-6 w-6 animate-pulse text-muted-foreground" />
-          </div>
+          <LoadingState className="h-64 rounded-2xl border border-border/50" />
         ) : experiments.length === 0 ? (
-          <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 text-center">
-            <LineChart className="h-8 w-8 text-muted-foreground/50" strokeWidth={1} />
-            <p className="mt-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">No test flights yet</p>
-            <p className="mt-1 text-sm text-muted-foreground/70">Record a flight in the Environment section</p>
-          </div>
+          <EmptyState icon={LineChart} title="No test flights yet" description="Record a flight in the Environment section" className="h-64" />
         ) : (
           <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
             <div>
-              <h3 className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Test Flights</h3>
+              <SectionLabel className="mb-3">Test Flights</SectionLabel>
               <FlightList experiments={experiments} loading={loading} selectedId={selectedId} onSelect={setSelectedId} />
             </div>
 

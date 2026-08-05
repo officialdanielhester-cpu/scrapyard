@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { linkToCurrentProject } from "@/components/workspace/use-current-project";
-import "@/components/fitmaker/fit-theme.css";
+import IconButton from "@/components/shared/IconButton";
 import { TEMPLATE_MAP, TEMPLATES, defaultState } from "@/components/fitmaker/garment-templates";
 import GarmentCanvas from "@/components/fitmaker/GarmentCanvas";
 import GarmentLibrary from "@/components/fitmaker/GarmentLibrary";
@@ -267,7 +267,7 @@ export default function FitMakerSection() {
   return (
     <div className="fit-maker flex h-screen flex-col overflow-hidden bg-background text-foreground">
       {/* Top bar */}
-      <header className="fit-glass z-30 flex items-center gap-2 border-b px-3 py-2.5">
+      <header className="app-glass z-30 flex items-center gap-2 border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 shadow-lg shadow-primary/30">
             <Shirt className="h-4 w-4 text-white" strokeWidth={1.5} />
@@ -286,20 +286,20 @@ export default function FitMakerSection() {
         </div>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <IconBtn onClick={undo} disabled={!canUndo} title="Undo (⌘Z)"><Undo2 className="h-4 w-4" /></IconBtn>
-          <IconBtn onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z)"><Redo2 className="h-4 w-4" /></IconBtn>
+          <IconButton onClick={undo} disabled={!canUndo} title="Undo (⌘Z)"><Undo2 className="h-4 w-4" /></IconButton>
+          <IconButton onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z)"><Redo2 className="h-4 w-4" /></IconButton>
           <div className="mx-1 h-5 w-px bg-white/10" />
-          <IconBtn onClick={() => newProject("tshirt")} title="New design"><Plus className="h-4 w-4" /></IconBtn>
-          <IconBtn onClick={() => setGalleryOpen(true)} title="Gallery"><Images className="h-4 w-4" /></IconBtn>
+          <IconButton onClick={() => newProject("tshirt")} title="New design"><Plus className="h-4 w-4" /></IconButton>
+          <IconButton onClick={() => setGalleryOpen(true)} title="Gallery"><Images className="h-4 w-4" /></IconButton>
           <button onClick={() => setViewMode((v) => (v === "pattern" ? "3d" : "pattern"))} title={viewMode === "pattern" ? "3D Studio view" : "2D Pattern view"} className={`flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs ${viewMode === "3d" ? "border-primary bg-primary/15 text-primary" : "border-border/60 text-muted-foreground hover:text-foreground"}`}>
             {viewMode === "pattern" ? <Box className="h-3.5 w-3.5" /> : <LayoutTemplate className="h-3.5 w-3.5" />} {viewMode === "pattern" ? "3D" : "2D"}
           </button>
-          <IconBtn onClick={() => setHistoryOpen(true)} disabled={!active?.designId} title="Version history"><History className="h-4 w-4" /></IconBtn>
+          <IconButton onClick={() => setHistoryOpen(true)} disabled={!active?.designId} title="Version history"><History className="h-4 w-4" /></IconButton>
           <button onClick={() => doSave()} disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50">
             <Save className="h-3.5 w-3.5" /> {saving ? "Saving…" : "Save"}
           </button>
           <div className="relative">
-            <IconBtn onClick={() => setExportMenu((v) => !v)} title="Export"><Download className="h-4 w-4" /></IconBtn>
+            <IconButton onClick={() => setExportMenu((v) => !v)} title="Export"><Download className="h-4 w-4" /></IconButton>
             <AnimatePresence>
               {exportMenu && (
                 <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="absolute right-0 top-10 z-40 w-44 rounded-xl border border-white/10 bg-card p-1.5 shadow-2xl">
@@ -321,8 +321,8 @@ export default function FitMakerSection() {
 
       <div className="flex min-h-0 flex-1">
         {/* Left: garment library */}
-        <aside className="fit-glass hidden w-60 shrink-0 flex-col border-r p-3 md:flex">
-          <div className="fit-scroll flex-1 overflow-y-auto pr-1">
+        <aside className="app-glass hidden w-60 shrink-0 flex-col border-r p-3 md:flex">
+          <div className="app-scroll flex-1 overflow-y-auto pr-1">
             <GarmentLibrary onPick={(id) => newProject(id)} />
           </div>
         </aside>
@@ -336,7 +336,7 @@ export default function FitMakerSection() {
         {/* Center: canvas */}
         <main className="relative flex min-w-0 flex-1 flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_30%,hsl(217_60%_20%/0.45),transparent_70%)] p-4">
           {active && template && (
-            <motion.div key={active.key} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="fit-glass relative rounded-3xl p-4 shadow-2xl">
+            <motion.div key={active.key} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="app-glass relative rounded-3xl p-4 shadow-2xl">
               <GarmentCanvas ref={canvasRef} template={template} state={active.state} rotate={rotate} zoom={zoom} showGuides={showGuides} className="h-[min(56vh,420px)] w-auto"
                 paint={tool === "paint"} paintBrush={paint.brush} paintColor={paint.color} paintSize={paint.size} paintOpacity={paint.opacity}
                 onPaintStroke={(s) => patch({ strokes: [...(active.state.strokes || []), s] })}
@@ -345,26 +345,26 @@ export default function FitMakerSection() {
           )}
 
           {/* Floating viewport controls */}
-          <div className="fit-glass absolute bottom-20 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full px-2 py-1.5 md:bottom-4">
-            <IconBtn onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} title="Zoom out"><Minimize2 className="h-4 w-4" /></IconBtn>
+          <div className="app-glass absolute bottom-20 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full px-2 py-1.5 md:bottom-4">
+            <IconButton onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} title="Zoom out"><Minimize2 className="h-4 w-4" /></IconButton>
             <span className="w-10 text-center font-mono text-[10px] text-muted-foreground">{Math.round(zoom * 100)}%</span>
-            <IconBtn onClick={() => setZoom((z) => Math.min(2, z + 0.1))} title="Zoom in"><Maximize2 className="h-4 w-4" /></IconBtn>
+            <IconButton onClick={() => setZoom((z) => Math.min(2, z + 0.1))} title="Zoom in"><Maximize2 className="h-4 w-4" /></IconButton>
             <div className="mx-1 h-5 w-px bg-white/10" />
-            <IconBtn onClick={() => setRotate((r) => r - 15)} title="Rotate left"><ChevronLeft className="h-4 w-4" /></IconBtn>
+            <IconButton onClick={() => setRotate((r) => r - 15)} title="Rotate left"><ChevronLeft className="h-4 w-4" /></IconButton>
             <button onClick={() => setTurntable((v) => !v)} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ${turntable ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"}`}><RotateCw className="h-3.5 w-3.5" /> Turntable</button>
-            <IconBtn onClick={() => setRotate((r) => r + 15)} title="Rotate right"><ChevronRight className="h-4 w-4" /></IconBtn>
+            <IconButton onClick={() => setRotate((r) => r + 15)} title="Rotate right"><ChevronRight className="h-4 w-4" /></IconButton>
             <div className="mx-1 h-5 w-px bg-white/10" />
-            <IconBtn onClick={() => setShowGuides((v) => !v)} title="Measurement guides" active={showGuides}><Eye className="h-4 w-4" /></IconBtn>
+            <IconButton onClick={() => setShowGuides((v) => !v)} title="Measurement guides" active={showGuides}><Eye className="h-4 w-4" /></IconButton>
           </div>
 
           {/* mobile library access */}
-          <button onClick={() => setGalleryOpen(true)} className="fit-glass absolute left-4 top-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] text-muted-foreground md:hidden"><FolderOpen className="h-3.5 w-3.5" /> Library</button>
+          <button onClick={() => setGalleryOpen(true)} className="app-glass absolute left-4 top-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] text-muted-foreground md:hidden"><FolderOpen className="h-3.5 w-3.5" /> Library</button>
 
           {savedAt && <span className="absolute right-4 top-4 font-mono text-[9px] text-muted-foreground/60">Saved {savedAt.toLocaleTimeString()}</span>}
         </main>
 
         {/* Right: tool dock */}
-        <aside className="fit-glass flex w-[320px] shrink-0 flex-col border-l">
+        <aside className="app-glass flex w-[320px] shrink-0 flex-col border-l">
           <div className="flex items-center gap-1 border-b p-1.5">
             {TOOLS.map((t) => (
               <button key={t.id} onClick={() => setTool(t.id)} className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] ${tool === t.id ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}>
@@ -372,7 +372,7 @@ export default function FitMakerSection() {
               </button>
             ))}
           </div>
-          <div className="fit-scroll flex-1 overflow-y-auto p-4">
+          <div className="app-scroll flex-1 overflow-y-auto p-4">
             {active && template && tool === "color" && <ColorStudio state={active.state} onChange={patch} />}
             {active && template && tool === "paint" && <PaintPanel paint={paint} setPaint={setPaint} onClear={() => patch({ strokes: [] })} />}
             {active && template && tool === "decorate" && <DecorPanel decorations={active.state.decorations || []} onChange={(d) => patch({ decorations: d })} />}
@@ -411,10 +411,4 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function IconBtn({ children, onClick, disabled, title, active }) {
-  return (
-    <button onClick={onClick} disabled={disabled} title={title} className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${active ? "bg-primary/20 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"} disabled:opacity-30`}>
-      {children}
-    </button>
-  );
-}
+// IconBtn is now shared via @/components/shared/IconButton

@@ -123,3 +123,14 @@ canvas {
   overscroll-behavior: none;
   touch-action: none;
 }
+
+/* Shared workspace utilities — used by all workspaces via .app-glass / .app-scroll */
+.app-glass {
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid hsl(var(--border) / 0.7);
+}
+.app-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.app-scroll::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.35); border-radius: 6px; }
+.app-scroll::-webkit-scrollbar-track { background: transparent; }

@@ -1,11 +1,2 @@
-/* Fit Maker — uses the global app theme (no scoped overrides).
-   .fit-glass and .fit-scroll are lightweight utilities on global tokens. */
-.fit-glass {
-  background: hsl(var(--card) / 0.6);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid hsl(var(--border) / 0.7);
-}
-.fit-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-.fit-scroll::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.35); border-radius: 6px; }
-.fit-scroll::-webkit-scrollbar-track { background: transparent; }
+/* Fit Maker styles have been consolidated into the shared app utilities in index.css.
+   Use .app-glass and .app-scroll (from @/components/shared/GlassPanel or directly). */

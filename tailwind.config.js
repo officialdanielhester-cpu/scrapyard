@@ -83,11 +83,22 @@ module.exports = {
   				to: {
   					height: '0'
   				}
+  			},
+  			'app-enter': {
+  				from: {
+  					opacity: '0',
+  					transform: 'translateY(8px)'
+  				},
+  				to: {
+  					opacity: '1',
+  					transform: 'translateY(0)'
+  				}
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'app-enter': 'app-enter 0.25s ease-out'
   		}
   	}
   },
